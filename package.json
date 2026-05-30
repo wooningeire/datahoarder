@@ -1,0 +1,86 @@
+{
+	"name": "@vaie/datahoarder",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"svelte": "./src/index.ts",
+	"types": "./src/index.ts",
+	"exports": {
+		".": {
+			"svelte": "./src/index.ts",
+			"types": "./src/index.ts",
+			"default": "./src/index.ts"
+		},
+		"./base": {
+			"types": "./src/base.ts",
+			"default": "./src/base.ts"
+		},
+		"./local-vault": {
+			"types": "./src/local-vault.ts",
+			"default": "./src/local-vault.ts"
+		},
+		"./markdown-preprocess": "./src/markdown-preprocess.js",
+		"./markdown-preprocess.js": "./src/markdown-preprocess.js",
+		"./markdown-render": {
+			"types": "./src/markdown-render.ts",
+			"default": "./src/markdown-render.ts"
+		},
+		"./note-tree": {
+			"types": "./src/note-tree.ts",
+			"default": "./src/note-tree.ts"
+		},
+		"./paths": {
+			"types": "./src/paths.ts",
+			"default": "./src/paths.ts"
+		},
+		"./raw-notes": {
+			"types": "./src/raw-notes.ts",
+			"default": "./src/raw-notes.ts"
+		},
+		"./server": {
+			"types": "./src/server.ts",
+			"default": "./src/server.ts"
+		},
+		"./LocalVaultShell.svelte": {
+			"svelte": "./src/LocalVaultShell.svelte",
+			"default": "./src/LocalVaultShell.svelte"
+		},
+		"./NotePage.svelte": {
+			"svelte": "./src/NotePage.svelte",
+			"default": "./src/NotePage.svelte"
+		},
+		"./NoteTree.svelte": {
+			"svelte": "./src/NoteTree.svelte",
+			"default": "./src/NoteTree.svelte"
+		},
+		"./VaultOverview.svelte": {
+			"svelte": "./src/VaultOverview.svelte",
+			"default": "./src/VaultOverview.svelte"
+		},
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"src",
+		"README.md"
+	],
+	"peerDependencies": {
+		"svelte": "^5.45.0"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-static": "^3.0.10",
+		"@sveltejs/kit": "^2.49.1",
+		"@sveltejs/vite-plugin-svelte": "^6.2.1",
+		"@types/node": "^24.10.1",
+		"svelte": "^5.45.6",
+		"svelte-check": "^4.3.4",
+		"typescript": "^5.9.3",
+		"vite": "^7.2.6"
+	},
+	"scripts": {
+		"dev": "vite dev --host 127.0.0.1",
+		"build": "vite build",
+		"preview": "vite preview --host 127.0.0.1",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+	}
+}

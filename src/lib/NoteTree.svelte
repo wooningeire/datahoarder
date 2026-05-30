@@ -1,6 +1,6 @@
 <script lang="ts">
 import { tick } from 'svelte';
-import type { NoteTreeDirectory, NoteTreeNode } from './note-tree';
+import type { NoteTreeDirectory, NoteTreeNode } from './note-tree.js';
 
 type Props = {
 	activePath: string;

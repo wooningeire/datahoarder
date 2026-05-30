@@ -1,8 +1,8 @@
 <script lang="ts">
 import type { Component } from 'svelte';
 import NoteTree from './NoteTree.svelte';
-import type { BaseView } from './base';
-import type { NoteTreeNode } from './note-tree';
+import type { BaseView } from './base.js';
+import type { NoteTreeNode } from './note-tree.js';
 
 type BaseData = {
 	content: string;

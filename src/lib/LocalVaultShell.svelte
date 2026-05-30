@@ -1,6 +1,6 @@
 <script lang="ts">
 import { onMount } from 'svelte';
-import { getBaseViews } from './base';
+import { getBaseViews } from './base.js';
 import {
 	buildLocalVaultTree,
 	canUseFileSystemAccess,
@@ -15,11 +15,11 @@ import {
 	type DatahoarderPermissionMode,
 	type LocalDirectoryHandle,
 	type LocalVaultFile
-} from './local-vault';
-import { renderPortableMarkdown } from './markdown-render';
+} from './local-vault.js';
+import { renderPortableMarkdown } from './markdown-render.js';
 import NoteTree from './NoteTree.svelte';
-import { getNoteTitle } from './paths';
-import { getRawPreview, isExcalidrawNote } from './raw-notes';
+import { getNoteTitle } from './paths.js';
+import { getRawPreview, isExcalidrawNote } from './raw-notes.js';
 
 type DatahoarderWindow = Window & {
 	monaco?: {

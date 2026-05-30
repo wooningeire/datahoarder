@@ -1,10 +1,10 @@
-import { buildNoteTree } from './note-tree';
+import { buildNoteTree } from './note-tree.js';
 import {
 	getNoteExtension,
 	getVaultRouteConfig,
 	stripCompiledNoteExtension,
 	type VaultRouteConfig
-} from './paths';
+} from './paths.js';
 
 export type DatahoarderPermissionMode = 'read' | 'readwrite';
 export type DatahoarderPermissionState = 'granted' | 'denied' | 'prompt';

@@ -1,5 +1,5 @@
-import { getDirectoryPath, joinRouteBase, stripCompiledNoteExtension } from './paths';
-import { stripFrontmatter } from './raw-notes';
+import { getDirectoryPath, joinRouteBase, stripCompiledNoteExtension } from './paths.js';
+import { stripFrontmatter } from './raw-notes.js';
 
 export type PortableMarkdownOptions = {
 	currentPath?: string;

@@ -4,7 +4,7 @@ import {
 	getVaultRouteConfig,
 	normalizeRoutePath,
 	type VaultRouteConfig
-} from './paths';
+} from './paths.js';
 
 type ModuleMap = Record<string, unknown>;
 

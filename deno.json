@@ -1,8 +1,12 @@
 {
 	"tasks": {
-		"dev": "npm run dev",
-		"build": "npm run build",
-		"preview": "npm run preview",
-		"check": "npm run check"
+		"dev": "vite dev --host 127.0.0.1",
+		"build": "vite build && deno task prepack",
+		"preview": "vite preview --host 127.0.0.1",
+		"prepare": "svelte-kit sync || echo ''",
+		"prepack": "svelte-kit sync && svelte-package && publint",
+		"check": "cmd /c npm run check",
+		"check:watch": "cmd /c npm run check:watch",
+		"pack": "npm pack --dry-run"
 	}
 }

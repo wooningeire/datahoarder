@@ -1,4 +1,4 @@
-import { joinRouteBase, toNotePath, type VaultRouteConfig } from './paths';
+import { joinRouteBase, toNotePath, type VaultRouteConfig } from './paths.js';
 
 export type NoteTreeNode = NoteTreeDirectory | NoteTreeFile;
 

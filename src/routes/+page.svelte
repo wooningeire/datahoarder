@@ -1,5 +1,5 @@
 <script lang="ts">
-	import LocalVaultShell from '../LocalVaultShell.svelte';
+	import LocalVaultShell from '$lib/LocalVaultShell.svelte';
 </script>
 
 <LocalVaultShell />

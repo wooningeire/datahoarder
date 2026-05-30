@@ -1,6 +1,6 @@
 <script lang="ts">
 import NoteTree from './NoteTree.svelte';
-import type { NoteTreeNode } from './note-tree';
+import type { NoteTreeNode } from './note-tree.js';
 
 type Props = {
 	directoryCount: number;

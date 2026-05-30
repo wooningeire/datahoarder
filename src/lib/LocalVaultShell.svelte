@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onMount } from 'svelte';
+import { onMount, tick } from 'svelte';
 import { getBaseViews } from './base.js';
 import {
 	buildLocalVaultTree,
@@ -21,7 +21,15 @@ import NoteTree from './NoteTree.svelte';
 import { getNoteTitle } from './paths.js';
 import { getRawPreview, isExcalidrawNote } from './raw-notes.js';
 
+type MathJaxApi = {
+	startup?: {
+		promise?: Promise<void>;
+	};
+	typesetPromise?: (elements?: Element[]) => Promise<void>;
+};
+
 type DatahoarderWindow = Window & {
+	MathJax?: MathJaxApi;
 	monaco?: {
 		editor: {
 			create: (element: HTMLElement, options: Record<string, unknown>) => MonacoEditor;
@@ -60,6 +68,7 @@ let editorHost: HTMLDivElement | undefined = $state();
 let monacoState = $state<'idle' | 'loading' | 'ready' | 'fallback'>('idle');
 let monacoEditor: MonacoEditor | null = null;
 let monacoSubscription: { dispose: () => void } | null = null;
+let mathTypesetToken = 0;
 
 let selectedFile = $derived(
 	files.find((file) => file.routePath === selectedPath) ??
@@ -97,6 +106,12 @@ let previewHtml = $derived.by(() => {
 	}
 
 	return '';
+});
+
+$effect(() => {
+	if (previewHtml) {
+		queuePreviewMathTypeset();
+	}
 });
 
 onMount(() => {
@@ -330,6 +345,29 @@ function updateMonacoLanguage(file: LocalVaultFile | null) {
 
 	win.monaco.editor.setModelLanguage(model, getEditorLanguage(file));
 }
+
+function queuePreviewMathTypeset() {
+	const token = ++mathTypesetToken;
+
+	void tick().then(async () => {
+		for (let attempt = 0; attempt < 8; attempt += 1) {
+			if (token !== mathTypesetToken) {
+				return;
+			}
+
+			const mathJax = (window as unknown as DatahoarderWindow).MathJax;
+
+			if (mathJax?.typesetPromise) {
+				await mathJax.startup?.promise;
+				await mathJax.typesetPromise([document.body]);
+				return;
+			}
+
+			await new Promise((resolve) => window.setTimeout(resolve, 250));
+		}
+	});
+}
+
 
 function getEditorLanguage(file: LocalVaultFile | null) {
 	if (!file) {

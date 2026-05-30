@@ -1,0 +1,81 @@
+* {
+	box-sizing: border-box;
+}
+
+:root {
+	--font-mono: "Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+	--font-sans: "Averia Libre", "Atkinson Hyperlegible Next", system-ui, sans-serif;
+}
+
+body {
+	margin: 0;
+	font-family: var(--font-sans);
+	letter-spacing: 0;
+}
+
+input,
+button,
+select,
+textarea,
+pre,
+code {
+	font-size: 1em;
+	color: inherit;
+}
+
+input,
+button,
+select,
+textarea {
+	font: inherit;
+}
+
+pre,
+code {
+	font-family: var(--font-mono);
+	letter-spacing: 0;
+	border: 1px solid oklch(0.5 0.08 220 / 0.25);
+	background: oklch(0.9 0.05 200 / 0.1);
+}
+
+pre {
+	padding: 0.5rem 1rem;
+	border-radius: 0.5rem;
+	tab-size: 4ch;
+}
+
+code {
+	padding: 0 0.25rem;
+	border-radius: 0.25rem;
+}
+
+pre code {
+	padding: 0;
+	border: 0;
+	background: none;
+}
+
+blockquote {
+	margin: 1rem 0;
+	padding: 0.5rem 1rem;
+	border: 1px solid oklch(0.5 0.08 180 / 0.25);
+	background: oklch(0.75 0.08 160 / 0.25);
+	border-radius: 1rem;
+}
+
+.math-display,
+mjx-container[display="true"] {
+	max-width: 100%;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+.math-display {
+	display: block;
+	margin: 1rem 0;
+	text-align: center;
+}
+
+mjx-container[display="true"] {
+	padding-block: 0.125rem;
+}

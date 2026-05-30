@@ -109,7 +109,21 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 		}
 
 		requestAnimationFrame(() => {
-			node.scrollIntoView({ block: 'center', inline: 'center' });
+			const list = node.closest('ul');
+
+			if (!list) {
+				return;
+			}
+
+			const listRect = list.getBoundingClientRect();
+			const nodeRect = node.getBoundingClientRect();
+			const nextScrollTop =
+				list.scrollTop + nodeRect.top + nodeRect.height / 2 - (listRect.top + list.clientHeight / 2);
+
+			list.scrollTo({
+				top: Math.max(0, nextScrollTop),
+				behavior: 'smooth'
+			});
 		});
 	}
 
@@ -183,6 +197,7 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 	padding-bottom: 0.35rem;
 	overflow-x: auto;
 	overflow-y: hidden;
+	overscroll-behavior: contain;
 	scroll-padding-inline: 0.25rem;
 	scroll-snap-type: x proximity;
 }
@@ -228,6 +243,7 @@ ul {
 	margin: 0;
 	padding: 0;
 	overflow-y: auto;
+	overscroll-behavior: contain;
 
 	list-style: none;
 }

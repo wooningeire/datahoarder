@@ -527,7 +527,7 @@ function escapeHtml(text: string) {
 	{/if}
 
 	<div class="workspace">
-		<aside class="sidebar" aria-label="Local vault">
+		<aside class="sidebar" class:has-assets={textAssets.length > 0} aria-label="Local vault">
 			<div class="sidebar-summary">
 				<span>{noteCount} notes</span>
 				<span>{textAssets.length} text assets</span>
@@ -628,8 +628,11 @@ function escapeHtml(text: string) {
 
 .datahoarder-shell {
 	display: grid;
-	grid-template-rows: auto auto minmax(0, 1fr);
-	min-height: 100vh;
+	grid-template-rows: auto auto auto minmax(0, 1fr);
+	height: 100vh;
+	height: 100dvh;
+	min-height: 0;
+	overflow: hidden;
 	color: oklch(0.22 0.035 245);
 }
 
@@ -733,8 +736,10 @@ button:disabled {
 
 .workspace {
 	display: grid;
+	grid-row: 4;
 	grid-template-columns: minmax(16rem, 24rem) minmax(20rem, 1fr) minmax(18rem, 0.85fr);
 	min-height: 0;
+	overflow: hidden;
 }
 
 .sidebar,
@@ -748,10 +753,14 @@ button:disabled {
 
 .sidebar {
 	display: grid;
-	grid-template-rows: auto minmax(0, 1fr) auto;
+	grid-template-rows: auto minmax(0, 1fr);
 	gap: 0.75rem;
 	padding: 0.85rem;
 	background: oklch(0.98 0.012 235);
+}
+
+.sidebar.has-assets {
+	grid-template-rows: auto minmax(10rem, 1fr) minmax(8rem, 16rem);
 }
 
 .sidebar-summary {
@@ -777,8 +786,9 @@ button:disabled {
 
 .asset-list {
 	display: grid;
+	grid-template-rows: auto minmax(0, 1fr);
 	gap: 0.4rem;
-	min-height: 8rem;
+	min-height: 0;
 	overflow: hidden;
 }
 
@@ -793,9 +803,11 @@ button:disabled {
 .asset-list ul {
 	display: grid;
 	gap: 0.15rem;
+	min-height: 0;
 	margin: 0;
 	padding: 0;
 	overflow: auto;
+	overscroll-behavior: contain;
 	list-style: none;
 }
 
@@ -1004,11 +1016,16 @@ pre {
 
 	.workspace {
 		grid-template-columns: 1fr;
+		overflow: auto;
 	}
 
 	.sidebar {
 		height: 42vh;
 		border-bottom: 1px solid oklch(0.8 0.025 235);
+	}
+
+	.sidebar.has-assets {
+		grid-template-rows: auto minmax(7rem, 1fr) minmax(6rem, 12rem);
 	}
 
 	.editor-pane {

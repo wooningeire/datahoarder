@@ -4,12 +4,19 @@ import { stripFrontmatter } from './raw-notes.js';
 export type PortableMarkdownOptions = {
 	currentPath?: string;
 	notePaths?: string[];
+	resolveNoteHref?: (notePath: string, heading: string) => string;
 	routeBase?: string;
 };
 
 type LinkLookup = {
 	byName: Map<string, string[]>;
 	byPath: Map<string, string>;
+};
+
+type RenderedLink = {
+	heading?: string;
+	href: string;
+	notePath?: string;
 };
 
 export function renderPortableMarkdown(content: string, options: PortableMarkdownOptions = {}) {
@@ -147,10 +154,26 @@ function renderInline(text: string, options: PortableMarkdownOptions) {
 			return escapeHtml(linkContent);
 		}
 
-		return `<a href="${escapeAttribute(link.href)}">${escapeHtml(link.label)}</a>`;
+		return renderAnchor(escapeHtml(link.label), link);
 	});
 
 	return rendered;
+}
+
+function renderAnchor(label: string, link: RenderedLink) {
+	return `<a href="${escapeAttribute(link.href)}"${getNoteDataAttributes(link)}>${label}</a>`;
+}
+
+function getNoteDataAttributes(link: RenderedLink) {
+	if (!link.notePath) {
+		return '';
+	}
+
+	const headingAttribute = link.heading
+		? ` data-note-heading="${escapeAttribute(link.heading)}"`
+		: '';
+
+	return ` data-note-path="${escapeAttribute(link.notePath)}"${headingAttribute}`;
 }
 
 function toObsidianLink(linkContent: string, options: PortableMarkdownOptions) {
@@ -176,10 +199,16 @@ function toObsidianLink(linkContent: string, options: PortableMarkdownOptions) {
 
 	const notePath = resolveObsidianNotePath(normalizedTarget, options);
 	const routeBase = options.routeBase ?? '';
+	const href = notePath
+		? (options.resolveNoteHref?.(notePath, heading) ??
+			`${joinRouteBase(routeBase, notePath)}${getObsidianHash(heading)}`)
+		: '#';
 
 	return {
-		href: notePath ? `${joinRouteBase(routeBase, notePath)}${getObsidianHash(heading)}` : '#',
-		label
+		heading,
+		href,
+		label,
+		notePath
 	};
 }
 

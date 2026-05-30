@@ -101,7 +101,7 @@ let previewHtml = $derived.by(() => {
 		return renderPortableMarkdown(selectedContent, {
 			currentPath: selectedFile.routePath,
 			notePaths,
-			routeBase: '/datahoarder'
+			resolveNoteHref: getLocalNoteHref
 		});
 	}
 
@@ -258,6 +258,56 @@ async function saveSelectedFile() {
 	} finally {
 		saving = false;
 	}
+}
+
+function getLocalNoteHref(notePath: string, heading: string) {
+	const params = new URLSearchParams({ note: notePath });
+
+	if (heading) {
+		params.set('heading', heading);
+	}
+
+	return `#${params.toString()}`;
+}
+
+function handlePreviewClick(event: MouseEvent) {
+	if (
+		event.defaultPrevented ||
+		event.button !== 0 ||
+		event.metaKey ||
+		event.ctrlKey ||
+		event.shiftKey ||
+		event.altKey
+	) {
+		return;
+	}
+
+	const target = event.target instanceof Element ? event.target : null;
+	const anchor = target?.closest<HTMLAnchorElement>('a[data-note-path]');
+	const notePath = anchor?.dataset.notePath;
+
+	if (!notePath) {
+		return;
+	}
+
+	event.preventDefault();
+
+	if (!files.some((file) => file.routePath === notePath || file.path === notePath)) {
+		status = `Linked note not found: ${notePath}`;
+		return;
+	}
+
+	void selectFile(notePath);
+}
+
+function previewLinkNavigation(node: HTMLElement) {
+	node.addEventListener('click', handlePreviewClick);
+
+	return {
+		destroy() {
+			node.removeEventListener('click', handlePreviewClick);
+		}
+	};
 }
 
 async function initializeMonaco() {
@@ -552,7 +602,7 @@ function escapeHtml(text: string) {
 
 				<pre>{selectedContent}</pre>
 			{:else if previewHtml}
-				<article class="markdown-preview">
+				<article class="markdown-preview" use:previewLinkNavigation>
 					{@html previewHtml}
 				</article>
 			{:else if selectedFile}

@@ -1,12 +1,17 @@
 <script lang="ts">
-import { tick } from 'svelte';
 import type { NoteTreeDirectory, NoteTreeNode } from './note-tree.js';
 
 type Props = {
 	activePath: string;
 	nodes: NoteTreeNode[];
 	onSelect?: (path: string) => void;
+	rootLabel?: string;
 };
+
+let { activePath, nodes, onSelect, rootLabel = 'Notes' }: Props = $props();
+let selectedDirectoryPaths = $state<string[]>([]);
+let activeDirectoryPaths = $derived(findActiveDirectoryPaths(nodes, activePath));
+let columns = $derived(buildColumns(nodes, selectedDirectoryPaths, rootLabel));
 
 type NoteColumn = {
 	key: string;
@@ -15,15 +20,8 @@ type NoteColumn = {
 	items: NoteTreeNode[];
 };
 
-let { activePath, nodes, onSelect }: Props = $props();
-let columnViewport: HTMLElement | undefined = $state();
-let selectedDirectoryPaths = $state<string[]>([]);
-let activeDirectoryPaths = $derived(findActiveDirectoryPaths(nodes, activePath));
-let columns = $derived(buildColumns(nodes, selectedDirectoryPaths));
-
 $effect(() => {
 	selectedDirectoryPaths = activeDirectoryPaths;
-	scrollColumnsToEnd();
 });
 
 function isActive(path: string) {
@@ -36,14 +34,13 @@ function isSelected(path: string, level: number) {
 
 function selectDirectory(node: NoteTreeDirectory, level: number) {
 	selectedDirectoryPaths = [...selectedDirectoryPaths.slice(0, level), node.path];
-	scrollColumnsToEnd();
 }
 
-function buildColumns(rootNodes: NoteTreeNode[], selectedPaths: string[]): NoteColumn[] {
+function buildColumns(rootNodes: NoteTreeNode[], selectedPaths: string[], rootColumnLabel: string): NoteColumn[] {
 	const nextColumns: NoteColumn[] = [
 		{
 			key: 'root',
-			label: 'Notes',
+			label: rootColumnLabel,
 			level: 0,
 			items: rootNodes
 		}
@@ -91,17 +88,6 @@ function isPathInsideDirectory(path: string, directoryPath: string) {
 	return path.startsWith(`${directoryPath}/`);
 }
 
-async function scrollColumnsToEnd() {
-	await tick();
-
-	requestAnimationFrame(() => {
-		columnViewport?.scrollTo({
-			left: columnViewport.scrollWidth,
-			behavior: 'smooth'
-		});
-	});
-}
-
 function scrollCurrentNote(node: HTMLElement, active: boolean) {
 	function scroll() {
 		if (!active) {
@@ -109,18 +95,21 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 		}
 
 		requestAnimationFrame(() => {
-			const list = node.closest('ul');
+			const columns = node.closest<HTMLElement>('.note-columns');
 
-			if (!list) {
+			if (!columns) {
 				return;
 			}
 
-			const listRect = list.getBoundingClientRect();
+			const columnsRect = columns.getBoundingClientRect();
 			const nodeRect = node.getBoundingClientRect();
 			const nextScrollTop =
-				list.scrollTop + nodeRect.top + nodeRect.height / 2 - (listRect.top + list.clientHeight / 2);
+				columns.scrollTop +
+				nodeRect.top +
+				nodeRect.height / 2 -
+				(columnsRect.top + columns.clientHeight / 2);
 
-			list.scrollTo({
+			columns.scrollTo({
 				top: Math.max(0, nextScrollTop),
 				behavior: 'smooth'
 			});
@@ -138,7 +127,7 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 }
 </script>
 
-<div class="note-columns" aria-label="Directory columns" bind:this={columnViewport}>
+<div class="note-columns" aria-label="Directory columns">
 	{#each columns as column (column.key)}
 		<section class="note-column" aria-labelledby={`note-column-${column.level}`}>
 			<h2 id={`note-column-${column.level}`}>{column.label}</h2>
@@ -191,27 +180,20 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 <style>
 .note-columns {
 	display: flex;
+	align-items: flex-start;
 	gap: 0.5rem;
 	height: 100%;
 	min-height: 0;
 	padding-bottom: 0.35rem;
-	overflow-x: auto;
-	overflow-y: hidden;
+	overflow: auto;
 	overscroll-behavior: contain;
-	scroll-padding-inline: 0.25rem;
-	scroll-snap-type: x proximity;
 }
 
 .note-column {
-	display: grid;
-	grid-template-rows: auto minmax(0, 1fr);
-	flex: 0 0 min(14rem, calc(100% - 0.25rem));
+	flex: 0 0 min(10rem, calc((100% - 0.5rem) / 2));
 	min-width: 0;
-	min-height: 0;
 	padding-right: 0.5rem;
-
 	border-right: 1px solid oklch(0.78 0.04 250 / 0.55);
-	scroll-snap-align: start;
 }
 
 .note-column:last-child {
@@ -221,9 +203,7 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 h2 {
 	margin: 0 0 0.45rem;
 	padding: 0 0.45rem;
-
 	overflow: hidden;
-
 	color: oklch(0.42 0.06 255);
 	font-family: var(--font-mono);
 	font-size: 0.72rem;
@@ -239,12 +219,8 @@ ul {
 	display: grid;
 	align-content: start;
 	gap: 0.125rem;
-	min-height: 0;
 	margin: 0;
 	padding: 0;
-	overflow-y: auto;
-	overscroll-behavior: contain;
-
 	list-style: none;
 }
 
@@ -261,12 +237,10 @@ a {
 	width: 100%;
 	min-height: 1.75rem;
 	padding: 0.15rem 0.45rem;
-
 	color: oklch(0.28 0.04 255);
 	font: inherit;
 	text-align: left;
 	text-decoration: none;
-
 	background: transparent;
 	border: 0;
 	border-radius: 0.35rem;
@@ -370,7 +344,6 @@ button:focus-visible {
 .selected {
 	color: oklch(0.22 0.08 255);
 	font-weight: 700;
-
 	background: oklch(0.9 0.05 225);
 }
 

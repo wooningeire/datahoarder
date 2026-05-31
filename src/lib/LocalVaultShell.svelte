@@ -5,7 +5,6 @@ import {
 	buildLocalVaultTree,
 	canUseFileSystemAccess,
 	getStoredVaultHandle,
-	getTextAssets,
 	isEditableTextFile,
 	readLocalFile,
 	readLocalVault,
@@ -60,7 +59,7 @@ let files = $state<LocalVaultFile[]>([]);
 let selectedPath = $state('');
 let selectedContent = $state('');
 let savedContent = $state('');
-let status = $state('Choose a local notes folder to begin.');
+let status = $state('Choose a local folder to begin.');
 let loading = $state(false);
 let saving = $state(false);
 let errorMessage = $state('');
@@ -71,12 +70,11 @@ let monacoSubscription: { dispose: () => void } | null = null;
 let mathTypesetToken = 0;
 
 let selectedFile = $derived(
-	files.find((file) => file.routePath === selectedPath) ??
-		files.find((file) => file.path === selectedPath) ??
+	files.find((file) => file.path === selectedPath) ??
+		files.find((file) => file.routePath === selectedPath) ??
 		null
 );
-let noteTree = $derived(buildLocalVaultTree(files));
-let textAssets = $derived(getTextAssets(files));
+let fileTree = $derived(buildLocalVaultTree(files));
 let noteCount = $derived(files.filter((file) => file.extension === '.md' || file.extension === '.svx').length);
 let dirty = $derived(selectedContent !== savedContent);
 let baseViews = $derived(selectedFile?.extension === '.base' ? getBaseViews(selectedContent) : []);
@@ -215,13 +213,13 @@ async function loadVault(handle: LocalDirectoryHandle, nextStatus: string) {
 	}
 }
 
-async function selectFile(routePath: string) {
+async function selectFile(filePath: string) {
 	if (dirty && !window.confirm('Discard unsaved edits?')) {
 		return;
 	}
 
 	const nextFile =
-		files.find((file) => file.routePath === routePath) ?? files.find((file) => file.path === routePath);
+		files.find((file) => file.path === filePath) ?? files.find((file) => file.routePath === filePath);
 
 	if (!nextFile || !isEditableTextFile(nextFile.path)) {
 		return;
@@ -229,7 +227,7 @@ async function selectFile(routePath: string) {
 
 	try {
 		errorMessage = '';
-		selectedPath = nextFile.routePath;
+		selectedPath = nextFile.path;
 		const content = await readLocalFile(nextFile);
 		selectedContent = content;
 		savedContent = content;
@@ -451,18 +449,6 @@ function getErrorMessage(error: unknown) {
 	return error instanceof Error ? error.message : 'Unknown error';
 }
 
-function formatBytes(bytes: number) {
-	if (bytes < 1024) {
-		return `${bytes} B`;
-	}
-
-	if (bytes < 1024 * 1024) {
-		return `${(bytes / 1024).toFixed(1)} KB`;
-	}
-
-	return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
 function escapeHtml(text: string) {
 	return text.replace(/[&<>"']/gu, (character) => {
 		switch (character) {
@@ -491,7 +477,7 @@ function escapeHtml(text: string) {
 	<header class="topbar">
 		<div>
 			<p>Datahoarder</p>
-			<h1>Local Notes</h1>
+			<h1>Local Vault</h1>
 		</div>
 
 		<div class="actions">
@@ -527,36 +513,16 @@ function escapeHtml(text: string) {
 	{/if}
 
 	<div class="workspace">
-		<aside class="sidebar" class:has-assets={textAssets.length > 0} aria-label="Local vault">
+		<aside class="sidebar" aria-label="Local vault">
 			<div class="sidebar-summary">
+				<span>{files.length} files</span>
 				<span>{noteCount} notes</span>
-				<span>{textAssets.length} text assets</span>
 			</div>
 
-			{#if noteTree.length}
-				<NoteTree nodes={noteTree} activePath={selectedPath} onSelect={selectFile} />
+			{#if fileTree.length}
+				<NoteTree nodes={fileTree} activePath={selectedPath} onSelect={selectFile} rootLabel="Files" />
 			{:else}
-				<p class="empty-state">No markdown, SVX, Svelte, or base notes are indexed yet.</p>
-			{/if}
-
-			{#if textAssets.length}
-				<section class="asset-list" aria-labelledby="text-assets-heading">
-					<h2 id="text-assets-heading">Text Assets</h2>
-					<ul>
-						{#each textAssets as file (file.path)}
-							<li>
-								<button
-									type="button"
-									class:active={selectedFile?.path === file.path}
-									onclick={() => selectFile(file.routePath)}
-								>
-									<span>{file.path}</span>
-									<small>{formatBytes(file.size)}</small>
-								</button>
-							</li>
-						{/each}
-					</ul>
-				</section>
+				<p class="empty-state">No editable text files are indexed yet.</p>
 			{/if}
 		</aside>
 
@@ -577,7 +543,7 @@ function escapeHtml(text: string) {
 			{:else}
 				<div class="empty-editor">
 					<h2>No File Selected</h2>
-					<p>Open a folder, then choose a note or text asset.</p>
+					<p>Open a folder, then choose a file.</p>
 				</div>
 			{/if}
 		</section>
@@ -759,10 +725,6 @@ button:disabled {
 	background: oklch(0.98 0.012 235);
 }
 
-.sidebar.has-assets {
-	grid-template-rows: auto minmax(10rem, 1fr) minmax(8rem, 16rem);
-}
-
 .sidebar-summary {
 	display: flex;
 	flex-wrap: wrap;
@@ -782,59 +744,6 @@ button:disabled {
 .preview-empty p,
 .empty-editor p {
 	color: oklch(0.42 0.035 245);
-}
-
-.asset-list {
-	display: grid;
-	grid-template-rows: auto minmax(0, 1fr);
-	gap: 0.4rem;
-	min-height: 0;
-	overflow: hidden;
-}
-
-.asset-list h2 {
-	margin: 0;
-	color: oklch(0.42 0.06 255);
-	font-family: var(--font-mono);
-	font-size: 0.72rem;
-	text-transform: uppercase;
-}
-
-.asset-list ul {
-	display: grid;
-	gap: 0.15rem;
-	min-height: 0;
-	margin: 0;
-	padding: 0;
-	overflow: auto;
-	overscroll-behavior: contain;
-	list-style: none;
-}
-
-.asset-list button {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	gap: 0.5rem;
-	width: 100%;
-	text-align: left;
-	background: transparent;
-	border-color: transparent;
-}
-
-.asset-list button.active {
-	font-weight: 700;
-	background: oklch(0.87 0.055 205);
-}
-
-.asset-list span {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.asset-list small {
-	color: oklch(0.44 0.035 245);
-	font-family: var(--font-mono);
 }
 
 .editor-pane {
@@ -1022,10 +931,6 @@ pre {
 	.sidebar {
 		height: 42vh;
 		border-bottom: 1px solid oklch(0.8 0.025 235);
-	}
-
-	.sidebar.has-assets {
-		grid-template-rows: auto minmax(7rem, 1fr) minmax(6rem, 12rem);
 	}
 
 	.editor-pane {

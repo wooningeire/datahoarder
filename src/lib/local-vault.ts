@@ -1,7 +1,6 @@
-import { buildNoteTree } from './note-tree.js';
+import type { NoteTreeDirectory, NoteTreeNode } from './note-tree.js';
 import {
 	getNoteExtension,
-	getVaultRouteConfig,
 	stripCompiledNoteExtension,
 	type VaultRouteConfig
 } from './paths.js';
@@ -57,17 +56,56 @@ export async function readLocalVault(handle: LocalDirectoryHandle) {
 	return files.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
 }
 
-export function buildLocalVaultTree(files: LocalVaultFile[], config: VaultRouteConfig = {}) {
-	const { rootModulePath } = getVaultRouteConfig({
-		rootModulePath: '/local/',
-		routeBase: '',
-		...config
-	});
-	const modulePaths = files
-		.filter((file) => getNoteExtension(file.path))
-		.map((file) => `${rootModulePath}${file.path}`);
+export function buildLocalVaultTree(files: LocalVaultFile[], _config: VaultRouteConfig = {}) {
+	const root: NoteTreeDirectory = {
+		kind: 'directory',
+		name: '',
+		path: '',
+		children: []
+	};
+	const directoryLookup = new Map<string, NoteTreeDirectory>([['', root]]);
 
-	return buildNoteTree(modulePaths, { rootModulePath, routeBase: config.routeBase ?? '' });
+	for (const file of files) {
+		const segments = file.path.split('/');
+		const fileName = segments.pop();
+
+		if (!fileName) {
+			continue;
+		}
+
+		let parent = root;
+		let parentPath = '';
+
+		for (const segment of segments) {
+			parentPath = parentPath ? `${parentPath}/${segment}` : segment;
+
+			let directory = directoryLookup.get(parentPath);
+
+			if (!directory) {
+				directory = {
+					kind: 'directory',
+					name: segment,
+					path: parentPath,
+					children: []
+				};
+
+				directoryLookup.set(parentPath, directory);
+				parent.children.push(directory);
+			}
+
+			parent = directory;
+		}
+
+		parent.children.push({
+			kind: 'file',
+			name: fileName,
+			path: file.path,
+			href: file.routePath
+		});
+	}
+
+	sortLocalTree(root.children);
+	return root.children;
 }
 
 export function getTextAssets(files: LocalVaultFile[]) {
@@ -199,4 +237,20 @@ function requestValue<T>(request: IDBRequest<T>) {
 		request.onerror = () => reject(request.error);
 		request.onsuccess = () => resolve(request.result);
 	});
+}
+
+function sortLocalTree(nodes: NoteTreeNode[]) {
+	nodes.sort((a, b) => {
+		if (a.kind !== b.kind) {
+			return a.kind === 'directory' ? -1 : 1;
+		}
+
+		return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+	});
+
+	for (const node of nodes) {
+		if (node.kind === 'directory') {
+			sortLocalTree(node.children);
+		}
+	}
 }

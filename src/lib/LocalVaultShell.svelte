@@ -2,6 +2,14 @@
 import { onMount, tick } from 'svelte';
 import { getBaseViews } from './base.js';
 import {
+	filterCollectionRecords,
+	formatCollectionRecordValue,
+	isDatahoarderCollectionFile,
+	resolveDatahoarderCollection,
+	sortCollectionRecords,
+	type ResolvedCollection
+} from './collection.js';
+import {
 	buildLocalVaultTree,
 	canUseFileSystemAccess,
 	getStoredVaultHandle,
@@ -19,6 +27,7 @@ import { renderPortableMarkdown } from './markdown-render.js';
 import NoteTree from './NoteTree.svelte';
 import { getNoteTitle } from './paths.js';
 import { getRawPreview, isExcalidrawNote } from './raw-notes.js';
+import { buildLocalVaultIndex, createEmptyVaultIndex, type VaultIndex, type VaultRecord } from './vault-index.js';
 
 type MathJaxApi = {
 	startup?: {
@@ -56,6 +65,7 @@ const monacoCdnBase = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs'
 let supported = $state(false);
 let vaultHandle = $state<LocalDirectoryHandle | null>(null);
 let files = $state<LocalVaultFile[]>([]);
+let vaultIndex = $state<VaultIndex>(createEmptyVaultIndex());
 let selectedPath = $state('');
 let selectedContent = $state('');
 let savedContent = $state('');
@@ -63,6 +73,9 @@ let status = $state('Choose a local folder to begin.');
 let loading = $state(false);
 let saving = $state(false);
 let errorMessage = $state('');
+let collectionFilter = $state('');
+let collectionSortColumn = $state('title');
+let collectionSortDirection = $state<'asc' | 'desc'>('asc');
 let editorHost: HTMLDivElement | undefined = $state();
 let monacoState = $state<'idle' | 'loading' | 'ready' | 'fallback'>('idle');
 let monacoEditor: MonacoEditor | null = null;
@@ -78,6 +91,29 @@ let fileTree = $derived(buildLocalVaultTree(files));
 let noteCount = $derived(files.filter((file) => file.extension === '.md' || file.extension === '.svx').length);
 let dirty = $derived(selectedContent !== savedContent);
 let baseViews = $derived(selectedFile?.extension === '.base' ? getBaseViews(selectedContent) : []);
+let selectedCollection = $derived.by<ResolvedCollection | null>(() => {
+	if (!selectedFile || !isDatahoarderCollectionFile(selectedFile.path)) {
+		return null;
+	}
+
+	return resolveDatahoarderCollection(selectedContent, selectedFile.path, vaultIndex);
+});
+let collectionRecords = $derived.by(() => {
+	if (!selectedCollection) {
+		return [];
+	}
+
+	const filteredRecords = filterCollectionRecords(
+		selectedCollection.records,
+		collectionFilter,
+		selectedCollection.columns
+	);
+	const sortColumn = selectedCollection.columns.includes(collectionSortColumn)
+		? collectionSortColumn
+		: (selectedCollection.columns[0] ?? 'title');
+
+	return sortCollectionRecords(filteredRecords, sortColumn, collectionSortDirection);
+});
 let previewHtml = $derived.by(() => {
 	if (!selectedFile) {
 		return '';
@@ -109,6 +145,16 @@ let previewHtml = $derived.by(() => {
 $effect(() => {
 	if (previewHtml) {
 		queuePreviewMathTypeset();
+	}
+});
+
+$effect(() => {
+	if (!selectedCollection) {
+		return;
+	}
+
+	if (!selectedCollection.columns.includes(collectionSortColumn)) {
+		collectionSortColumn = selectedCollection.columns[0] ?? 'title';
 	}
 });
 
@@ -200,8 +246,12 @@ async function loadVault(handle: LocalDirectoryHandle, nextStatus: string) {
 	errorMessage = '';
 
 	try {
-		files = await readLocalVault(handle);
-		status = `${nextStatus} ${files.length} editable files indexed.`;
+		const nextFiles = await readLocalVault(handle);
+		const nextVaultIndex = await buildLocalVaultIndex(nextFiles);
+
+		files = nextFiles;
+		vaultIndex = nextVaultIndex;
+		status = `${nextStatus} ${files.length} editable files indexed, ${vaultIndex.records.length} notes parsed.`;
 
 		if (!selectedFile && files.length) {
 			await selectFile(files[0].routePath);
@@ -250,6 +300,7 @@ async function saveSelectedFile() {
 	try {
 		await writeLocalFile(selectedFile, selectedContent);
 		savedContent = selectedContent;
+		vaultIndex = await buildLocalVaultIndex(files);
 		status = `Saved ${selectedFile.path}`;
 	} catch (error) {
 		errorMessage = getErrorMessage(error);
@@ -306,6 +357,32 @@ function previewLinkNavigation(node: HTMLElement) {
 			node.removeEventListener('click', handlePreviewClick);
 		}
 	};
+}
+
+function sortCollectionBy(column: string) {
+	if (collectionSortColumn === column) {
+		collectionSortDirection = collectionSortDirection === 'asc' ? 'desc' : 'asc';
+		return;
+	}
+
+	collectionSortColumn = column;
+	collectionSortDirection = 'asc';
+}
+
+function getCollectionSortIndicator(column: string) {
+	if (collectionSortColumn !== column) {
+		return '';
+	}
+
+	return collectionSortDirection;
+}
+
+function getCollectionColumnLabel(column: string) {
+	return column.replace(/[-_]+/gu, ' ').replace(/\b\w/gu, (character) => character.toUpperCase());
+}
+
+function openCollectionRecord(record: VaultRecord) {
+	void selectFile(record.routePath);
 }
 
 async function initializeMonaco() {
@@ -549,7 +626,81 @@ function escapeHtml(text: string) {
 		</section>
 
 		<section class="preview-pane" aria-label="Preview">
-			{#if selectedFile?.extension === '.base'}
+			{#if selectedCollection}
+				<article class="collection-preview">
+					<header>
+						<p>{selectedCollection.view.type} collection</p>
+						<h2>{selectedCollection.definition.name}</h2>
+					</header>
+
+					<div class="collection-toolbar">
+						<span>
+							{collectionRecords.length} of {selectedCollection.records.length} records
+						</span>
+						<input
+							type="search"
+							bind:value={collectionFilter}
+							placeholder="Filter records"
+							aria-label="Filter collection records"
+						/>
+					</div>
+
+					{#if collectionRecords.length}
+						<div class="collection-table-wrap">
+							<table>
+								<thead>
+									<tr>
+										{#each selectedCollection.columns as column}
+											<th>
+												<button
+													type="button"
+													class="table-sort"
+													onclick={() => sortCollectionBy(column)}
+													aria-label={`Sort by ${getCollectionColumnLabel(column)}`}
+												>
+													<span>{getCollectionColumnLabel(column)}</span>
+													<small>{getCollectionSortIndicator(column)}</small>
+												</button>
+											</th>
+										{/each}
+									</tr>
+								</thead>
+								<tbody>
+									{#each collectionRecords as record}
+										<tr>
+											{#each selectedCollection.columns as column}
+												<td>
+													{#if column === 'title'}
+														<button
+															type="button"
+															class="record-link"
+															onclick={() => openCollectionRecord(record)}
+														>
+															{formatCollectionRecordValue(record, column)}
+														</button>
+													{:else}
+														{formatCollectionRecordValue(record, column)}
+													{/if}
+												</td>
+											{/each}
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{:else}
+						<div class="preview-empty collection-empty">
+							<h2>No Records</h2>
+							<p>Adjust the collection source or clear the filter.</p>
+						</div>
+					{/if}
+
+					<details class="collection-source">
+						<summary>Source</summary>
+						<pre>{selectedContent}</pre>
+					</details>
+				</article>
+			{:else if selectedFile?.extension === '.base'}
 				<header>
 					<p>.base</p>
 					<h2>{getNoteTitle(selectedFile.path)}</h2>
@@ -845,6 +996,139 @@ textarea {
 	font-family: var(--font-mono);
 	font-size: 0.75rem;
 	text-transform: uppercase;
+}
+
+.collection-preview {
+	display: grid;
+	gap: 0.85rem;
+	min-width: 0;
+}
+
+.collection-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.65rem;
+}
+
+.collection-toolbar span {
+	color: oklch(0.38 0.04 245);
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+}
+
+.collection-toolbar input {
+	min-width: min(100%, 14rem);
+	min-height: 2rem;
+	padding: 0.3rem 0.5rem;
+	color: inherit;
+	background: oklch(0.98 0.01 95);
+	border: 1px solid oklch(0.76 0.04 105);
+	border-radius: 0.35rem;
+}
+
+.collection-toolbar input:focus-visible {
+	outline: 2px solid oklch(0.55 0.13 205);
+	outline-offset: 2px;
+}
+
+.collection-table-wrap {
+	max-width: 100%;
+	overflow: auto;
+	border: 1px solid oklch(0.78 0.04 100);
+	border-radius: 0.35rem;
+}
+
+table {
+	width: 100%;
+	min-width: 36rem;
+	border-collapse: collapse;
+	background: oklch(0.995 0.005 95);
+}
+
+th,
+td {
+	padding: 0.5rem 0.6rem;
+	text-align: left;
+	vertical-align: top;
+	border-bottom: 1px solid oklch(0.86 0.025 100);
+}
+
+th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: oklch(0.96 0.025 105);
+}
+
+tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+td {
+	max-width: 18rem;
+	overflow-wrap: anywhere;
+	font-size: 0.9rem;
+}
+
+.table-sort,
+.record-link {
+	min-height: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: none;
+}
+
+.table-sort {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.5rem;
+	width: 100%;
+	color: oklch(0.28 0.05 245);
+	font-weight: 700;
+}
+
+.table-sort:hover:not(:disabled),
+.record-link:hover:not(:disabled) {
+	background: none;
+}
+
+.table-sort small {
+	color: oklch(0.4 0.08 180);
+	font-family: var(--font-mono);
+	font-size: 0.68rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.record-link {
+	color: oklch(0.34 0.1 190);
+	font-weight: 700;
+	text-align: left;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.16em;
+}
+
+.collection-source {
+	display: grid;
+	gap: 0.55rem;
+}
+
+.collection-source summary {
+	width: fit-content;
+	color: oklch(0.3 0.05 245);
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.collection-empty {
+	min-height: 12rem;
+	border: 1px dashed oklch(0.78 0.04 100);
+	border-radius: 0.35rem;
 }
 
 pre {

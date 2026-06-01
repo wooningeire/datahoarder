@@ -17,6 +17,31 @@ Open the URL Vite prints, then choose your notes folder, usually `C:\Users\V\_\o
 
 The shell intentionally previews portable markdown and `.base` files only. Custom Svelte execution stays in the private notes SvelteKit project.
 
+## Native Collections
+
+Datahoarder collection files use explicit sources instead of querying every vault file by default.
+Create a `*.dhbase.yaml` or `*.collection.yaml` file in the opened vault:
+
+```yaml
+source:
+  folders: [applications/]
+  match:
+    status:
+      exists: true
+
+schema:
+  company: text
+  role: text
+  status: enum
+  applied: date
+
+views:
+  - name: Applications
+    type: table
+```
+
+Source paths are resolved relative to the collection file first, with vault-root paths still accepted as a fallback. Selecting the collection file in the local shell renders matching Markdown notes as a sortable, filterable table. The Markdown files remain the source of truth; Datahoarder rebuilds the in-memory vault index from local files.
+
 ## Package Boundary
 
 This repo follows the Svelte library template shape:

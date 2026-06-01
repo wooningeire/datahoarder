@@ -41,8 +41,10 @@ let { directoryCount, noteCount, noteTree, routeBase = '/notes', title = 'Notes'
 
 <style>
 .note-layout {
+	--note-sidebar-width: 20rem;
+
 	display: grid;
-	grid-template-columns: minmax(15rem, 30rem) 1px minmax(0, 1fr);
+	grid-template-columns: var(--note-sidebar-width) 1px minmax(0, 1fr);
 	min-height: 100vh;
 }
 
@@ -127,7 +129,7 @@ main {
 	border-radius: 0.4rem;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1100px) {
 	.note-layout {
 		grid-template-columns: 1fr;
 	}

@@ -701,9 +701,11 @@ button:disabled {
 }
 
 .workspace {
+	--vault-sidebar-width: 32rem;
+
 	display: grid;
 	grid-row: 4;
-	grid-template-columns: minmax(16rem, 24rem) minmax(20rem, 1fr) minmax(18rem, 0.85fr);
+	grid-template-columns: var(--vault-sidebar-width) minmax(20rem, 1fr) minmax(18rem, 0.85fr);
 	min-height: 0;
 	overflow: hidden;
 }
@@ -896,9 +898,9 @@ pre {
 	border-radius: 0.35rem;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1340px) {
 	.workspace {
-		grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr);
+		grid-template-columns: var(--vault-sidebar-width) minmax(0, 1fr);
 	}
 
 	.preview-pane {

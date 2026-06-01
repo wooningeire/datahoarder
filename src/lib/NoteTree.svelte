@@ -179,9 +179,13 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 
 <style>
 .note-columns {
-	display: flex;
-	align-items: flex-start;
+	--note-column-width: 14rem;
+
+	display: grid;
+	grid-auto-columns: var(--note-column-width);
+	grid-auto-flow: column;
 	gap: 0.5rem;
+	align-items: stretch;
 	height: 100%;
 	min-height: 0;
 	padding-bottom: 0.35rem;
@@ -190,14 +194,14 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 }
 
 .note-column {
-	flex: 0 0 min(10rem, calc((100% - 0.5rem) / 2));
+	min-height: 100%;
 	min-width: 0;
 	padding-right: 0.5rem;
 	border-right: 1px solid oklch(0.78 0.04 250 / 0.55);
 }
 
 .note-column:last-child {
-	border-right: none;
+	border-right-color: transparent;
 }
 
 h2 {

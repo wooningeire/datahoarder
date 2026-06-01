@@ -89,8 +89,10 @@ let Note = $derived(data.kind === 'compiled' ? data.component : null);
 
 <style>
 .note-layout {
+	--note-sidebar-width: 32rem;
+
 	display: grid;
-	grid-template-columns: minmax(15rem, 22rem) 1px minmax(0, 1fr);
+	grid-template-columns: var(--note-sidebar-width) 1px minmax(0, 1fr);
 	min-height: 100vh;
 }
 
@@ -231,7 +233,7 @@ main {
 	white-space: pre-wrap;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1100px) {
 	.note-layout {
 		grid-template-columns: 1fr;
 	}

@@ -25,16 +25,21 @@
 		"monaco-editor": "^0.55.1"
 	},
 	"devDependencies": {
+		"@playwright/test": "^1.57.0",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.61.1",
 		"@sveltejs/package": "^2.5.7",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@types/node": "^25.9.1",
+		"@vitest/browser-playwright": "^4.0.15",
+		"playwright": "^1.57.0",
 		"publint": "^0.3.21",
 		"svelte": "^5.56.1",
 		"svelte-check": "^4.5.0",
 		"typescript": "^6.0.3",
-		"vite": "^8.0.16"
+		"vite": "^8.0.16",
+		"vitest": "^4.0.15",
+		"vitest-browser-svelte": "^2.0.1"
 	},
 	"scripts": {
 		"dev": "vite dev",
@@ -43,7 +48,10 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"prepack": "svelte-kit sync && svelte-package && publint",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"test:unit": "vitest",
+		"test": "npm run test:unit -- --run && npm run test:e2e",
+		"test:e2e": "playwright test"
 	},
 	"keywords": [
 		"svelte",

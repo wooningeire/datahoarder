@@ -624,10 +624,17 @@ function escapeHtml(text: string) {
 					<span>{selectedFile.path}</span>
 				</header>
 
-				<div class:hidden={monacoState !== 'ready'} class="monaco-host" bind:this={editorHost}></div>
-				{#if monacoState !== 'ready'}
-					<textarea bind:value={selectedContent} spellcheck="false" aria-label="File source"></textarea>
-				{/if}
+				<div class="source-editor">
+					<div class:monaco-pending={monacoState !== 'ready'} class="monaco-host" bind:this={editorHost}></div>
+					{#if monacoState !== 'ready'}
+						<textarea
+							class="fallback-editor"
+							bind:value={selectedContent}
+							spellcheck="false"
+							aria-label="File source"
+						></textarea>
+					{/if}
+				</div>
 			{:else}
 				<div class="empty-editor">
 					<h2>No File Selected</h2>
@@ -939,18 +946,30 @@ button:disabled {
 	white-space: nowrap;
 }
 
+.source-editor,
 .monaco-host,
-textarea {
+.fallback-editor {
 	width: 100%;
 	height: 100%;
 	min-height: 0;
 }
 
-.hidden {
-	display: none;
+.source-editor {
+	position: relative;
+	overflow: hidden;
 }
 
-textarea {
+.monaco-pending {
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.fallback-editor {
+	position: absolute;
+	inset: 0;
+}
+
+.fallback-editor {
 	resize: none;
 	padding: 0.85rem;
 	color: oklch(0.21 0.035 245);

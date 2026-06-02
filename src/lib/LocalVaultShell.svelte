@@ -1,4 +1,5 @@
 <script lang="ts">
+import * as monaco from 'monaco-editor';
 import { onMount, tick } from 'svelte';
 import { getBaseViews } from './base.js';
 import {
@@ -38,29 +39,15 @@ type MathJaxApi = {
 
 type DatahoarderWindow = Window & {
 	MathJax?: MathJaxApi;
-	monaco?: {
-		editor: {
-			create: (element: HTMLElement, options: Record<string, unknown>) => MonacoEditor;
-			setModelLanguage: (model: unknown, language: string) => void;
-		};
-	};
-	require?: {
-		(config: { paths: { vs: string } }): void;
-		(dependencies: string[], resolve: () => void, reject: (error: unknown) => void): void;
-		config: (options: { paths: { vs: string } }) => void;
-	};
 	showDirectoryPicker?: (options?: { mode?: DatahoarderPermissionMode }) => Promise<LocalDirectoryHandle>;
 };
 
-type MonacoEditor = {
-	dispose: () => void;
-	getModel: () => unknown;
-	getValue: () => string;
-	onDidChangeModelContent: (callback: () => void) => { dispose: () => void };
-	setValue: (value: string) => void;
+type MonacoEditor = monaco.editor.IStandaloneCodeEditor;
+type MonacoEnvironmentGlobal = typeof globalThis & {
+	MonacoEnvironment?: {
+		getWorker?: (_workerId: string, label: string) => Worker;
+	};
 };
-
-const monacoCdnBase = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs';
 
 let supported = $state(false);
 let vaultHandle = $state<LocalDirectoryHandle | null>(null);
@@ -158,6 +145,12 @@ $effect(() => {
 	}
 });
 
+$effect(() => {
+	if (editorHost && monacoState === 'idle') {
+		void initializeMonaco();
+	}
+});
+
 onMount(() => {
 	supported = canUseFileSystemAccess();
 
@@ -167,7 +160,6 @@ onMount(() => {
 	}
 
 	void restoreVaultHandle();
-	void initializeMonaco();
 
 	return () => {
 		monacoSubscription?.dispose();
@@ -386,29 +378,24 @@ function openCollectionRecord(record: VaultRecord) {
 }
 
 async function initializeMonaco() {
+	if (monacoState === 'loading' || monacoState === 'ready') {
+		return;
+	}
+
 	monacoState = 'loading';
 
 	try {
-		const win = window as unknown as DatahoarderWindow;
-
-		if (!win.monaco) {
-			await loadScript(`${monacoCdnBase}/loader.js`);
-
-			if (!win.require) {
-				throw new Error('Monaco loader did not initialize.');
-			}
-
-			win.require.config({ paths: { vs: monacoCdnBase } });
-			await new Promise<void>((resolve, reject) => {
-				win.require?.(['vs/editor/editor.main'], resolve, reject);
-			});
-		}
-
-		if (!editorHost || !win.monaco) {
+		if (!editorHost) {
 			throw new Error('Editor host was not ready.');
 		}
 
-		monacoEditor = win.monaco.editor.create(editorHost, {
+		configureMonacoWorkers();
+
+		if (!editorHost) {
+			throw new Error('Editor host was not ready.');
+		}
+
+		monacoEditor = monaco.editor.create(editorHost, {
 			automaticLayout: true,
 			fontFamily: 'var(--font-mono)',
 			fontSize: 14,
@@ -428,28 +415,53 @@ async function initializeMonaco() {
 			}
 		});
 		monacoState = 'ready';
+		await tick();
+		monacoEditor.layout();
 		updateMonacoLanguage(selectedFile);
 	} catch {
 		monacoState = 'fallback';
 	}
 }
 
-function loadScript(src: string) {
-	return new Promise<void>((resolve, reject) => {
-		const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
+function configureMonacoWorkers() {
+	const scope = globalThis as MonacoEnvironmentGlobal;
 
-		if (existing) {
-			resolve();
-			return;
+	if (scope.MonacoEnvironment?.getWorker) {
+		return;
+	}
+
+	scope.MonacoEnvironment = {
+		...scope.MonacoEnvironment,
+		getWorker(_workerId: string, label: string) {
+			switch (label) {
+				case 'css':
+				case 'less':
+				case 'scss':
+					return new Worker(new URL('monaco-editor/esm/vs/language/css/css.worker.js', import.meta.url), {
+						type: 'module'
+					});
+				case 'handlebars':
+				case 'html':
+				case 'razor':
+					return new Worker(new URL('monaco-editor/esm/vs/language/html/html.worker.js', import.meta.url), {
+						type: 'module'
+					});
+				case 'javascript':
+				case 'typescript':
+					return new Worker(new URL('monaco-editor/esm/vs/language/typescript/ts.worker.js', import.meta.url), {
+						type: 'module'
+					});
+				case 'json':
+					return new Worker(new URL('monaco-editor/esm/vs/language/json/json.worker.js', import.meta.url), {
+						type: 'module'
+					});
+				default:
+					return new Worker(new URL('monaco-editor/esm/vs/editor/editor.worker.js', import.meta.url), {
+						type: 'module'
+					});
+			}
 		}
-
-		const script = document.createElement('script');
-		script.src = src;
-		script.async = true;
-		script.onload = () => resolve();
-		script.onerror = () => reject(new Error(`Could not load ${src}`));
-		document.head.append(script);
-	});
+	};
 }
 
 function syncMonacoContent(content: string) {
@@ -461,14 +473,13 @@ function syncMonacoContent(content: string) {
 }
 
 function updateMonacoLanguage(file: LocalVaultFile | null) {
-	const win = window as unknown as DatahoarderWindow;
 	const model = monacoEditor?.getModel();
 
-	if (!win.monaco || !model) {
+	if (!model) {
 		return;
 	}
 
-	win.monaco.editor.setModelLanguage(model, getEditorLanguage(file));
+	monaco.editor.setModelLanguage(model, getEditorLanguage(file));
 }
 
 function queuePreviewMathTypeset() {

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { tick } from 'svelte';
 import type { NoteTreeDirectory, NoteTreeNode } from './note-tree.js';
 
 type Props = {
@@ -12,6 +13,14 @@ let { activePath, nodes, onSelect, rootLabel = 'Notes' }: Props = $props();
 let selectedDirectoryPaths = $state<string[]>([]);
 let activeDirectoryPaths = $derived(findActiveDirectoryPaths(nodes, activePath));
 let columns = $derived(buildColumns(nodes, selectedDirectoryPaths, rootLabel));
+let noteColumnsElement: HTMLDivElement | undefined = $state();
+let collapsingColumnSpace = $state(0);
+let collapseAnimating = $state(false);
+let renderedColumnKeys: string[] = [];
+let pendingCollapseSpace = 0;
+let collapseAnimationTimeout: number | undefined;
+
+const columnCollapseDuration = 220;
 
 type NoteColumn = {
 	key: string;
@@ -22,6 +31,57 @@ type NoteColumn = {
 
 $effect(() => {
 	selectedDirectoryPaths = activeDirectoryPaths;
+});
+
+$effect.pre(() => {
+	const node = noteColumnsElement;
+	const nextKeys = columns.map((column) => column.key);
+
+	if (!node) {
+		return;
+	}
+
+	if (renderedColumnKeys.length <= nextKeys.length) {
+		return;
+	}
+
+	const nextKeySet = new Set(nextKeys);
+	const removedSpace = getRemovedColumnSpace(node, nextKeySet);
+
+	if (removedSpace <= 0) {
+		return;
+	}
+
+	if (collapseAnimationTimeout !== undefined) {
+		window.clearTimeout(collapseAnimationTimeout);
+		collapseAnimationTimeout = undefined;
+	}
+
+	pendingCollapseSpace = removedSpace;
+	collapseAnimating = false;
+	collapsingColumnSpace = removedSpace;
+});
+
+$effect(() => {
+	const node = noteColumnsElement;
+	const nextKeys = columns.map((column) => column.key);
+	const previousKeys = renderedColumnKeys;
+	const removedColumns = previousKeys.length > nextKeys.length;
+	const collapseSpace = pendingCollapseSpace;
+
+	renderedColumnKeys = nextKeys;
+
+	if (!node || !removedColumns) {
+		return;
+	}
+
+	void tick().then(() => {
+		if (!areColumnKeysEqual(renderedColumnKeys, nextKeys)) {
+			return;
+		}
+
+		animateCollapsedColumns(node, collapseSpace);
+	});
 });
 
 function isActive(path: string) {
@@ -88,6 +148,109 @@ function isPathInsideDirectory(path: string, directoryPath: string) {
 	return path.startsWith(`${directoryPath}/`);
 }
 
+function areColumnKeysEqual(left: string[], right: string[]) {
+	return left.length === right.length && left.every((key, index) => key === right[index]);
+}
+
+function getRemovedColumnSpace(node: HTMLElement, nextKeySet: Set<string>) {
+	const removedColumns = Array.from(node.querySelectorAll<HTMLElement>('.note-column')).filter(
+		(column) => !nextKeySet.has(column.dataset.columnKey ?? '')
+	);
+
+	if (!removedColumns.length) {
+		return 0;
+	}
+
+	const firstColumnRect = removedColumns[0].getBoundingClientRect();
+	const lastColumnRect = removedColumns[removedColumns.length - 1].getBoundingClientRect();
+	const removedWidth = lastColumnRect.right - firstColumnRect.left;
+
+	return Math.max(0, removedWidth + getColumnGap(node));
+}
+
+function getColumnGap(node: HTMLElement) {
+	const gap = Number.parseFloat(window.getComputedStyle(node).columnGap);
+
+	return Number.isFinite(gap) ? gap : 0;
+}
+
+function getMaxScrollLeft(node: HTMLElement) {
+	return Math.max(0, node.scrollWidth - node.clientWidth);
+}
+
+function animateCollapsedColumns(node: HTMLElement, reservedSpace: number) {
+	const nextScrollLeft = Math.max(0, getMaxScrollLeft(node) - reservedSpace);
+
+	node.scrollTo({
+		left: nextScrollLeft,
+		behavior: 'smooth'
+	});
+
+	window.requestAnimationFrame(() => {
+		if (!node.isConnected) {
+			return;
+		}
+
+		collapseAnimating = true;
+		collapsingColumnSpace = 0;
+		pendingCollapseSpace = 0;
+		collapseAnimationTimeout = window.setTimeout(() => {
+			collapseAnimating = false;
+			collapseAnimationTimeout = undefined;
+		}, columnCollapseDuration);
+	});
+}
+
+function getHorizontalScrollTarget(columns: HTMLElement, node: HTMLElement, alignment: 'nearest' | 'end' = 'nearest') {
+	const columnsRect = columns.getBoundingClientRect();
+	const nodeRect = node.getBoundingClientRect();
+	const inset = 8;
+
+	if (alignment === 'end') {
+		return Math.max(0, columns.scrollLeft + nodeRect.right - columnsRect.right + inset);
+	}
+
+	if (nodeRect.right > columnsRect.right - inset) {
+		return Math.max(0, columns.scrollLeft + nodeRect.right - columnsRect.right + inset);
+	}
+
+	if (nodeRect.left < columnsRect.left + inset) {
+		return Math.max(0, columns.scrollLeft + nodeRect.left - columnsRect.left - inset);
+	}
+
+	return columns.scrollLeft;
+}
+
+function scrollColumnIntoView(node: HTMLElement, active: boolean) {
+	function scroll() {
+		if (!active) {
+			return;
+		}
+
+		requestAnimationFrame(() => {
+			const columns = node.closest<HTMLElement>('.note-columns');
+
+			if (!columns) {
+				return;
+			}
+
+			columns.scrollTo({
+				left: getHorizontalScrollTarget(columns, node, 'end'),
+				behavior: 'smooth'
+			});
+		});
+	}
+
+	scroll();
+
+	return {
+		update(nextActive: boolean) {
+			active = nextActive;
+			scroll();
+		}
+	};
+}
+
 function scrollCurrentNote(node: HTMLElement, active: boolean) {
 	function scroll() {
 		if (!active) {
@@ -111,6 +274,7 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 
 			columns.scrollTo({
 				top: Math.max(0, nextScrollTop),
+				left: getHorizontalScrollTarget(columns, node),
 				behavior: 'smooth'
 			});
 		});
@@ -127,9 +291,20 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 }
 </script>
 
-<div class="note-columns" aria-label="Directory columns">
+<div
+	class:collapsing-columns={collapseAnimating}
+	class="note-columns"
+	aria-label="Directory columns"
+	bind:this={noteColumnsElement}
+	style:padding-right={`${collapsingColumnSpace}px`}
+>
 	{#each columns as column (column.key)}
-		<section class="note-column" aria-labelledby={`note-column-${column.level}`}>
+		<section
+			class="note-column"
+			aria-labelledby={`note-column-${column.level}`}
+			data-column-key={column.key}
+			use:scrollColumnIntoView={column.level === columns.length - 1}
+		>
 			<h2 id={`note-column-${column.level}`}>{column.label}</h2>
 			<ul>
 				{#each column.items as item (item.path)}
@@ -191,6 +366,10 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 	padding-bottom: 0.35rem;
 	overflow: auto;
 	overscroll-behavior: contain;
+}
+
+.note-columns.collapsing-columns {
+	transition: padding-right 220ms ease;
 }
 
 .note-column {
@@ -357,5 +536,11 @@ button:focus-visible {
 	font-weight: 700;
 
 	background: oklch(0.86 0.06 205);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.note-columns.collapsing-columns {
+		transition-duration: 1ms;
+	}
 }
 </style>

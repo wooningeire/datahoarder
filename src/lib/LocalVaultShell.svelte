@@ -193,9 +193,13 @@ let selectedPublicPublishProfile = $derived(
 let publicRecords = $derived(getPublicPublishRecords(vaultIndex.records, selectedPublicPublishProfile));
 let selectedExcalidrawNote = $derived(Boolean(selectedFile?.extension === '.md' && isExcalidrawNote(selectedContent)));
 let selectedFilePinned = $derived(selectedFile ? pinnedNotePaths.includes(selectedFile.path) : false);
-let pinnedNotes = $derived(getStoredNoteRecords(pinnedNotePaths));
+let pinnedNotes = $derived(
+	getStoredNoteRecords(pinnedNotePaths.filter((path) => path !== selectedFile?.path))
+);
 let recentNotes = $derived(
-	getStoredNoteRecords(recentNotePaths.filter((path) => !pinnedNotePaths.includes(path)))
+	getStoredNoteRecords(
+		recentNotePaths.filter((path) => path !== selectedFile?.path && !pinnedNotePaths.includes(path))
+	)
 );
 let baseViews = $derived(selectedFile?.extension === '.base' ? getBaseViews(selectedContent) : []);
 let selectedCollection = $derived.by<ResolvedCollection | null>(() => {
@@ -506,7 +510,7 @@ async function selectFile(filePath: string) {
 	}
 }
 
-async function openFile(file: LocalVaultFile, nextStatus = `Editing ${file.path}`) {
+async function openFile(file: LocalVaultFile, nextStatus = '') {
 	selectedPath = file.path;
 	const content = await readLocalFile(file);
 	selectedContent = content;
@@ -2511,22 +2515,6 @@ function escapeHtml(text: string) {
 		</div>
 	{/if}
 
-	<section class="status-row" aria-live="polite">
-		<span>{status}</span>
-		{#if monacoState === 'fallback'}
-			<span>Textarea fallback active.</span>
-		{:else if monacoState === 'loading'}
-			<span>Loading Monaco editor.</span>
-		{/if}
-		{#if dirty}
-			<strong>Unsaved</strong>
-		{/if}
-	</section>
-
-	{#if errorMessage}
-		<p class="error-message">{errorMessage}</p>
-	{/if}
-
 	<div class="workspace">
 		<aside class="sidebar" aria-label="Local vault">
 			<div class="sidebar-summary">
@@ -2585,6 +2573,41 @@ function escapeHtml(text: string) {
 			</div>
 
 			<div class="vault-browser">
+				<div class="vault-main-browser">
+					{#if searchingVault}
+						<div class="search-results" aria-live="polite">
+							<div class="search-count">
+								<span>{vaultSearchResults.length} results</span>
+							</div>
+
+							{#if vaultSearchResults.length}
+								<ul>
+									{#each vaultSearchResults as result (result.record.path)}
+										<li>
+											<button
+												type="button"
+												class:active-search-result={result.record.path === selectedPath}
+												onclick={() => openSearchResult(result)}
+											>
+												<strong>{result.record.title}</strong>
+												<span>{result.record.path}</span>
+												<small>{result.record.preview}</small>
+												<em>{result.matches.join(', ')}</em>
+											</button>
+										</li>
+									{/each}
+								</ul>
+							{:else}
+								<p class="empty-state">No matching notes.</p>
+							{/if}
+						</div>
+					{:else if fileTree.length}
+						<NoteTree nodes={fileTree} activePath={selectedPath} onSelect={selectFile} rootLabel="Files" />
+					{:else}
+						<p class="empty-state">No editable text files are indexed yet.</p>
+					{/if}
+				</div>
+
 				{#if !searchingVault && (pinnedNotes.length || recentNotes.length)}
 					<div class="quick-notes" aria-label="Quick notes">
 						{#if pinnedNotes.length}
@@ -2645,39 +2668,6 @@ function escapeHtml(text: string) {
 							</section>
 						{/if}
 					</div>
-				{/if}
-
-				{#if searchingVault}
-					<div class="search-results" aria-live="polite">
-						<div class="search-count">
-							<span>{vaultSearchResults.length} results</span>
-						</div>
-
-						{#if vaultSearchResults.length}
-							<ul>
-								{#each vaultSearchResults as result (result.record.path)}
-									<li>
-										<button
-											type="button"
-											class:active-search-result={result.record.path === selectedPath}
-											onclick={() => openSearchResult(result)}
-										>
-											<strong>{result.record.title}</strong>
-											<span>{result.record.path}</span>
-											<small>{result.record.preview}</small>
-											<em>{result.matches.join(', ')}</em>
-										</button>
-									</li>
-								{/each}
-							</ul>
-						{:else}
-							<p class="empty-state">No matching notes.</p>
-						{/if}
-					</div>
-				{:else if fileTree.length}
-					<NoteTree nodes={fileTree} activePath={selectedPath} onSelect={selectFile} rootLabel="Files" />
-				{:else}
-					<p class="empty-state">No editable text files are indexed yet.</p>
 				{/if}
 			</div>
 		</aside>
@@ -3141,6 +3131,28 @@ function escapeHtml(text: string) {
 			{/if}
 		</section>
 	</div>
+
+	<div class="bottom-banners">
+		{#if errorMessage}
+			<p class="error-message">{errorMessage}</p>
+		{/if}
+
+		{#if status || monacoState === 'fallback' || monacoState === 'loading' || dirty}
+			<section class="status-row" aria-live="polite">
+				{#if status}
+					<span>{status}</span>
+				{/if}
+				{#if monacoState === 'fallback'}
+					<span>Textarea fallback active.</span>
+				{:else if monacoState === 'loading'}
+					<span>Loading Monaco editor.</span>
+				{/if}
+				{#if dirty}
+					<strong>Unsaved</strong>
+				{/if}
+			</section>
+		{/if}
+	</div>
 </main>
 
 <style>
@@ -3151,7 +3163,7 @@ function escapeHtml(text: string) {
 
 .datahoarder-shell {
 	display: grid;
-	grid-template-rows: auto auto auto minmax(0, 1fr);
+	grid-template-rows: auto minmax(0, 1fr) auto;
 	height: 100vh;
 	height: 100dvh;
 	min-height: 0;
@@ -3384,6 +3396,10 @@ button:disabled {
 	border-color: oklch(0.42 0.12 190);
 }
 
+.bottom-banners {
+	min-height: 0;
+}
+
 .status-row {
 	display: flex;
 	flex-wrap: wrap;
@@ -3394,7 +3410,7 @@ button:disabled {
 	color: oklch(0.34 0.04 245);
 	font-family: var(--font-mono);
 	font-size: 0.78rem;
-	border-bottom: 1px solid oklch(0.82 0.025 235);
+	border-top: 1px solid oklch(0.82 0.025 235);
 }
 
 .status-row strong {
@@ -3406,14 +3422,13 @@ button:disabled {
 	padding: 0.55rem 1rem;
 	color: oklch(0.34 0.13 30);
 	background: oklch(0.94 0.07 45);
-	border-bottom: 1px solid oklch(0.8 0.08 45);
+	border-top: 1px solid oklch(0.8 0.08 45);
 }
 
 .workspace {
 	--vault-sidebar-width: 32rem;
 
 	display: grid;
-	grid-row: 4;
 	grid-template-columns: var(--vault-sidebar-width) minmax(20rem, 1fr) minmax(18rem, 0.85fr);
 	min-height: 0;
 	overflow: hidden;
@@ -3571,9 +3586,11 @@ button:disabled {
 	overflow: hidden;
 }
 
-.vault-browser > :last-child {
+.vault-main-browser {
+	display: grid;
 	flex: 1 1 auto;
 	min-height: 0;
+	overflow: hidden;
 }
 
 .quick-notes {

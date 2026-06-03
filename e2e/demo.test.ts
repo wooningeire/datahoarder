@@ -792,19 +792,45 @@ test('quick notes track recent and pinned local notes', async ({ page }) => {
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 
 	const noteColumns = page.locator('.note-columns');
+	const workspace = page.locator('.workspace');
+	const statusRow = page.locator('.status-row');
+	await expect(noteColumns).toBeVisible();
+	await expect(statusRow).toBeVisible();
+	const workspaceBox = await workspace.boundingBox();
+	const statusRowBox = await statusRow.boundingBox();
+	expect(workspaceBox).not.toBeNull();
+	expect(statusRowBox).not.toBeNull();
+	expect(statusRowBox!.y).toBeGreaterThanOrEqual(workspaceBox!.y + workspaceBox!.height - 1);
+	const initialNoteColumnsBox = await noteColumns.boundingBox();
+	expect(initialNoteColumnsBox).not.toBeNull();
+	const initialNoteColumnsTop = initialNoteColumnsBox!.y;
+	const expectNoteColumnsTopToStayPut = async () => {
+		const noteColumnsBox = await noteColumns.boundingBox();
+		expect(noteColumnsBox).not.toBeNull();
+		expect(Math.abs(noteColumnsBox!.y - initialNoteColumnsTop)).toBeLessThan(2);
+	};
+
 	await noteColumns.getByRole('button', { name: 'beta.md' }).click();
+	await expectNoteColumnsTopToStayPut();
 	await noteColumns.getByRole('button', { name: 'gamma.md' }).click();
+	await expectNoteColumnsTopToStayPut();
 	await page.locator('.topbar').getByRole('button', { name: 'Pin' }).click();
+	await expectNoteColumnsTopToStayPut();
 
 	const quickNotes = page.getByLabel('Quick notes');
-	await expect(quickNotes.getByRole('heading', { name: 'Pinned' })).toBeVisible();
-	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Gamma' })).toBeVisible();
+	await expect(quickNotes.getByRole('heading', { name: 'Pinned' })).toHaveCount(0);
+	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Gamma' })).toHaveCount(0);
 	await expect(quickNotes.getByRole('heading', { name: 'Recent' })).toBeVisible();
 	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Beta' })).toBeVisible();
-	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Gamma' })).toHaveCount(1);
 
 	await quickNotes.locator('.quick-note-link', { hasText: 'Beta' }).dispatchEvent('click');
+	await expectNoteColumnsTopToStayPut();
 	await expect(page.getByLabel('Editor').getByText('beta.md')).toBeVisible();
+	await expect(page.getByText('Editing selected file.')).toHaveCount(0);
+	await expect(page.locator('.status-row')).toHaveCount(0);
+	await expect(quickNotes.getByRole('heading', { name: 'Pinned' })).toBeVisible();
+	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Gamma' })).toBeVisible();
+	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Beta' })).toHaveCount(0);
 
 	const storedLists = await page.evaluate((name) => {
 		const pinned = window.localStorage.getItem(`datahoarder-local-vault-pinned-notes:${name}`);
@@ -819,6 +845,91 @@ test('quick notes track recent and pinned local notes', async ({ page }) => {
 	expect(storedLists.pinned).toEqual(['gamma.md']);
 	expect(storedLists.recent).toContain('beta.md');
 	expect(storedLists.recent).toContain('gamma.md');
+});
+
+test('directory columns scroll to new folders and collapse smoothly', async ({ page }) => {
+	const vaultName = `datahoarder-e2e-directory-column-scroll-${Date.now()}`;
+
+	await page.addInitScript((name) => {
+		window.showDirectoryPicker = async () => {
+			const root = await navigator.storage.getDirectory();
+			const directory = await root.getDirectoryHandle(name, { create: true });
+
+			const writeFile = async (filePath: string, content: string) => {
+				const segments = filePath.split('/');
+				const fileName = segments.pop() ?? filePath;
+				let parent = directory;
+
+				for (const segment of segments) {
+					parent = await parent.getDirectoryHandle(segment, { create: true });
+				}
+
+				const file = await parent.getFileHandle(fileName, { create: true });
+				const writable = await file.createWritable();
+
+				await writable.write(content);
+				await writable.close();
+			};
+
+			await writeFile('alpha.md', '# Alpha\n\nRoot note.');
+			await writeFile('Atlas/Beacon/Cascade/Delta/Echo/target.md', '# Target\n\nNested note.');
+
+			return directory;
+		};
+	}, vaultName);
+
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open Folder' }).click();
+
+	const noteColumns = page.locator('.note-columns');
+	const getScrollState = () =>
+		noteColumns.evaluate((node) => {
+			const element = node as HTMLElement;
+
+			return {
+				left: element.scrollLeft,
+				max: Math.max(0, element.scrollWidth - element.clientWidth),
+				paddingRight: Number.parseFloat(window.getComputedStyle(element).paddingRight)
+			};
+		});
+
+	await noteColumns.getByRole('button', { name: 'alpha.md' }).dispatchEvent('click');
+	await expect(page.getByLabel('Editor').getByText('alpha.md')).toBeVisible();
+	await expect.poll(async () => (await getScrollState()).left).toBeLessThan(1);
+
+	await noteColumns.getByRole('button', { name: 'Atlas' }).click();
+	await noteColumns.getByRole('button', { name: 'Beacon' }).click();
+	await expect.poll(async () => (await getScrollState()).left).toBeGreaterThan(80);
+	const afterBeacon = await getScrollState();
+	expect(afterBeacon.max).toBeGreaterThan(0);
+
+	await noteColumns.getByRole('button', { name: 'Cascade' }).click();
+	await expect.poll(async () => (await getScrollState()).left).toBeGreaterThan(afterBeacon.left + 80);
+
+	await noteColumns.getByRole('button', { name: 'Delta' }).click();
+	await expect.poll(async () => (await getScrollState()).left).toBeGreaterThan(afterBeacon.left + 160);
+
+	await noteColumns.getByRole('button', { name: 'Atlas' }).dispatchEvent('click');
+	const collapseStart = await getScrollState();
+	expect(collapseStart.left).toBeGreaterThan(1);
+	expect(collapseStart.paddingRight).toBeGreaterThan(0);
+	await expect
+		.poll(
+			async () => {
+				const collapseFrame = await getScrollState();
+
+				return (
+					collapseFrame.left > 1 &&
+					collapseFrame.left < collapseStart.left &&
+					collapseFrame.paddingRight > 0 &&
+					collapseFrame.paddingRight < collapseStart.paddingRight
+				);
+			},
+			{ intervals: [16, 32, 48, 64, 80, 120], timeout: 300 }
+		)
+		.toBe(true);
+
+	await expect.poll(async () => (await getScrollState()).left).toBeLessThan(1);
 });
 
 test('Excalidraw notes render a static SVG preview', async ({ page }) => {

@@ -21,7 +21,13 @@ export type LocalDirectoryHandle = {
 	kind: 'directory';
 	name: string;
 	entries: () => AsyncIterableIterator<[string, LocalDirectoryHandle | LocalFileHandle]>;
+	getDirectoryHandle?: (
+		name: string,
+		options?: { create?: boolean }
+	) => Promise<LocalDirectoryHandle>;
+	getFileHandle?: (name: string, options?: { create?: boolean }) => Promise<LocalFileHandle>;
 	queryPermission?: (descriptor?: { mode?: DatahoarderPermissionMode }) => Promise<DatahoarderPermissionState>;
+	removeEntry?: (name: string, options?: { recursive?: boolean }) => Promise<void>;
 	requestPermission?: (descriptor?: { mode?: DatahoarderPermissionMode }) => Promise<DatahoarderPermissionState>;
 };
 
@@ -131,11 +137,117 @@ export async function readLocalFile(file: LocalVaultFile) {
 }
 
 export async function writeLocalFile(file: LocalVaultFile, content: string) {
-	if (!file.handle.createWritable) {
+	await writeLocalFileHandle(file.handle, content);
+}
+
+export async function createLocalFile(
+	root: LocalDirectoryHandle,
+	path: string,
+	content: string,
+	defaultExtension = '.md'
+) {
+	const normalizedPath = normalizeLocalTextPath(path, defaultExtension);
+	const { directory, fileName } = await getLocalParentDirectory(root, normalizedPath, true);
+
+	if (!directory.getFileHandle) {
+		throw new Error('This browser does not support creating files in selected folders.');
+	}
+
+	if (await localFileExists(directory, fileName)) {
+		throw new Error(`A file already exists at ${normalizedPath}.`);
+	}
+
+	const handle = await directory.getFileHandle(fileName, { create: true });
+	await writeLocalFileHandle(handle, content);
+
+	return normalizedPath;
+}
+
+export async function deleteLocalFile(root: LocalDirectoryHandle, path: string) {
+	const normalizedPath = normalizeLocalTextPath(path, '');
+	const { directory, fileName } = await getLocalParentDirectory(root, normalizedPath, false);
+
+	if (!directory.removeEntry) {
+		throw new Error('This browser does not support deleting files in selected folders.');
+	}
+
+	await directory.removeEntry(fileName);
+}
+
+export async function moveLocalFile(
+	root: LocalDirectoryHandle,
+	currentPath: string,
+	nextPath: string,
+	content: string
+) {
+	const normalizedCurrentPath = normalizeLocalTextPath(currentPath, '');
+	const normalizedNextPath = normalizeLocalTextPath(
+		nextPath,
+		getPathExtension(normalizedCurrentPath) || '.md'
+	);
+
+	if (normalizedCurrentPath === normalizedNextPath) {
+		return normalizedCurrentPath;
+	}
+
+	if (normalizedCurrentPath.toLowerCase() === normalizedNextPath.toLowerCase()) {
+		throw new Error('Case-only renames are not supported yet.');
+	}
+
+	await createLocalFile(root, normalizedNextPath, content, '');
+	await deleteLocalFile(root, normalizedCurrentPath);
+
+	return normalizedNextPath;
+}
+
+export function normalizeLocalTextPath(path: string, defaultExtension = '.md') {
+	const trimmedPath = path.trim().replace(/\\/gu, '/');
+
+	if (!trimmedPath) {
+		throw new Error('File path is required.');
+	}
+
+	if (/^(?:[a-z]:)?\//iu.test(trimmedPath) || /^[a-z]:/iu.test(trimmedPath)) {
+		throw new Error('Use a path relative to the opened vault.');
+	}
+
+	const segments = trimmedPath
+		.replace(/^\.\/+/u, '')
+		.split('/')
+		.map((segment) => segment.trim())
+		.filter(Boolean);
+
+	if (!segments.length) {
+		throw new Error('File path is required.');
+	}
+
+	if (segments.some((segment) => segment === '.' || segment === '..')) {
+		throw new Error('File paths cannot contain . or .. segments.');
+	}
+
+	if (segments.some((segment) => /[<>:"|?*\u0000-\u001f]/u.test(segment))) {
+		throw new Error('File paths cannot contain Windows-reserved characters.');
+	}
+
+	let normalizedPath = segments.join('/');
+
+	if (defaultExtension && !getPathExtension(normalizedPath)) {
+		normalizedPath = `${normalizedPath}${defaultExtension}`;
+	}
+
+	if (!isEditableTextFile(normalizedPath)) {
+		throw new Error('Only editable text files can be managed here.');
+	}
+
+	return normalizedPath;
+}
+
+async function writeLocalFileHandle(handle: LocalFileHandle, content: string) {
+	if (!handle.createWritable) {
 		throw new Error('This browser does not support writing to selected files.');
 	}
 
-	const writable = await file.handle.createWritable();
+	const writable = await handle.createWritable();
 
 	if ('getWriter' in writable) {
 		const writer = (writable as unknown as WritableStream<string>).getWriter();
@@ -146,6 +258,59 @@ export async function writeLocalFile(file: LocalVaultFile, content: string) {
 
 	await writable.write(content);
 	await writable.close();
+}
+
+async function getLocalParentDirectory(
+	root: LocalDirectoryHandle,
+	path: string,
+	create: boolean
+) {
+	const segments = path.split('/');
+	const fileName = segments.pop();
+
+	if (!fileName) {
+		throw new Error('File path is required.');
+	}
+
+	let directory = root;
+
+	for (const segment of segments) {
+		if (!directory.getDirectoryHandle) {
+			throw new Error('This browser does not support nested folder access.');
+		}
+
+		directory = await directory.getDirectoryHandle(segment, { create });
+	}
+
+	return { directory, fileName };
+}
+
+async function localFileExists(directory: LocalDirectoryHandle, fileName: string) {
+	if (!directory.getFileHandle) {
+		return false;
+	}
+
+	try {
+		await directory.getFileHandle(fileName);
+		return true;
+	} catch (error) {
+		if (isNotFoundError(error)) {
+			return false;
+		}
+
+		throw error;
+	}
+}
+
+function isNotFoundError(error: unknown) {
+	return error instanceof DOMException && error.name === 'NotFoundError';
+}
+
+function getPathExtension(path: string) {
+	const fileName = path.split('/').at(-1) ?? '';
+	const extensionIndex = fileName.lastIndexOf('.');
+
+	return extensionIndex > 0 ? fileName.slice(extensionIndex).toLowerCase() : '';
 }
 
 export async function verifyPermission(

@@ -4,7 +4,7 @@ export function isExcalidrawNote(content: string) {
 
 export function getRawPreview(content: string) {
 	const body = stripFrontmatter(content).trim();
-	const drawingIndex = body.search(/^## Drawing\s*$/mu);
+	const drawingIndex = body.search(/^#{1,2} Drawing\s*$/mu);
 	const preview = drawingIndex >= 0 ? body.slice(0, drawingIndex).trim() : body;
 
 	return preview || 'Excalidraw drawing';

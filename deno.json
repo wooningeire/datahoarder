@@ -1,0 +1,33 @@
+{
+	"nodeModulesDir": "auto",
+	"imports": {
+		"@playwright/test": "npm:@playwright/test@1.57.0",
+		"@sveltejs/adapter-static": "npm:@sveltejs/adapter-static@3.0.10",
+		"@sveltejs/kit/": "npm:@sveltejs/kit@2.61.1/",
+		"@sveltejs/vite-plugin-svelte": "npm:@sveltejs/vite-plugin-svelte@7.1.2",
+		"@vitest/browser-playwright": "npm:@vitest/browser-playwright@4.1.5",
+		"clsx": "npm:clsx@2.1.1",
+		"cookie": "npm:cookie@0.6.0",
+		"devalue": "npm:devalue@5.8.1",
+		"monaco-editor": "npm:monaco-editor@0.55.1",
+		"set-cookie-parser": "npm:set-cookie-parser@3.1.0",
+		"svelte": "npm:svelte@5.56.1",
+		"svelte/": "npm:svelte@5.56.1/",
+		"vitest": "npm:vitest@4.1.5",
+		"vitest/": "npm:vitest@4.1.5/",
+		"vitest-browser-svelte": "npm:vitest-browser-svelte@2.1.1"
+	},
+	"tasks": {
+		"dev": "deno run -A npm:vite dev",
+		"sync": "deno run -A npm:@sveltejs/kit sync",
+		"build:app": "deno run -A npm:vite build",
+		"preview": "deno run -A npm:vite preview",
+		"prepack": "deno task sync && deno run -A npm:@sveltejs/package",
+		"build": "deno task build:app && deno task prepack",
+		"check": "deno task sync && deno run -A npm:svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "deno task sync && deno run -A npm:svelte-check --tsconfig ./tsconfig.json --watch",
+		"test:unit": "deno run -A npm:vitest",
+		"test": "deno task test:unit --run && deno task test:e2e",
+		"test:e2e": ".\\node_modules\\.bin\\playwright.cmd test"
+	}
+}

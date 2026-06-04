@@ -876,3 +876,43 @@ function escapeHtml(text: string) {
 
 	<StatusBanners {dirty} {errorMessage} {monacoState} {status} />
 </main>
+
+<style lang="scss">
+.datahoarder-shell {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-rows: auto minmax(0, 1fr) auto;
+	height: 100vh;
+	height: 100dvh;
+	min-height: 0;
+	overflow: hidden;
+	color: oklch(0.22 0.035 245);
+}
+
+.workspace {
+	--vault-sidebar-width: 32rem;
+
+	display: grid;
+	grid-row: 2;
+	grid-column: 1;
+	grid-template-columns: var(--vault-sidebar-width) minmax(20rem, 1fr) minmax(18rem, 0.85fr);
+	grid-template-rows: minmax(0, 1fr);
+	min-height: 0;
+	overflow: hidden;
+}
+
+@media (max-width: 1340px) {
+	.workspace {
+		grid-template-columns: var(--vault-sidebar-width) minmax(0, 1fr);
+		grid-template-rows: minmax(0, 1fr) minmax(14rem, 0.72fr);
+	}
+}
+
+@media (max-width: 760px) {
+	.workspace {
+		grid-template-columns: 1fr;
+		grid-template-rows: auto auto auto;
+		overflow: auto;
+	}
+}
+</style>

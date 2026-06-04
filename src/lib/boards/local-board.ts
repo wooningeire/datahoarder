@@ -86,13 +86,13 @@ export function renderDatahoarderBoard(content: string, options: RenderDatahoard
 	return [
 		`<figure class="datahoarder-board" aria-label="${escapeAttribute(board.title)}">`,
 		`<figcaption>${escapeHtml(board.title)}</figcaption>`,
-		`<div class="datahoarder-board-canvas" style="aspect-ratio: ${board.width} / ${board.height};">`,
-		`<svg class="datahoarder-board-edges" viewBox="0 0 ${board.width} ${board.height}" aria-hidden="true">`,
+		`<svg class="datahoarder-board-canvas" viewBox="0 0 ${board.width} ${board.height}" role="img" aria-label="${escapeAttribute(board.title)} board">`,
 		'<defs><marker id="datahoarder-board-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"></path></marker></defs>',
+		'<g class="datahoarder-board-edges" aria-hidden="true">',
 		edgeHtml,
-		'</svg>',
+		'</g>',
 		nodeHtml,
-		'</div>',
+		'</svg>',
 		'</figure>'
 	].join('');
 }
@@ -241,18 +241,14 @@ function renderBoardNode(
 	const title = href
 		? `<a href="${escapeAttribute(href)}" data-note-path="${escapeAttribute(note?.path ?? '')}"${note?.heading ? ` data-note-heading="${escapeAttribute(note.heading)}"` : ''}>${escapeHtml(node.title)}</a>`
 		: escapeHtml(node.title);
-	const style = [
-		`left: ${((node.x / board.width) * 100).toFixed(4)}%;`,
-		`top: ${((node.y / board.height) * 100).toFixed(4)}%;`,
-		`width: ${((node.width / board.width) * 100).toFixed(4)}%;`,
-		`min-height: ${((node.height / board.height) * 100).toFixed(4)}%;`
-	].join(' ');
 
 	return [
-		`<article class="datahoarder-board-node datahoarder-board-node-${node.color}" style="${style}">`,
+		`<foreignObject class="datahoarder-board-node-shell" x="${round(node.x)}" y="${round(node.y)}" width="${round(node.width)}" height="${round(node.height)}">`,
+		`<article xmlns="http://www.w3.org/1999/xhtml" class="datahoarder-board-node datahoarder-board-node-${node.color}">`,
 		`<h3>${title}</h3>`,
 		node.text ? `<p>${escapeHtml(node.text)}</p>` : '',
-		'</article>'
+		'</article>',
+		'</foreignObject>'
 	].join('');
 }
 
@@ -307,6 +303,10 @@ function toBoundedNumber(value: SimpleYamlValue | undefined, fallback: number, m
 	}
 
 	return Math.max(minimum, Math.min(maximum, numberValue));
+}
+
+function round(value: number) {
+	return Number.isFinite(value) ? Number(value.toFixed(3)) : 0;
 }
 
 function toStringList(value: SimpleYamlValue | undefined): string[] {

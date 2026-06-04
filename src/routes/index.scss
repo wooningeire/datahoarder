@@ -9,8 +9,10 @@
 
 body {
 	margin: 0;
+	color: oklch(0.22 0.035 245);
 	font-family: var(--font-sans);
 	letter-spacing: 0;
+	background: oklch(0.97 0.015 235);
 }
 
 input,
@@ -55,27 +57,33 @@ pre code {
 	background: none;
 }
 
-blockquote {
-	margin: 1rem 0;
-	padding: 0.5rem 1rem;
-	border: 1px solid oklch(0.5 0.08 180 / 0.25);
-	background: oklch(0.75 0.08 160 / 0.25);
-	border-radius: 1rem;
+button {
+	min-height: 2rem;
+	padding: 0.25rem 0.65rem;
+	color: inherit;
+	font: inherit;
+	background: oklch(0.94 0.025 235);
+	border: 1px solid oklch(0.73 0.04 235);
+	border-radius: 0.35rem;
+	cursor: pointer;
 }
 
-.math-display,
-mjx-container[display="true"] {
-	max-width: 100%;
-	overflow-x: auto;
-	overflow-y: hidden;
+button:hover:not(:disabled) {
+	background: oklch(0.9 0.04 220);
 }
 
-.math-display {
-	display: block;
-	margin: 1rem 0;
-	text-align: center;
+button:focus-visible {
+	outline: 2px solid oklch(0.55 0.13 205);
+	outline-offset: 2px;
 }
 
-mjx-container[display="true"] {
-	padding-block: 0.125rem;
+button:disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+.primary {
+	color: white;
+	background: oklch(0.48 0.13 190);
+	border-color: oklch(0.42 0.12 190);
 }

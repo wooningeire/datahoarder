@@ -39,7 +39,7 @@ let { directoryCount, noteCount, noteTree, routeBase = '/notes', title = 'Notes'
 	</main>
 </div>
 
-<style>
+<style lang="scss">
 .note-layout {
 	--note-sidebar-width: 20rem;
 

@@ -16,7 +16,7 @@
 		"!dist/**/*.spec.*"
 	],
 	"sideEffects": [
-		"**/*.css"
+		"**/*.scss"
 	],
 	"peerDependencies": {
 		"svelte": "^5.0.0"

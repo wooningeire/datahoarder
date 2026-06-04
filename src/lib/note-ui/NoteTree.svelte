@@ -523,7 +523,7 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 	class="note-columns"
 	aria-label="Directory columns"
 	bind:this={noteColumnsElement}
-	style:padding-right={`${collapsingColumnSpace}px`}
+	style:--collapsing-column-space={`${collapsingColumnSpace}px`}
 >
 	{#each columns as column (column.key)}
 		<section
@@ -628,9 +628,9 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 			class="new-menu-items"
 			role="menu"
 			aria-label="New options"
-			style:left={`${newMenuBounds.left}px`}
-			style:top={`${newMenuBounds.top}px`}
-			style:width={`${newMenuBounds.width}px`}
+			style:--new-menu-left={`${newMenuBounds.left}px`}
+			style:--new-menu-top={`${newMenuBounds.top}px`}
+			style:--new-menu-width={`${newMenuBounds.width}px`}
 		>
 			{#if createNote}
 				<button
@@ -663,7 +663,7 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 	{/if}
 </div>
 
-<style>
+<style lang="scss">
 .note-columns {
 	--note-column-width: 14rem;
 
@@ -676,6 +676,7 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 	height: 100%;
 	min-height: 0;
 	padding-bottom: 0.35rem;
+	padding-right: var(--collapsing-column-space, 0);
 	overflow: auto;
 	overscroll-behavior: contain;
 }
@@ -970,9 +971,12 @@ button:focus-visible {
 .new-menu-items {
 	position: fixed;
 	z-index: 25;
+	left: var(--new-menu-left);
+	top: var(--new-menu-top);
 	box-sizing: border-box;
 	display: grid;
 	gap: 0.18rem;
+	width: var(--new-menu-width);
 	padding: 0.25rem;
 	background: oklch(0.99 0.008 235);
 	border: 1px solid oklch(0.76 0.04 235);

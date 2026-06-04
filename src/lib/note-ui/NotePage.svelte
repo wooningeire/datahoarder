@@ -87,7 +87,7 @@ let Note = $derived(data.kind === 'compiled' ? data.component : null);
 	</main>
 </div>
 
-<style>
+<style lang="scss">
 .note-layout {
 	--note-sidebar-width: 32rem;
 

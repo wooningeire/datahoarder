@@ -79,7 +79,7 @@ export function createWhiteboardNoteDraft(title: string): WhiteboardNoteDraft {
 		`\t<InfiniteWhiteboard bind:items bind:viewport ariaLabel="${escapeAttribute(`${normalizedTitle} whiteboard`)}" />`,
 		'</div>',
 		'',
-		'<style>',
+		'<style lang="scss">',
 		'.drawing-whiteboard {',
 		'\theight: min(72vh, 44rem);',
 		'\tmin-height: 28rem;',

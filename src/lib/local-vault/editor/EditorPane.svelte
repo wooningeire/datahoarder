@@ -1,7 +1,6 @@
 <script lang="ts">
 import { onDestroy, tick } from 'svelte';
 import type { LocalVaultFile } from '../../vault/local-files.js';
-import { getNoteTitle } from '../../vault/paths.js';
 import { getEditorLanguage as getMonacoEditorLanguage } from './editor-language.js';
 import { loadMonaco, type MonacoApi, type MonacoEditor } from './monaco.js';
 
@@ -23,6 +22,7 @@ let monacoState = $state<'idle' | 'loading' | 'ready' | 'fallback'>('idle');
 let monacoApi: MonacoApi | null = null;
 let monacoEditor: MonacoEditor | null = null;
 let monacoSubscription: { dispose: () => void } | null = null;
+let selectedPathParts = $derived(selectedFile ? getPathParts(selectedFile.path, selectedFile.extension) : null);
 
 $effect(() => {
 	setMonacoState(monacoState);
@@ -116,16 +116,31 @@ function updateMonacoLanguage(file: LocalVaultFile | null) {
 
 	monacoApi.editor.setModelLanguage(model, getMonacoEditorLanguage(file));
 }
+
+function getPathParts(path: string, extension: string) {
+	const fileName = path.split('/').at(-1) ?? path;
+	const directory = path.slice(0, Math.max(0, path.length - fileName.length));
+	const hasMatchingExtension =
+		extension && fileName.toLowerCase().endsWith(extension.toLowerCase());
+	const fileExtension = hasMatchingExtension ? fileName.slice(-extension.length) : '';
+	const stem = fileExtension ? fileName.slice(0, -fileExtension.length) : fileName;
+
+	return {
+		directory,
+		extension: fileExtension,
+		stem
+	};
+}
 </script>
 
 <section class="editor-pane" aria-label="Editor">
 	{#if selectedFile}
 		<header class="file-header">
-			<div>
-				<p>{selectedFile.extension || 'text'}</p>
-				<h2>{getNoteTitle(selectedFile.path)}</h2>
-			</div>
-			<span>{selectedFile.path}</span>
+			{#if selectedPathParts}
+				<h2 class="file-path-label" title={selectedFile.path} aria-label={selectedFile.path}>
+					{#if selectedPathParts.directory}<span class="file-path-directory">{selectedPathParts.directory}</span>{/if}<span class="file-path-name">{selectedPathParts.stem}</span>{#if selectedPathParts.extension}<span class="file-path-extension">{selectedPathParts.extension}</span>{/if}
+				</h2>
+			{/if}
 		</header>
 
 		<div class="source-editor">
@@ -147,3 +162,108 @@ function updateMonacoLanguage(file: LocalVaultFile | null) {
 		</div>
 	{/if}
 </section>
+
+<style lang="scss">
+.editor-pane {
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr);
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	background: oklch(0.985 0.006 235);
+	border-right: 1px solid oklch(0.8 0.025 235);
+}
+
+.file-header {
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
+	min-width: 0;
+	padding: 0.75rem 0.9rem;
+	border-bottom: 1px solid oklch(0.82 0.025 235);
+}
+
+.file-header h2 {
+	margin: 0;
+}
+
+.file-path-label {
+	max-width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	font-size: 1rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.file-path-directory {
+	color: oklch(0.42 0.035 245);
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	font-weight: 500;
+}
+
+.file-path-extension {
+	color: oklch(0.42 0.08 180);
+	font-family: var(--font-mono);
+	font-size: 0.74rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.source-editor,
+.monaco-host,
+.fallback-editor {
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+}
+
+.source-editor {
+	position: relative;
+	overflow: hidden;
+}
+
+.monaco-pending {
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.fallback-editor {
+	position: absolute;
+	inset: 0;
+	resize: none;
+	padding: 0.85rem;
+	color: oklch(0.21 0.035 245);
+	font-family: var(--font-mono);
+	font-size: 0.9rem;
+	line-height: 1.45;
+	background: oklch(0.99 0.006 235);
+	border: 0;
+	outline: none;
+}
+
+.empty-editor {
+	display: grid;
+	align-content: center;
+	gap: 0.5rem;
+	height: 100%;
+	padding: 1rem;
+	text-align: center;
+}
+
+.empty-editor p {
+	color: oklch(0.42 0.035 245);
+}
+
+@media (max-width: 760px) {
+	.file-header {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.editor-pane {
+		height: 58vh;
+	}
+}
+</style>

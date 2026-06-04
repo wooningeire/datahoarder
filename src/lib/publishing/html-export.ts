@@ -29,7 +29,7 @@ export function createStandaloneHtmlDocument({
 		'<meta charset="utf-8">',
 		'<meta name="viewport" content="width=device-width, initial-scale=1">',
 		`<title>${escapeHtml(title)}</title>`,
-		`<style>${standaloneHtmlCss}</style>`,
+		`<style lang="scss">${standaloneHtmlCss}</style>`,
 		'</head>',
 		'<body>',
 		'<main>',
@@ -462,19 +462,17 @@ blockquote {
 }
 
 .datahoarder-board-canvas {
-	position: relative;
+	display: block;
+	width: 100%;
+	height: auto;
 	min-height: 18rem;
-	overflow: auto;
+	max-height: 42rem;
 	background: #f8fafc;
 	border: 1px solid #cbd5e1;
 	border-radius: 0.35rem;
 }
 
 .datahoarder-board-edges {
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
 	pointer-events: none;
 }
 
@@ -501,11 +499,17 @@ blockquote {
 	stroke-width: 4;
 }
 
+.datahoarder-board-node-shell {
+	overflow: visible;
+}
+
 .datahoarder-board-node {
-	position: absolute;
 	display: grid;
 	align-content: start;
 	gap: 0.35rem;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
 	min-width: 7rem;
 	padding: 0.55rem 0.65rem;
 	overflow: hidden;

@@ -18,8 +18,12 @@ import type { LocalVaultFile } from '../../vault/local-files.js';
 import { getNoteTitle } from '../../vault/paths.js';
 import { isExcalidrawNote, isWhiteboardNote } from '../../note-model/raw.js';
 import type { VaultBacklink, VaultIndex, VaultRecord } from '../../vault/index.js';
+import Backlinks from './Backlinks.svelte';
+import BasePreview from './BasePreview.svelte';
 import CollectionPreview from './CollectionPreview.svelte';
 import InfiniteWhiteboard from '../../whiteboard/InfiniteWhiteboard.svelte';
+import MarkdownPreview from './MarkdownPreview.svelte';
+import PreviewEmpty from './PreviewEmpty.svelte';
 import { hasMath as containsMath, loadMathJax as loadMathJaxApi } from './mathjax.js';
 import { renderLocalBoard, renderLocalMarkdown } from './rendering.js';
 import type { CollectionCellEdit } from '../shared/types.js';
@@ -311,25 +315,9 @@ function toPersistableWhiteboardItems(items: WhiteboardItem[]): WhiteboardDrawin
 			{setCollectionFilter}
 			{sortCollectionBy}
 			{updateCollectionCellEditValue}
-		/>
+	/>
 	{:else if selectedFile?.extension === '.base'}
-		<header>
-			<p>.base</p>
-			<h2>{getNoteTitle(selectedFile.path)}</h2>
-		</header>
-
-		{#if baseViews.length}
-			<div class="base-views">
-				{#each baseViews as view}
-					<section>
-						<h3>{view.name}</h3>
-						<span>{view.type}</span>
-					</section>
-				{/each}
-			</div>
-		{/if}
-
-		<pre>{selectedContent}</pre>
+		<BasePreview content={selectedContent} title={getNoteTitle(selectedFile.path)} views={baseViews} />
 	{:else if whiteboardState && selectedFile}
 		<article class="whiteboard-note-preview" aria-label="Whiteboard Preview">
 			<InfiniteWhiteboard
@@ -340,43 +328,58 @@ function toPersistableWhiteboardItems(items: WhiteboardItem[]): WhiteboardDrawin
 			/>
 		</article>
 	{:else if previewHtml}
-		<article
-			class="markdown-preview"
-			bind:this={markdownPreviewHost}
-			use:previewLinkNavigation
-		>
-			{@html previewHtml}
-		</article>
-
-		{#if selectedBacklinks.length}
-			<section class="backlinks" aria-label="Backlinks">
-				<header>
-					<p>{selectedBacklinks.length} backlinks</p>
-					<h2>Backlinks</h2>
-				</header>
-
-				<ul>
-					{#each selectedBacklinks as backlink (backlink.record.path)}
-						<li>
-							<button type="button" onclick={() => openBacklink(backlink)}>
-								<strong>{backlink.record.title}</strong>
-								<span>{backlink.record.path}</span>
-								<small>{backlink.links.map((link) => link.label).join(', ')}</small>
-							</button>
-						</li>
-					{/each}
-				</ul>
-			</section>
-		{/if}
+		<MarkdownPreview
+			html={previewHtml}
+			bind:host={markdownPreviewHost}
+			{previewLinkNavigation}
+		/>
+		<Backlinks backlinks={selectedBacklinks} {openBacklink} />
 	{:else if selectedFile}
-		<div class="preview-empty">
-			<h2>Source Only</h2>
-			<p>Hosted preview renders portable markdown, base files, and Datahoarder board files. Custom Svelte execution stays in the notes project.</p>
-		</div>
+		<PreviewEmpty
+			title="Source Only"
+			description="Hosted preview renders portable markdown, base files, and Datahoarder board files. Custom Svelte execution stays in the notes project."
+		/>
 	{:else}
-		<div class="preview-empty">
-			<h2>Preview</h2>
-			<p>Markdown and base previews appear here.</p>
-		</div>
+		<PreviewEmpty title="Preview" description="Markdown and base previews appear here." />
 	{/if}
 </section>
+
+<style lang="scss">
+.preview-pane {
+	display: grid;
+	align-content: start;
+	gap: 1rem;
+	min-width: 0;
+	min-height: 0;
+	padding: 1rem;
+	overflow: auto;
+
+	background: oklch(0.99 0.01 95);
+	border-right: none;
+}
+
+.whiteboard-note-preview {
+	min-height: min(72vh, 44rem);
+	overflow: hidden;
+
+	border: 1px solid oklch(0.78 0.04 100);
+	border-radius: 0.35rem;
+}
+
+@media (max-width: 1340px) {
+	.preview-pane {
+		grid-column: 1 / -1;
+		grid-row: 2;
+		min-height: 0;
+
+		border-top: 1px solid oklch(0.8 0.025 235);
+	}
+}
+
+@media (max-width: 760px) {
+	.preview-pane {
+		grid-row: auto;
+		min-height: 24rem;
+	}
+}
+</style>

@@ -90,18 +90,14 @@ let interaction = $state<Interaction | null>(null);
 let draftDrawing = $state<DraftDrawing | null>(null);
 
 let selectedItem = $derived(items.find((item) => item.id === selectedId) ?? null);
-let viewportStyle = $derived(
-	[
-		`--grid-size: ${Math.max(4, gridSize * viewport.scale)}px`,
-		`--major-grid-size: ${Math.max(12, majorGridSize * viewport.scale)}px`,
-		`--grid-x: ${viewport.x}px`,
-		`--grid-y: ${viewport.y}px`,
-		`--board-cursor: ${getCursor(activeTool)}`
-	].join('; ')
-);
-let worldStyle = $derived(
-	`transform: translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`
-);
+let viewportGridSize = $derived(`${Math.max(4, gridSize * viewport.scale)}px`);
+let viewportMajorGridSize = $derived(`${Math.max(12, majorGridSize * viewport.scale)}px`);
+let viewportGridX = $derived(`${viewport.x}px`);
+let viewportGridY = $derived(`${viewport.y}px`);
+let viewportCursorClass = $derived(getCursorClass(activeTool));
+let worldX = $derived(`${viewport.x}px`);
+let worldY = $derived(`${viewport.y}px`);
+let worldScale = $derived(String(viewport.scale));
 let zoomPercent = $derived(`${Math.round(viewport.scale * 100)}%`);
 
 function setItems(nextItems: WhiteboardItem[]) {
@@ -552,17 +548,6 @@ function editableText(
 	};
 }
 
-function itemStyle(item: WhiteboardItem) {
-	return [
-		`left: ${item.x}px`,
-		`top: ${item.y}px`,
-		`width: ${item.width}px`,
-		`height: ${item.height}px`,
-		`z-index: ${item.zIndex ?? 1}`,
-		`transform: rotate(${item.rotation ?? 0}deg)`
-	].join('; ');
-}
-
 function drawingPoints(points: WhiteboardPoint[]) {
 	return points.map((point) => `${point.x},${point.y}`).join(' ');
 }
@@ -644,20 +629,20 @@ function getShapeStroke(shape: WhiteboardShapeKind) {
 	return 'oklch(0.51 0.12 62)';
 }
 
-function getCursor(tool: WhiteboardTool) {
+function getCursorClass(tool: WhiteboardTool) {
 	if (tool === 'pan') {
-		return interaction?.kind === 'pan' ? 'grabbing' : 'grab';
+		return interaction?.kind === 'pan' ? 'cursor-grabbing' : 'cursor-grab';
 	}
 
 	if (tool === 'pen') {
-		return 'crosshair';
+		return 'cursor-crosshair';
 	}
 
 	if (tool === 'select') {
-		return interaction?.kind === 'pan' ? 'grabbing' : 'default';
+		return interaction?.kind === 'pan' ? 'cursor-grabbing' : '';
 	}
 
-	return 'copy';
+	return 'cursor-copy';
 }
 
 function isShapeTool(tool: WhiteboardTool): tool is WhiteboardShapeKind {
@@ -758,12 +743,15 @@ function clamp(value: number, min: number, max: number) {
 
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 	<div
-		class="viewport"
+		class={`viewport ${viewportCursorClass}`}
 		bind:this={viewportElement}
 		role="application"
 		aria-label={ariaLabel}
 		tabindex="0"
-		style={viewportStyle}
+		style:--grid-size={viewportGridSize}
+		style:--major-grid-size={viewportMajorGridSize}
+		style:--grid-x={viewportGridX}
+		style:--grid-y={viewportGridY}
 		onkeydown={handleKeydown}
 		onpointerdown={handleSurfacePointerDown}
 		onpointermove={handlePointerMove}
@@ -771,7 +759,12 @@ function clamp(value: number, min: number, max: number) {
 		onpointercancel={handlePointerUp}
 		onwheel={handleWheel}
 	>
-		<div class="world" style={worldStyle}>
+		<div
+			class="world"
+			style:--world-x={worldX}
+			style:--world-y={worldY}
+			style:--world-scale={worldScale}
+		>
 			{#each items as item (item.id)}
 				<div
 					class="board-item"
@@ -779,7 +772,12 @@ function clamp(value: number, min: number, max: number) {
 					class:locked={item.locked}
 					class:drawing-item={item.kind === 'drawing'}
 					class:shape-item={item.kind === 'shape'}
-					style={itemStyle(item)}
+					style:--item-x={`${item.x}px`}
+					style:--item-y={`${item.y}px`}
+					style:--item-width={`${item.width}px`}
+					style:--item-height={`${item.height}px`}
+					style:--item-z-index={item.zIndex ?? 1}
+					style:--item-rotation={`${item.rotation ?? 0}deg`}
 					role="button"
 					tabindex="0"
 					aria-label={item.title ?? `${item.kind} item`}
@@ -792,7 +790,8 @@ function clamp(value: number, min: number, max: number) {
 							contenteditable={!readonly && !item.locked}
 							role="textbox"
 							aria-label="Whiteboard text"
-							style={`color: ${item.color ?? 'currentColor'}; background: ${item.background ?? 'white'}`}
+							style:--text-color={item.color ?? 'currentColor'}
+							style:--text-background={item.background ?? 'white'}
 							use:editableText={{ value: item.text, onchange: (text) => updateText(item.id, text) }}
 							onfocus={() => setSelected(item.id)}
 						></div>
@@ -858,7 +857,11 @@ function clamp(value: number, min: number, max: number) {
 						</svg>
 					{:else if item.kind === 'component'}
 						{@const Component = item.component}
-						<div class="component-host" style={`overflow: ${item.overflow ?? 'auto'}`}>
+						<div
+							class="component-host"
+							class:overflow-hidden={item.overflow === 'hidden'}
+							class:overflow-visible={item.overflow === 'visible'}
+						>
 							<Component {...(item.props ?? {})} />
 						</div>
 					{/if}
@@ -1029,7 +1032,7 @@ function clamp(value: number, min: number, max: number) {
 	</svg>
 {/snippet}
 
-<style>
+<style lang="scss">
 .whiteboard {
 	position: relative;
 
@@ -1122,7 +1125,7 @@ button svg {
 
 	overflow: hidden;
 	touch-action: none;
-	cursor: var(--board-cursor);
+	cursor: default;
 
 	background-color: oklch(0.985 0.012 230);
 	background-image:
@@ -1142,6 +1145,22 @@ button svg {
 		var(--major-grid-size) var(--major-grid-size);
 }
 
+.viewport.cursor-copy {
+	cursor: copy;
+}
+
+.viewport.cursor-crosshair {
+	cursor: crosshair;
+}
+
+.viewport.cursor-grab {
+	cursor: grab;
+}
+
+.viewport.cursor-grabbing {
+	cursor: grabbing;
+}
+
 .viewport:focus-visible {
 	outline: 2px solid oklch(0.58 0.16 245);
 	outline-offset: -2px;
@@ -1155,16 +1174,23 @@ button svg {
 	width: 1px;
 	height: 1px;
 
+	transform: translate(var(--world-x, 0), var(--world-y, 0)) scale(var(--world-scale, 1));
 	transform-origin: 0 0;
 }
 
 .board-item {
 	position: absolute;
+	left: var(--item-x, 0);
+	top: var(--item-y, 0);
+	z-index: var(--item-z-index, 1);
 
 	display: grid;
+	width: var(--item-width, 0);
+	height: var(--item-height, 0);
 
 	border-radius: 0.5rem;
 	outline: 1px solid transparent;
+	transform: rotate(var(--item-rotation, 0deg));
 	transform-origin: center;
 	cursor: grab;
 }
@@ -1196,11 +1222,13 @@ button svg {
 	padding: 0.9rem 1rem;
 	overflow: auto;
 
+	color: var(--text-color, currentColor);
 	cursor: text;
 	font-size: 1rem;
 	line-height: 1.35;
 	white-space: pre-wrap;
 
+	background: var(--text-background, white);
 	border: 1px solid oklch(0.76 0.06 80);
 	border-radius: 0.5rem;
 }
@@ -1247,10 +1275,19 @@ button svg {
 }
 
 .component-host {
+	overflow: auto;
 	border: 1px solid oklch(0.72 0.04 250 / 0.8);
 	border-radius: 0.5rem;
 	background: oklch(1 0 0);
 	cursor: auto;
+}
+
+.component-host.overflow-hidden {
+	overflow: hidden;
+}
+
+.component-host.overflow-visible {
+	overflow: visible;
 }
 
 .draft-drawing {

@@ -80,3 +80,36 @@ function handleValueInput(event: Event) {
 		Cancel
 	</button>
 </form>
+
+<style lang="scss">
+.collection-cell-form {
+	display: grid;
+	grid-template-columns: minmax(8rem, 1fr) auto auto;
+	gap: 0.35rem;
+	align-items: center;
+	min-width: min(100%, 16rem);
+}
+
+.collection-cell-form input,
+.collection-cell-form select {
+	min-width: 0;
+	min-height: 1.9rem;
+	padding: 0.25rem 0.4rem;
+	color: inherit;
+	background: oklch(0.99 0.006 95);
+	border: 1px solid oklch(0.7 0.06 105);
+	border-radius: 0.3rem;
+}
+
+.collection-cell-form input:focus-visible,
+.collection-cell-form select:focus-visible {
+	outline: 2px solid oklch(0.55 0.13 205);
+	outline-offset: 1px;
+}
+
+.collection-cell-form button {
+	min-height: 1.9rem;
+	padding: 0.25rem 0.45rem;
+	font-size: 0.78rem;
+}
+</style>

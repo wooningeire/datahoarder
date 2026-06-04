@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../build",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeDevCommand": "deno task dev --host 127.0.0.1 --port 5173 --strictPort",
+    "beforeDevCommand": "node ./node_modules/vite/bin/vite.js dev --host 127.0.0.1 --port 5173 --strictPort",
     "beforeBuildCommand": "deno task build:app"
   },
   "app": {

@@ -21,7 +21,7 @@ Available project commands live in `deno.json`; `package.json` is package metada
 
 ## Run the Native Shell
 
-Tauri v2 is initialized under `src-tauri/` and uses the existing SvelteKit app as its frontend. In development, Tauri starts the Vite dev server through Deno:
+Tauri v2 is initialized under `src-tauri/` and uses the existing SvelteKit app as its frontend. In development, Tauri starts the local Vite dev server through Node so WebView2 can load the app with HMR:
 
 ```powershell
 cd C:\Users\V\_\dev\datahoarder

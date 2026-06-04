@@ -9,102 +9,53 @@ import {
 	type VaultRecord
 } from './vault-index.js';
 import {
-	getCollectionVaultQueryFields,
-	matchVaultRecordQuery,
-	parseVaultQuery
-} from './vault-query.js';
+	evaluateCollectionFormula,
+	isComputedCollectionField
+} from './collection-formula.js';
+import { formatCollectionRecordValue } from './collection-records.js';
+import {
+	collectionFilePattern,
+	type CollectionDefinition,
+	type CollectionKanbanGroup,
+	type CollectionMatchRule,
+	type CollectionMatchRuleObject,
+	type CollectionRecordDraft,
+	type CollectionSource,
+	type CollectionView,
+	type ResolvedCollection
+} from './collection-types.js';
 
-export type CollectionField = {
-	formula: string;
-	name: string;
-	options: string[];
-	type: string;
-};
-
-export type CollectionSource = {
-	files: string[];
-	folders: string[];
-	match: Record<string, CollectionMatchRule>;
-	tags: string[];
-};
-
-export type CollectionMatchRule =
-	| VaultPropertyValue
-	| CollectionMatchRuleObject;
-
-export type CollectionMatchRuleObject = {
-	equals?: VaultPropertyValue;
-	exists?: boolean;
-	includes?: VaultPropertyValue;
-};
-
-export type CollectionView = {
-	columns: string[];
-	dateField: string;
-	filter: string;
-	groupBy: string;
-	name: string;
-	sortColumn: string;
-	sortDirection: 'asc' | 'desc';
-	type: string;
-};
-
-export type CollectionSummaryDefinition = {
-	field: string;
-	name: string;
-	type: string;
-};
-
-export type CollectionDefinition = {
-	name: string;
-	path: string;
-	schema: CollectionField[];
-	source: CollectionSource;
-	summaries: CollectionSummaryDefinition[];
-	views: CollectionView[];
-};
-
-export type ResolvedCollection = {
-	columns: string[];
-	definition: CollectionDefinition;
-	records: VaultRecord[];
-	view: CollectionView;
-	viewIndex: number;
-};
-
-export type CollectionRecordDraft = {
-	content: string;
-	path: string;
-	title: string;
-};
-
-export type CollectionExportRow = Record<string, VaultPropertyValue>;
-
-export type CollectionKanbanGroup = {
-	key: string;
-	label: string;
-	records: VaultRecord[];
-};
-
-export type CollectionTimelineItem = {
-	dateLabel: string;
-	record: VaultRecord;
-	timestamp: number | null;
-};
-
-export type CollectionSummaryItem = {
-	label: string;
-	value: string;
-};
-
-export type CollectionSummaryResult = {
-	items: CollectionSummaryItem[];
-	label: string;
-	type: string;
-	value: string;
-};
-
-const collectionFilePattern = /\.(?:dhbase|collection)\.ya?ml$/iu;
+export type {
+	CollectionDefinition,
+	CollectionExportRow,
+	CollectionField,
+	CollectionKanbanGroup,
+	CollectionMatchRule,
+	CollectionMatchRuleObject,
+	CollectionRecordDraft,
+	CollectionSource,
+	CollectionSummaryDefinition,
+	CollectionSummaryItem,
+	CollectionSummaryResult,
+	CollectionTimelineItem,
+	CollectionView,
+	ResolvedCollection
+} from './collection-types.js';
+export { evaluateCollectionFormula } from './collection-formula.js';
+export {
+	filterCollectionRecords,
+	formatCollectionRecordValue,
+	getCollectionExportRows,
+	getCollectionRecordValue,
+	serializeCollectionRecordsAsCsv,
+	serializeCollectionRecordsAsJson,
+	sortCollectionRecords
+} from './collection-records.js';
+export { summarizeCollectionRecords } from './collection-summary.js';
+export {
+	getCollectionTimelineItems,
+	sortCollectionRecordsForTimeline
+} from './collection-timeline.js';
 
 export function isDatahoarderCollectionFile(path: string) {
 	return collectionFilePattern.test(path);
@@ -160,43 +111,10 @@ export function getCollectionView(definition: CollectionDefinition, viewIndex = 
 	};
 }
 
-export function getCollectionRecordValue(record: VaultRecord, column: string) {
-	return getVaultRecordValue(record, column);
-}
-
 export function getCollectionField(definition: CollectionDefinition, column: string) {
 	const normalizedColumn = column.trim().toLowerCase();
 
 	return definition.schema.find((field) => field.name.toLowerCase() === normalizedColumn) ?? null;
-}
-
-export function formatCollectionRecordValue(record: VaultRecord, column: string) {
-	return formatVaultValue(getCollectionRecordValue(record, column));
-}
-
-export function sortCollectionRecords(records: VaultRecord[], column: string, direction: 'asc' | 'desc') {
-	const sorted = [...records].sort((recordA, recordB) => {
-		const valueA = formatCollectionRecordValue(recordA, column);
-		const valueB = formatCollectionRecordValue(recordB, column);
-
-		return valueA.localeCompare(valueB, undefined, { numeric: true, sensitivity: 'base' });
-	});
-
-	return direction === 'desc' ? sorted.reverse() : sorted;
-}
-
-export function filterCollectionRecords(records: VaultRecord[], query: string, columns: string[]) {
-	const parsedQuery = parseVaultQuery(query);
-
-	if (!parsedQuery.clauses.length) {
-		return records;
-	}
-
-	return records.filter((record) =>
-		matchVaultRecordQuery(record, parsedQuery, {
-			textFields: getCollectionVaultQueryFields(record, columns)
-		})
-	);
 }
 
 export function getCollectionViewGroupBy(view: CollectionView) {
@@ -226,115 +144,6 @@ export function groupCollectionRecordsForKanban(records: VaultRecord[], groupBy:
 	return [...groups.values()];
 }
 
-export function getCollectionTimelineItems(records: VaultRecord[], dateField: string): CollectionTimelineItem[] {
-	return sortCollectionRecordsForTimeline(records, dateField).map((record) => {
-		const date = getCollectionTimelineDate(getCollectionRecordValue(record, dateField));
-
-		return {
-			dateLabel: date?.label ?? 'Undated',
-			record,
-			timestamp: date?.timestamp ?? null
-		};
-	});
-}
-
-export function sortCollectionRecordsForTimeline(records: VaultRecord[], dateField: string) {
-	return records
-		.map((record, index) => ({
-			index,
-			record,
-			timestamp: getCollectionTimelineDate(getCollectionRecordValue(record, dateField))?.timestamp ?? null
-		}))
-		.sort((itemA, itemB) => {
-			if (itemA.timestamp === null && itemB.timestamp === null) {
-				return itemA.index - itemB.index;
-			}
-
-			if (itemA.timestamp === null) {
-				return 1;
-			}
-
-			if (itemB.timestamp === null) {
-				return -1;
-			}
-
-			return itemA.timestamp - itemB.timestamp || itemA.index - itemB.index;
-		})
-		.map((item) => item.record);
-}
-
-export function summarizeCollectionRecords(
-	records: VaultRecord[],
-	summaries: CollectionSummaryDefinition[]
-): CollectionSummaryResult[] {
-	return summaries.map((summary) => {
-		const type = summary.type.toLowerCase();
-		const label = summary.name || getCollectionSummaryLabel(summary);
-
-		if (type === 'countby' || type === 'count-by' || type === 'groupcount' || type === 'group-count') {
-			const items = countCollectionRecordsByField(records, summary.field);
-
-			return {
-				items,
-				label,
-				type: 'countBy',
-				value: items.length ? items.map((item) => `${item.label}: ${item.value}`).join(', ') : '0'
-			};
-		}
-
-		if (type === 'sum') {
-			return {
-				items: [],
-				label,
-				type: 'sum',
-				value: formatSummaryNumber(sumCollectionNumericValues(records, summary.field))
-			};
-		}
-
-		if (type === 'average' || type === 'avg') {
-			const values = getCollectionNumericValues(records, summary.field);
-			const average = values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
-
-			return {
-				items: [],
-				label,
-				type: 'average',
-				value: formatSummaryNumber(average)
-			};
-		}
-
-		return {
-			items: [],
-			label,
-			type: 'count',
-			value: String(records.length)
-		};
-	});
-}
-
-export function getCollectionExportRows(records: VaultRecord[], columns: string[]): CollectionExportRow[] {
-	return records.map((record) => {
-		const row: CollectionExportRow = {};
-
-		for (const column of columns) {
-			row[column] = getCollectionRecordValue(record, column);
-		}
-
-		return row;
-	});
-}
-
-export function serializeCollectionRecordsAsJson(records: VaultRecord[], columns: string[]) {
-	return JSON.stringify(getCollectionExportRows(records, columns), null, 2);
-}
-
-export function serializeCollectionRecordsAsCsv(records: VaultRecord[], columns: string[]) {
-	const rows = getCollectionExportRows(records, columns);
-	const csvRows = [columns, ...rows.map((row) => columns.map((column) => formatVaultValue(row[column])))];
-
-	return csvRows.map((row) => row.map(escapeCsvCell).join(',')).join('\r\n');
-}
-
 export function getCollectionRecordCreationError(definition: CollectionDefinition) {
 	if (!hasExplicitSource(definition.source)) {
 		return 'Add a collection source before creating records.';
@@ -359,24 +168,6 @@ export function isComputedCollectionColumn(definition: CollectionDefinition, col
 	return definition.schema.some(
 		(field) => field.name.toLowerCase() === normalizedColumn && isComputedCollectionField(field)
 	);
-}
-
-export function evaluateCollectionFormula(record: VaultRecord, formula: string): VaultPropertyValue {
-	const expression = formula.trim();
-
-	if (!expression) {
-		return '';
-	}
-
-	if (expression.includes('{')) {
-		return expression.replace(/\{([^{}]+)\}/gu, (_match, field: string) =>
-			formatVaultValue(getVaultRecordValue(record, field.trim()))
-		);
-	}
-
-	const numericValue = evaluateArithmeticFormula(record, expression);
-
-	return numericValue === null ? '' : numericValue;
 }
 
 export function createCollectionRecordDraft(definition: CollectionDefinition, title: string): CollectionRecordDraft {
@@ -629,10 +420,6 @@ function quoteInlineStringIfNeeded(value: string) {
 	}
 
 	return JSON.stringify(value);
-}
-
-function escapeCsvCell(value: string) {
-	return /[",\r\n]/u.test(value) ? `"${value.replace(/"/gu, '""')}"` : value;
 }
 
 function hasCaseInsensitiveKey(fields: Map<string, VaultPropertyValue>, key: string) {
@@ -927,264 +714,6 @@ function toStringValue(value: SimpleYamlValue | undefined) {
 	}
 
 	return String(value);
-}
-
-function getCollectionSummaryLabel(summary: CollectionSummaryDefinition) {
-	if (summary.type.toLowerCase() === 'count' || !summary.field) {
-		return 'Records';
-	}
-
-	return `${capitalize(summary.type)} ${summary.field}`;
-}
-
-function countCollectionRecordsByField(records: VaultRecord[], field: string): CollectionSummaryItem[] {
-	const counts = new Map<string, number>();
-
-	for (const record of records) {
-		const labels = getCollectionSummaryFieldLabels(record, field);
-
-		for (const label of labels.length ? labels : ['Unassigned']) {
-			counts.set(label, (counts.get(label) ?? 0) + 1);
-		}
-	}
-
-	return [...counts.entries()]
-		.map(([label, count]) => ({ label, value: String(count) }))
-		.sort((itemA, itemB) => Number(itemB.value) - Number(itemA.value) || itemA.label.localeCompare(itemB.label));
-}
-
-function getCollectionSummaryFieldLabels(record: VaultRecord, field: string) {
-	const value = getCollectionRecordValue(record, field);
-
-	if (Array.isArray(value)) {
-		return value.map(formatVaultValue).map((label) => label.trim()).filter(Boolean);
-	}
-
-	const label = formatVaultValue(value).trim();
-
-	return label ? [label] : [];
-}
-
-function sumCollectionNumericValues(records: VaultRecord[], field: string) {
-	return getCollectionNumericValues(records, field).reduce((total, value) => total + value, 0);
-}
-
-function getCollectionNumericValues(records: VaultRecord[], field: string) {
-	return records.flatMap((record) => getNumericValues(getCollectionRecordValue(record, field)));
-}
-
-function getNumericValues(value: VaultPropertyValue): number[] {
-	if (Array.isArray(value)) {
-		return value.flatMap(getNumericValues);
-	}
-
-	const numberValue = typeof value === 'number' ? value : Number(formatVaultValue(value));
-
-	return Number.isFinite(numberValue) ? [numberValue] : [];
-}
-
-function formatSummaryNumber(value: number) {
-	return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/u, '').replace(/\.$/u, '');
-}
-
-type FormulaToken =
-	| { type: 'number'; value: number }
-	| { type: 'operator'; value: FormulaOperator };
-
-type FormulaOperator = '+' | '-' | '*' | '/' | '(' | ')';
-
-function evaluateArithmeticFormula(record: VaultRecord, expression: string) {
-	const tokens = tokenizeArithmeticFormula(record, expression);
-
-	if (!tokens.length) {
-		return null;
-	}
-
-	let cursor = 0;
-
-	function peek() {
-		return tokens[cursor];
-	}
-
-	function consume() {
-		return tokens[cursor++];
-	}
-
-	function parseExpression(): number | null {
-		let value = parseTerm();
-
-		while (value !== null) {
-			const token = peek();
-
-			if (token?.type !== 'operator' || (token.value !== '+' && token.value !== '-')) {
-				break;
-			}
-
-			consume();
-			const rightValue = parseTerm();
-
-			if (rightValue === null) {
-				return null;
-			}
-
-			value = token.value === '+' ? value + rightValue : value - rightValue;
-		}
-
-		return value;
-	}
-
-	function parseTerm(): number | null {
-		let value = parseFactor();
-
-		while (value !== null) {
-			const token = peek();
-
-			if (token?.type !== 'operator' || (token.value !== '*' && token.value !== '/')) {
-				break;
-			}
-
-			consume();
-			const rightValue = parseFactor();
-
-			if (rightValue === null) {
-				return null;
-			}
-
-			value = token.value === '*' ? value * rightValue : value / rightValue;
-		}
-
-		return value;
-	}
-
-	function parseFactor(): number | null {
-		const token = consume();
-
-		if (!token) {
-			return null;
-		}
-
-		if (token.type === 'number') {
-			return token.value;
-		}
-
-		if (token.value === '+') {
-			return parseFactor();
-		}
-
-		if (token.value === '-') {
-			const value = parseFactor();
-
-			return value === null ? null : -value;
-		}
-
-		if (token.value === '(') {
-			const value = parseExpression();
-			const closingToken = consume();
-
-			return closingToken?.type === 'operator' && closingToken.value === ')' ? value : null;
-		}
-
-		return null;
-	}
-
-	const value = parseExpression();
-
-	if (value === null || cursor !== tokens.length || !Number.isFinite(value)) {
-		return null;
-	}
-
-	return Number.isInteger(value) ? value : Number(value.toFixed(6));
-}
-
-function tokenizeArithmeticFormula(record: VaultRecord, expression: string): FormulaToken[] {
-	const tokens: FormulaToken[] = [];
-	let cursor = 0;
-
-	while (cursor < expression.length) {
-		const character = expression[cursor] ?? '';
-
-		if (/\s/u.test(character)) {
-			cursor += 1;
-			continue;
-		}
-
-		if ('+-*/()'.includes(character)) {
-			tokens.push({ type: 'operator', value: character as FormulaOperator });
-			cursor += 1;
-			continue;
-		}
-
-		const numberMatch = expression.slice(cursor).match(/^\d+(?:\.\d+)?/u);
-
-		if (numberMatch) {
-			tokens.push({ type: 'number', value: Number(numberMatch[0]) });
-			cursor += numberMatch[0].length;
-			continue;
-		}
-
-		const fieldMatch = expression.slice(cursor).match(/^[\p{L}_][\p{L}\p{N}_]*/u);
-
-		if (fieldMatch) {
-			const numberValue = getFormulaNumberValue(record, fieldMatch[0]);
-
-			if (numberValue === null) {
-				return [];
-			}
-
-			tokens.push({ type: 'number', value: numberValue });
-			cursor += fieldMatch[0].length;
-			continue;
-		}
-
-		return [];
-	}
-
-	return tokens;
-}
-
-function getFormulaNumberValue(record: VaultRecord, field: string) {
-	const value = getVaultRecordValue(record, field);
-
-	if (!hasValue(value)) {
-		return null;
-	}
-
-	const values = getNumericValues(value);
-
-	return values[0] ?? null;
-}
-
-function getCollectionTimelineDate(value: VaultPropertyValue): { label: string; timestamp: number } | null {
-	if (Array.isArray(value)) {
-		for (const item of value) {
-			const date = getCollectionTimelineDate(item);
-
-			if (date) {
-				return date;
-			}
-		}
-
-		return null;
-	}
-
-	if (typeof value === 'number' && Number.isFinite(value)) {
-		return { label: String(value), timestamp: value };
-	}
-
-	if (typeof value !== 'string') {
-		return null;
-	}
-
-	const label = value.trim();
-	const timestamp = Date.parse(label);
-
-	return Number.isFinite(timestamp) ? { label, timestamp } : null;
-}
-
-function isComputedCollectionField(field: CollectionField) {
-	const type = field.type.toLowerCase();
-
-	return Boolean(field.formula || type === 'formula' || type === 'computed');
 }
 
 function getCollectionName(path: string) {

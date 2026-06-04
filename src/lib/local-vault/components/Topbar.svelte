@@ -16,9 +16,6 @@ type Props = {
 	supported: boolean;
 	addCanvasElement: () => void;
 	chooseFolder: () => void;
-	createDrawingNote: () => void;
-	createNote: () => void;
-	createNoteFromTemplate: () => void;
 	deleteSelectedFile: () => void;
 	downloadSelectedHtmlExport: () => void;
 	openCommandPalette: () => void;
@@ -47,9 +44,6 @@ let {
 	supported,
 	addCanvasElement,
 	chooseFolder,
-	createDrawingNote,
-	createNote,
-	createNoteFromTemplate,
 	deleteSelectedFile,
 	downloadSelectedHtmlExport,
 	openCommandPalette,
@@ -87,17 +81,8 @@ function handlePublicPublishProfileChange(event: Event) {
 		<button type="button" onclick={refreshVault} disabled={!supported || loading || !hasVault}>
 			Refresh
 		</button>
-		<button type="button" onclick={createNote} disabled={!supported || loading || !hasVault}>
-			New Note
-		</button>
-		<button type="button" onclick={createDrawingNote} disabled={!supported || loading || !hasVault}>
-			New Drawing
-		</button>
 		<button type="button" onclick={addCanvasElement} disabled={loading || saving || !hasSelectedExcalidrawNote}>
 			Add Canvas Element
-		</button>
-		<button type="button" onclick={createNoteFromTemplate} disabled={!supported || loading || !hasVault}>
-			New From Template
 		</button>
 		<button type="button" onclick={renameSelectedFile} disabled={loading || !hasSelectedFile}>
 			Rename

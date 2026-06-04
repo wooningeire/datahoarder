@@ -584,9 +584,6 @@ function escapeHtml(text: string) {
 		{supported}
 		addCanvasElement={noteActions.addCanvasElement}
 		chooseFolder={vaultActions.chooseFolder}
-		createDrawingNote={noteActions.createDrawingNote}
-		createNote={noteActions.createNote}
-		createNoteFromTemplate={noteActions.createNoteFromTemplate}
 		deleteSelectedFile={vaultActions.deleteSelectedFile}
 		downloadSelectedHtmlExport={publishActions.downloadSelectedHtmlExport}
 		openCommandPalette={() => interactionActions.openCommandPalette()}
@@ -627,6 +624,9 @@ function escapeHtml(text: string) {
 			{vaultSearchQuery}
 			{vaultSearchResults}
 			applySavedVaultSearch={interactionActions.applySavedVaultSearch}
+			createDrawingNote={noteActions.createDrawingNote}
+			createNote={noteActions.createNote}
+			createNoteFromTemplate={noteActions.createNoteFromTemplate}
 			deleteSavedVaultSearch={interactionActions.deleteSavedVaultSearch}
 			openSearchResult={interactionActions.openSearchResult}
 			openStoredNoteRecord={interactionActions.openStoredNoteRecord}

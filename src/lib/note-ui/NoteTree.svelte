@@ -4,15 +4,32 @@ import type { NoteTreeDirectory, NoteTreeNode } from '../note-model/tree.js';
 
 type Props = {
 	activePath: string;
+	createDisabled?: boolean;
+	createDrawingNote?: (directoryPath: string) => void | Promise<void>;
+	createNote?: (directoryPath: string) => void | Promise<void>;
+	createNoteFromTemplate?: (directoryPath: string) => void | Promise<void>;
 	nodes: NoteTreeNode[];
 	onSelect?: (path: string) => void;
 	rootLabel?: string;
 };
 
-let { activePath, nodes, onSelect, rootLabel = 'Notes' }: Props = $props();
+let {
+	activePath,
+	createDisabled = false,
+	createDrawingNote,
+	createNote,
+	createNoteFromTemplate,
+	nodes,
+	onSelect,
+	rootLabel = 'Notes'
+}: Props = $props();
 let selectedDirectoryPaths = $state<string[]>([]);
 let activeDirectoryPaths = $derived(findActiveDirectoryPaths(nodes, activePath));
 let columns = $derived(buildColumns(nodes, selectedDirectoryPaths, rootLabel));
+let hasCreateActions = $derived(Boolean(createDrawingNote || createNote || createNoteFromTemplate));
+let newMenuBounds = $state<{ left: number; top: number; width: number } | null>(null);
+let openNewMenuColumnKey = $state('');
+let openNewMenuColumn = $derived(columns.find((column) => column.key === openNewMenuColumnKey));
 let noteColumnsElement: HTMLDivElement | undefined = $state();
 let collapsingColumnSpace = $state(0);
 let collapseAnimating = $state(false);
@@ -23,6 +40,7 @@ let collapseAnimationTimeout: number | undefined;
 const columnCollapseDuration = 220;
 
 type NoteColumn = {
+	directoryPath: string;
 	key: string;
 	label: string;
 	level: number;
@@ -31,6 +49,18 @@ type NoteColumn = {
 
 $effect(() => {
 	selectedDirectoryPaths = activeDirectoryPaths;
+});
+
+$effect(() => {
+	if (createDisabled) {
+		closeNewMenu();
+	}
+});
+
+$effect(() => {
+	if (openNewMenuColumnKey && !openNewMenuColumn) {
+		closeNewMenu();
+	}
 });
 
 $effect.pre(() => {
@@ -100,6 +130,7 @@ function buildColumns(rootNodes: NoteTreeNode[], selectedPaths: string[], rootCo
 	const nextColumns: NoteColumn[] = [
 		{
 			key: 'root',
+			directoryPath: '',
 			label: rootColumnLabel,
 			level: 0,
 			items: rootNodes
@@ -118,6 +149,7 @@ function buildColumns(rootNodes: NoteTreeNode[], selectedPaths: string[], rootCo
 
 		nextColumns.push({
 			key: selectedDirectory.path,
+			directoryPath: selectedDirectory.path,
 			label: selectedDirectory.name,
 			level: nextColumns.length,
 			items: selectedDirectory.children
@@ -146,6 +178,45 @@ function findActiveDirectoryPaths(rootNodes: NoteTreeNode[], currentPath: string
 
 function isPathInsideDirectory(path: string, directoryPath: string) {
 	return path.startsWith(`${directoryPath}/`);
+}
+
+function toggleNewMenu(columnKey: string, event: MouseEvent) {
+	if (openNewMenuColumnKey === columnKey) {
+		closeNewMenu();
+		return;
+	}
+
+	const triggerRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+	openNewMenuColumnKey = columnKey;
+	newMenuBounds = getNewMenuBounds(triggerRect);
+}
+
+async function createInColumn(create: (directoryPath: string) => void | Promise<void>, directoryPath: string) {
+	closeNewMenu();
+	await create(directoryPath);
+}
+
+function closeNewMenu() {
+	openNewMenuColumnKey = '';
+	newMenuBounds = null;
+}
+
+function getNewMenuBounds(triggerRect: DOMRect) {
+	const gap = 4;
+	const estimatedMenuHeight = 112;
+	const columnsRect = noteColumnsElement?.getBoundingClientRect();
+	const boundaryTop = Math.max(0, columnsRect?.top ?? 0);
+	const boundaryBottom = Math.min(window.innerHeight, columnsRect?.bottom ?? window.innerHeight);
+	const opensBelow = triggerRect.bottom + gap + estimatedMenuHeight <= boundaryBottom;
+	const top = opensBelow
+		? triggerRect.bottom + gap
+		: Math.max(boundaryTop + gap, triggerRect.top - gap - estimatedMenuHeight);
+
+	return {
+		left: triggerRect.left,
+		top,
+		width: triggerRect.width
+	};
 }
 
 function areColumnKeysEqual(left: string[], right: string[]) {
@@ -348,8 +419,63 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 					{/if}
 				{/each}
 			</ul>
+			{#if hasCreateActions}
+				<div class="note-column-footer">
+					<div class:open={openNewMenuColumnKey === column.key} class="new-menu">
+						<button
+							type="button"
+							class="new-menu-trigger"
+							aria-expanded={openNewMenuColumnKey === column.key}
+							aria-haspopup="menu"
+							disabled={createDisabled}
+							onclick={(event) => toggleNewMenu(column.key, event)}
+						>
+							<span>New</span>
+							<span class="new-menu-chevron" aria-hidden="true"></span>
+						</button>
+					</div>
+				</div>
+			{/if}
 		</section>
 	{/each}
+	{#if hasCreateActions && openNewMenuColumn && newMenuBounds}
+		<div
+			class="new-menu-items"
+			role="menu"
+			aria-label="New options"
+			style:left={`${newMenuBounds.left}px`}
+			style:top={`${newMenuBounds.top}px`}
+			style:width={`${newMenuBounds.width}px`}
+		>
+			{#if createNote}
+				<button
+					type="button"
+					role="menuitem"
+					onclick={() => createInColumn(createNote, openNewMenuColumn.directoryPath)}
+				>
+					New Note
+				</button>
+			{/if}
+			{#if createDrawingNote}
+				<button
+					type="button"
+					role="menuitem"
+					onclick={() => createInColumn(createDrawingNote, openNewMenuColumn.directoryPath)}
+				>
+					New Drawing
+				</button>
+			{/if}
+			{#if createNoteFromTemplate}
+				<button
+					type="button"
+					role="menuitem"
+					onclick={() => createInColumn(createNoteFromTemplate, openNewMenuColumn.directoryPath)}
+				>
+					New From Template
+				</button>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -359,6 +485,7 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 	display: grid;
 	grid-auto-columns: var(--note-column-width);
 	grid-auto-flow: column;
+	grid-template-rows: minmax(0, 1fr);
 	gap: 0.5rem;
 	align-items: stretch;
 	height: 100%;
@@ -373,8 +500,12 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 }
 
 .note-column {
-	min-height: 100%;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
 	min-width: 0;
+	overflow: visible;
 	padding-right: 0.5rem;
 	border-right: 1px solid oklch(0.78 0.04 250 / 0.55);
 }
@@ -400,6 +531,7 @@ h2 {
 
 ul {
 	display: grid;
+	flex: 1 0 auto;
 	align-content: start;
 	gap: 0.125rem;
 	margin: 0;
@@ -536,6 +668,93 @@ button:focus-visible {
 	font-weight: 700;
 
 	background: oklch(0.86 0.06 205);
+}
+
+.note-column-footer {
+	flex: 0 0 auto;
+	position: relative;
+	margin-top: auto;
+	padding: 0.45rem 0.45rem 0;
+}
+
+.new-menu {
+	position: relative;
+}
+
+.new-menu-trigger {
+	grid-template-columns: minmax(0, 1fr) auto;
+	min-height: 1.85rem;
+	color: oklch(0.29 0.07 180);
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	font-weight: 700;
+	text-align: center;
+	text-transform: uppercase;
+	background: oklch(0.95 0.025 155);
+	border: 1px solid oklch(0.74 0.06 155);
+}
+
+.new-menu-trigger:hover:not(:disabled),
+.new-menu.open .new-menu-trigger {
+	background: oklch(0.89 0.045 155);
+}
+
+.new-menu-trigger:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+
+.new-menu-chevron {
+	position: relative;
+	width: 0.75rem;
+	height: 0.75rem;
+}
+
+.new-menu-chevron::before {
+	position: absolute;
+	top: 0.22rem;
+	left: 0.18rem;
+	width: 0.35rem;
+	height: 0.35rem;
+	border-right: 1.5px solid currentColor;
+	border-bottom: 1.5px solid currentColor;
+	content: '';
+	transform: rotate(45deg);
+	transform-origin: center;
+}
+
+.new-menu.open .new-menu-chevron::before {
+	top: 0.34rem;
+	transform: rotate(225deg);
+}
+
+.new-menu-items {
+	position: fixed;
+	z-index: 25;
+	box-sizing: border-box;
+	display: grid;
+	gap: 0.18rem;
+	padding: 0.25rem;
+	background: oklch(0.99 0.008 235);
+	border: 1px solid oklch(0.76 0.04 235);
+	border-radius: 0.35rem;
+	box-shadow: 0 0.7rem 1.6rem oklch(0.16 0.04 245 / 0.16);
+}
+
+.new-menu-items button {
+	display: block;
+	min-height: 1.75rem;
+	padding: 0.25rem 0.45rem;
+	color: oklch(0.27 0.045 245);
+	font-size: 0.82rem;
+	text-align: left;
+	background: transparent;
+	border: 0;
+	border-radius: 0.25rem;
+}
+
+.new-menu-items button:hover {
+	background: oklch(0.92 0.04 205);
 }
 
 @media (prefers-reduced-motion: reduce) {

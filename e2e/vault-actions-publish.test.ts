@@ -1,5 +1,14 @@
 import { readFile } from 'node:fs/promises';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function clickColumnNewItem(page: Page, columnName: string, itemName: string) {
+	const column = page
+		.locator('.note-column')
+		.filter({ has: page.getByRole('heading', { name: columnName, exact: true }) });
+
+	await column.getByRole('button', { name: 'New', exact: true }).click();
+	await page.getByRole('menu', { name: 'New options' }).getByRole('menuitem', { name: itemName }).click();
+}
 
 test('directory columns scroll to new folders and collapse smoothly', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-directory-column-scroll-${Date.now()}`;
@@ -185,7 +194,7 @@ test('new drawing creates an Excalidraw starter note', async ({ page }) => {
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 	await expect(page.locator('.sidebar-summary').getByText('0 notes', { exact: true })).toBeVisible();
 
-	await page.getByRole('button', { name: 'New Drawing' }).click();
+	await clickColumnNewItem(page, 'Files', 'New Drawing');
 	await expect(page.getByText('Created drawing Sketches/Launch Map.md')).toBeVisible();
 	await expect(page.getByLabel('Editor').getByText('Sketches/Launch Map.md')).toBeVisible();
 	await expect(page.getByLabel('Preview').locator('.excalidraw-preview-svg')).toBeVisible();
@@ -303,7 +312,7 @@ test('new from template creates a note with rendered placeholders', async ({ pag
 
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
-	await page.getByRole('button', { name: 'New From Template' }).click();
+	await clickColumnNewItem(page, 'Files', 'New From Template');
 
 	await expect(page.getByText('Created Projects/Launch Map.md from Templates/Project.template.md')).toBeVisible();
 	await expect(page.getByLabel('Editor').locator('.file-header').getByText('Projects/Launch Map.md')).toBeVisible();

@@ -23,6 +23,9 @@ type Props = {
 	vaultSearchQuery: string;
 	vaultSearchResults: VaultSearchResult[];
 	applySavedVaultSearch: (search: SavedVaultSearch) => void;
+	createDrawingNote: (directoryPath: string) => void;
+	createNote: (directoryPath: string) => void;
+	createNoteFromTemplate: (directoryPath: string) => void;
 	deleteSavedVaultSearch: (search: SavedVaultSearch) => void;
 	openSearchResult: (result: VaultSearchResult) => void;
 	openStoredNoteRecord: (record: VaultRecord) => void;
@@ -48,6 +51,9 @@ let {
 	vaultSearchQuery,
 	vaultSearchResults,
 	applySavedVaultSearch,
+	createDrawingNote,
+	createNote,
+	createNoteFromTemplate,
 	deleteSavedVaultSearch,
 	openSearchResult,
 	openStoredNoteRecord,
@@ -148,8 +154,17 @@ function handleVaultSearchInput(event: Event) {
 						<p class="empty-state">No matching notes.</p>
 					{/if}
 				</div>
-			{:else if fileTree.length}
-				<NoteTree nodes={fileTree} activePath={selectedPath} onSelect={selectFile} rootLabel="Files" />
+			{:else if hasVault}
+				<NoteTree
+					nodes={fileTree}
+					activePath={selectedPath}
+					createDisabled={loading || saving}
+					{createDrawingNote}
+					{createNote}
+					{createNoteFromTemplate}
+					onSelect={selectFile}
+					rootLabel="Files"
+				/>
 			{:else}
 				<p class="empty-state">No editable text files are indexed yet.</p>
 			{/if}

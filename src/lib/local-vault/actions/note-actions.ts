@@ -107,7 +107,7 @@ export function createNoteActions(context: NoteActionContext) {
 		}
 	}
 
-	async function createNote() {
+	async function createNote(directoryPath?: string) {
 		if (
 			!context.vaultHandle ||
 			context.loading ||
@@ -117,7 +117,10 @@ export function createNoteActions(context: NoteActionContext) {
 			return;
 		}
 
-		const suggestedPath = getAvailableLocalNotePath(context.files, 'Untitled.md');
+		const suggestedPath = getAvailableLocalNotePath(
+			context.files,
+			getSuggestedCreatePath(directoryPath, 'Untitled.md', 'Untitled.md')
+		);
 		const requestedPath = window.prompt('New note path', suggestedPath);
 
 		if (requestedPath === null) {
@@ -137,7 +140,7 @@ export function createNoteActions(context: NoteActionContext) {
 		}
 	}
 
-	async function createDrawingNote() {
+	async function createDrawingNote(directoryPath?: string) {
 		if (
 			!context.vaultHandle ||
 			context.loading ||
@@ -147,7 +150,10 @@ export function createNoteActions(context: NoteActionContext) {
 			return;
 		}
 
-		const suggestedPath = getAvailableLocalNotePath(context.files, 'Drawings/Untitled Drawing.md');
+		const suggestedPath = getAvailableLocalNotePath(
+			context.files,
+			getSuggestedCreatePath(directoryPath, 'Drawings/Untitled Drawing.md', 'Untitled Drawing.md')
+		);
 		const requestedPath = window.prompt('New drawing path', suggestedPath);
 
 		if (requestedPath === null) {
@@ -212,7 +218,7 @@ export function createNoteActions(context: NoteActionContext) {
 		}
 	}
 
-	async function createNoteFromTemplate() {
+	async function createNoteFromTemplate(directoryPath?: string) {
 		if (
 			!context.vaultHandle ||
 			context.loading ||
@@ -240,7 +246,14 @@ export function createNoteActions(context: NoteActionContext) {
 			return;
 		}
 
-		const suggestedPath = getAvailableLocalNotePath(context.files, `${getTemplateDisplayName(templateFile.path)}.md`);
+		const suggestedPath = getAvailableLocalNotePath(
+			context.files,
+			getSuggestedCreatePath(
+				directoryPath,
+				`${getTemplateDisplayName(templateFile.path)}.md`,
+				`${getTemplateDisplayName(templateFile.path)}.md`
+			)
+		);
 		const requestedPath = window.prompt('New note path', suggestedPath);
 
 		if (requestedPath === null) {
@@ -365,4 +378,14 @@ export function createNoteActions(context: NoteActionContext) {
 			null
 		);
 	}
+}
+
+function getSuggestedCreatePath(directoryPath: string | undefined, globalPath: string, localFileName: string) {
+	if (directoryPath === undefined) {
+		return globalPath;
+	}
+
+	const normalizedDirectoryPath = directoryPath.trim().replace(/\\/gu, '/').replace(/^\/+|\/+$/gu, '');
+
+	return normalizedDirectoryPath ? `${normalizedDirectoryPath}/${localFileName}` : localFileName;
 }

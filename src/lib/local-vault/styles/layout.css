@@ -6,7 +6,7 @@ body {
 .datahoarder-shell {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	grid-template-rows: auto minmax(0, 1fr);
+	grid-template-rows: auto minmax(0, 1fr) auto;
 	height: 100vh;
 	height: 100dvh;
 	min-height: 0;
@@ -240,18 +240,11 @@ button:disabled {
 }
 
 .bottom-banners {
-	position: fixed;
-	right: 0;
-	bottom: 0;
-	left: 0;
-	z-index: 20;
+	grid-row: 3;
+	grid-column: 1;
+	min-height: 0;
 	max-height: min(45vh, 14rem);
 	overflow: auto;
-	pointer-events: none;
-}
-
-.bottom-banners > * {
-	pointer-events: auto;
 }
 
 .status-row {
@@ -287,6 +280,7 @@ button:disabled {
 	grid-row: 2;
 	grid-column: 1;
 	grid-template-columns: var(--vault-sidebar-width) minmax(20rem, 1fr) minmax(18rem, 0.85fr);
+	grid-template-rows: minmax(0, 1fr);
 	min-height: 0;
 	overflow: hidden;
 }
@@ -439,13 +433,15 @@ button:disabled {
 	display: flex;
 	flex-direction: column;
 	gap: 0.75rem;
+	height: 100%;
 	min-height: 0;
 	overflow: hidden;
 }
 
 .vault-main-browser {
 	display: grid;
-	flex: 1 1 auto;
+	grid-template-rows: minmax(0, 1fr);
+	flex: 1 1 0;
 	min-height: 0;
 	overflow: hidden;
 }

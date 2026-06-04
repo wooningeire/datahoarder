@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import { fillInlineFileCreate, fillRequestFields } from './request-dialog.js';
 
 test('kanban collection views group filter and export records', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-kanban-${Date.now()}`;
-	const promptResponses = ['owner', 'text'];
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
@@ -54,10 +54,6 @@ test('kanban collection views group filter and export records', async ({ page })
 			return directory;
 		};
 	}, vaultName);
-
-	page.on('dialog', async (dialog) => {
-		await dialog.accept(promptResponses.shift() ?? '');
-	});
 
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
@@ -124,6 +120,15 @@ test('kanban collection views group filter and export records', async ({ page })
 	expect(csvContent).not.toContain('Acme Labs');
 
 	await page.getByRole('button', { name: 'Add Field' }).click();
+	await fillRequestFields(
+		page,
+		'New Collection Field',
+		{
+			'Field Name': 'owner',
+			'Field Type': 'text'
+		},
+		'Add Field'
+	);
 	await expect(page.getByText('Added owner field to Applications.dhbase.yaml')).toBeVisible();
 
 	const editedCollectionContent = await page.evaluate(async (name) => {
@@ -396,7 +401,6 @@ test('collection formula fields derive filter summarize and export values', asyn
 
 test('collection fields can be bulk updated across visible filtered records', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-bulk-field-${Date.now()}`;
-	const dialogResponses = ['status', 'Done', ''];
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
@@ -439,7 +443,7 @@ test('collection fields can be bulk updated across visible filtered records', as
 	}, vaultName);
 
 	page.on('dialog', async (dialog) => {
-		await dialog.accept(dialogResponses.shift() ?? '');
+		await dialog.accept();
 	});
 
 	await page.goto('/');
@@ -453,6 +457,15 @@ test('collection fields can be bulk updated across visible filtered records', as
 	await expect(preview.getByRole('button', { name: 'Gamma', exact: true })).toHaveCount(0);
 
 	await page.getByRole('button', { name: 'Bulk Set Field' }).click();
+	await fillRequestFields(
+		page,
+		'Bulk Set Collection Field',
+		{
+			Field: 'status',
+			Value: 'Done'
+		},
+		'Review Update'
+	);
 	await expect(page.getByText('Updated status on 2 visible records.')).toBeVisible();
 	await expect(preview.locator('.collection-cell-edit', { hasText: 'Done' })).toHaveCount(2);
 
@@ -562,7 +575,6 @@ test('collection cells use typed inline editors from schema metadata', async ({ 
 
 test('collection records can be scaffolded from the selected collection', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-collection-record-${Date.now()}`;
-	const dialogResponses = ['priority', 'text', 'Acme Labs'];
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
@@ -603,15 +615,20 @@ test('collection records can be scaffolded from the selected collection', async 
 		};
 	}, vaultName);
 
-	page.on('dialog', async (dialog) => {
-		await dialog.accept(dialogResponses.shift() ?? '');
-	});
-
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Applications' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Add Field' }).click();
+	await fillRequestFields(
+		page,
+		'New Collection Field',
+		{
+			'Field Name': 'priority',
+			'Field Type': 'text'
+		},
+		'Add Field'
+	);
 	await expect(page.getByText('Added priority field to Applications.dhbase.yaml')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Applications' })).toBeVisible();
 	await expect(page.getByLabel('Editor').getByRole('heading', { name: 'Applications.dhbase.yaml' })).toBeVisible();
@@ -630,8 +647,9 @@ test('collection records can be scaffolded from the selected collection', async 
 	expect(editedCollectionContent).toContain('columns: [title, company, status, tags, priority]');
 
 	await page.getByRole('button', { name: 'New Record' }).click();
-	await expect(page.getByText('Created collection record applications/acme-labs.md')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('applications/acme-labs.md')).toBeVisible();
+	await fillInlineFileCreate(page, 'New record file name', 'Acme Labs');
+	await expect(page.getByText('Created collection record applications/Acme Labs.md')).toBeVisible();
+	await expect(page.getByLabel('Editor').getByText('applications/Acme Labs.md')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Acme Labs' })).toBeVisible();
 
 	const noteHtmlDownloadPromise = page.waitForEvent('download');
@@ -646,7 +664,7 @@ test('collection records can be scaffolded from the selected collection', async 
 	expect(noteHtmlContent).toContain('<title>Acme Labs</title>');
 	expect(noteHtmlContent).toContain('<h1>Acme Labs</h1>');
 	expect(noteHtmlContent).toContain('<article><h1>Acme Labs</h1>');
-	await expect(page.getByText('Exported applications/acme-labs.md as HTML.')).toBeVisible();
+	await expect(page.getByText('Exported applications/Acme Labs.md as HTML.')).toBeVisible();
 
 	await page.locator('.note-columns').getByRole('button', { name: 'Applications.dhbase.yaml' }).click();
 	const preview = page.getByLabel('Preview');
@@ -659,20 +677,20 @@ test('collection records can be scaffolded from the selected collection', async 
 	await preview.getByRole('button', { name: /Edit Priority for Acme Labs/u }).click();
 	await preview.getByRole('textbox', { name: 'Priority for Acme Labs' }).fill('High');
 	await preview.getByRole('button', { name: 'Save Priority for Acme Labs' }).click();
-	await expect(page.getByText('Updated priority on applications/acme-labs.md')).toBeVisible();
+	await expect(page.getByText('Updated priority on applications/Acme Labs.md')).toBeVisible();
 	await expect(preview.locator('.collection-cell-edit', { hasText: 'High' })).toBeVisible();
 
 	await preview.getByRole('button', { name: /Edit Company for Acme Labs/u }).click();
 	await preview.getByRole('textbox', { name: 'Company for Acme Labs' }).fill('Acme Labs LLC');
 	await preview.getByRole('button', { name: 'Save Company for Acme Labs' }).click();
-	await expect(page.getByText('Updated company on applications/acme-labs.md')).toBeVisible();
+	await expect(page.getByText('Updated company on applications/Acme Labs.md')).toBeVisible();
 	await expect(preview.locator('.collection-cell-edit', { hasText: 'Acme Labs LLC' })).toBeVisible();
 
 	const editedRecordContent = await page.evaluate(async (name) => {
 		const root = await navigator.storage.getDirectory();
 		const directory = await root.getDirectoryHandle(name);
 		const applicationsDirectory = await directory.getDirectoryHandle('applications');
-		const file = await applicationsDirectory.getFileHandle('acme-labs.md');
+		const file = await applicationsDirectory.getFileHandle('Acme Labs.md');
 		const blob = await file.getFile();
 
 		return blob.text();

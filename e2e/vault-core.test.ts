@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { fillInlineFileCreate, fillRequestText } from './request-dialog.js';
 
 test('home page has expected h1', async ({ page }) => {
 	await page.goto('/');
@@ -171,17 +172,6 @@ test('command palette opens notes and runs quick capture actions', async ({ page
 		};
 	}, vaultName);
 
-	const promptResponses = ['Inbox/Capture.md'];
-
-	page.on('dialog', async (dialog) => {
-		if (dialog.type() === 'prompt') {
-			await dialog.accept(promptResponses.shift() ?? '');
-			return;
-		}
-
-		await dialog.accept();
-	});
-
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 
@@ -198,16 +188,16 @@ test('command palette opens notes and runs quick capture actions', async ({ page
 	await expect(palette).toBeVisible();
 	await palette.getByRole('searchbox', { name: 'Command palette' }).fill('new note');
 	await palette.locator('.command-palette-results button', { hasText: 'New Note' }).click();
+	await fillInlineFileCreate(page, 'New note name', 'Capture');
 
-	await expect(page.getByText('Created Inbox/Capture.md')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('Inbox/Capture.md')).toBeVisible();
+	await expect(page.getByText('Created Capture.md')).toBeVisible();
+	await expect(page.getByLabel('Editor').getByText('Capture.md')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Capture' })).toBeVisible();
 
 	const createdContent = await page.evaluate(async (name) => {
 		const root = await navigator.storage.getDirectory();
 		const directory = await root.getDirectoryHandle(name);
-		const inbox = await directory.getDirectoryHandle('Inbox');
-		const file = await inbox.getFileHandle('Capture.md');
+		const file = await directory.getFileHandle('Capture.md');
 		const blob = await file.getFile();
 
 		return blob.text();
@@ -243,11 +233,6 @@ test('global searches can be saved as vault files and reapplied', async ({ page 
 	}, vaultName);
 
 	page.on('dialog', async (dialog) => {
-		if (dialog.type() === 'prompt') {
-			await dialog.accept('Visual Sankey');
-			return;
-		}
-
 		await dialog.accept();
 	});
 
@@ -257,6 +242,7 @@ test('global searches can be saved as vault files and reapplied', async ({ page 
 	const searchBox = page.getByRole('searchbox', { name: 'Search vault' });
 	await searchBox.fill('#visual sankey');
 	await page.locator('.vault-search').getByRole('button', { name: 'Save' }).click();
+	await fillRequestText(page, 'Saved Search Name', 'Search Name', 'Visual Sankey', 'Save Search');
 	await expect(page.getByText('Saved search Visual Sankey.')).toBeVisible();
 
 	const savedSearch = page.getByLabel('Saved searches').locator('.saved-search-apply', { hasText: 'Visual Sankey' });

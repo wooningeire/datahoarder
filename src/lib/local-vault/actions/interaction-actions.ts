@@ -6,7 +6,7 @@ import {
 	type SavedVaultSearch
 } from '../../vault/saved-search.js';
 import { buildLocalVaultIndex, type VaultIndex } from '../../vault/index.js';
-import type { CommandPaletteItem } from '../shared/types.js';
+import type { CommandPaletteItem, RequestTextOptions } from '../shared/types.js';
 
 type InteractionActionContext = {
 	commandPaletteOpen: boolean;
@@ -29,6 +29,7 @@ type InteractionActionContext = {
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
 	reloadVaultAfterFileOperation: (nextStatus: string, preferredPath?: string) => Promise<void>;
+	requestText: (options: RequestTextOptions) => Promise<string | null>;
 	selectFile: (filePath: string) => Promise<void>;
 };
 
@@ -214,7 +215,13 @@ export function createInteractionActions(context: InteractionActionContext) {
 			return;
 		}
 
-		const requestedName = window.prompt('Saved search name', query);
+		const requestedName = await context.requestText({
+			label: 'Search Name',
+			required: true,
+			submitLabel: 'Save Search',
+			title: 'Saved Search Name',
+			value: query
+		});
 
 		if (requestedName === null) {
 			return;

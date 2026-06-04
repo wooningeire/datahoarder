@@ -8,7 +8,7 @@ import {
 	hasOwnCaseInsensitiveProperty,
 	isEditableCollectionColumn
 } from '../preview/collection-view.js';
-import type { CollectionCellEdit } from '../shared/types.js';
+import type { CollectionCellEdit, RequestDialogConfig, RequestDialogValues } from '../shared/types.js';
 
 type CollectionActionContext = {
 	collectionCellEdit: CollectionCellEdit | null;
@@ -34,6 +34,7 @@ type CollectionActionContext = {
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
 	reloadVaultAfterFileOperation: (nextStatus: string, preferredPath?: string) => Promise<void>;
+	requestForm: (config: RequestDialogConfig) => Promise<RequestDialogValues | null>;
 	saveSelectedFile: () => Promise<void>;
 	selectFile: (filePath: string) => Promise<void>;
 };
@@ -192,31 +193,52 @@ export function createCollectionActions(context: CollectionActionContext) {
 			}
 		}
 
-		const defaultField =
-			context.selectedCollection.columns.find((column) =>
-				isEditableCollectionColumn(context.selectedCollection, column)
-			) ?? 'status';
-		const requestedKey = window.prompt('Field name for visible records', defaultField);
+		const editableColumns = context.selectedCollection.columns.filter((column) =>
+			isEditableCollectionColumn(context.selectedCollection, column)
+		);
 
-		if (requestedKey === null) {
+		if (!editableColumns.length) {
+			context.errorMessage = 'No editable collection fields are visible in this view.';
 			return;
 		}
 
-		const key = requestedKey.trim();
+		const defaultField = editableColumns[0];
+		const requestedUpdate = await context.requestForm({
+			description: `${context.collectionRecords.length} visible records will be eligible for this update.`,
+			fields: [
+				{
+					id: 'key',
+					inputKind: 'select',
+					label: 'Field',
+					options: editableColumns.map((column) => ({
+						label: getCollectionColumnLabel(column),
+						value: column
+					})),
+					required: true,
+					value: defaultField
+				},
+				{
+					id: 'value',
+					label: 'Value',
+					value: ''
+				}
+			],
+			submitLabel: 'Review Update',
+			title: 'Bulk Set Collection Field'
+		});
+
+		if (requestedUpdate === null) {
+			return;
+		}
+
+		const key = requestedUpdate.key.trim();
 
 		if (!isEditableCollectionColumn(context.selectedCollection, key)) {
 			context.errorMessage = `${key || 'That field'} cannot be edited from collection records.`;
 			return;
 		}
 
-		const requestedValue = window.prompt(
-			`Set ${getCollectionColumnLabel(key)} on ${context.collectionRecords.length} visible records`,
-			''
-		);
-
-		if (requestedValue === null) {
-			return;
-		}
+		const requestedValue = requestedUpdate.value;
 
 		if (!window.confirm(`Set ${key} on ${context.collectionRecords.length} visible collection records?`)) {
 			return;

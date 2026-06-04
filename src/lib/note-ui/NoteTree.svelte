@@ -1,6 +1,7 @@
 <script lang="ts">
 import { tick } from 'svelte';
-import type { NoteTreeDirectory, NoteTreeNode } from '../note-model/tree.js';
+import type { NoteTreeFile, NoteTreeNode } from '../note-model/tree.js';
+import type { InlineFileCreate } from '../local-vault/shared/types.js';
 
 type Props = {
 	activePath: string;
@@ -8,9 +9,13 @@ type Props = {
 	createDrawingNote?: (directoryPath: string) => void | Promise<void>;
 	createNote?: (directoryPath: string) => void | Promise<void>;
 	createNoteFromTemplate?: (directoryPath: string) => void | Promise<void>;
+	inlineFileCreate?: InlineFileCreate | null;
 	nodes: NoteTreeNode[];
+	cancelInlineFileCreate?: () => void;
 	onSelect?: (path: string) => void;
 	rootLabel?: string;
+	submitInlineFileCreate?: () => void;
+	updateInlineFileCreateName?: (fileName: string) => void;
 };
 
 let {
@@ -19,36 +24,79 @@ let {
 	createDrawingNote,
 	createNote,
 	createNoteFromTemplate,
+	inlineFileCreate = null,
 	nodes,
+	cancelInlineFileCreate,
 	onSelect,
-	rootLabel = 'Notes'
+	rootLabel = 'Notes',
+	submitInlineFileCreate,
+	updateInlineFileCreateName
 }: Props = $props();
 let selectedDirectoryPaths = $state<string[]>([]);
-let activeDirectoryPaths = $derived(findActiveDirectoryPaths(nodes, activePath));
-let columns = $derived(buildColumns(nodes, selectedDirectoryPaths, rootLabel));
+let displayNodes = $derived(buildDisplayNodes(nodes, inlineFileCreate));
+let activeDirectoryPaths = $derived(findActiveDirectoryPaths(displayNodes, activePath));
+let inlineCreateDirectoryPaths = $derived(
+	inlineFileCreate ? getDirectoryPathSegments(inlineFileCreate.directoryPath) : []
+);
+let columns = $derived(buildColumns(displayNodes, selectedDirectoryPaths, rootLabel));
 let hasCreateActions = $derived(Boolean(createDrawingNote || createNote || createNoteFromTemplate));
 let newMenuBounds = $state<{ left: number; top: number; width: number } | null>(null);
 let openNewMenuColumnKey = $state('');
 let openNewMenuColumn = $derived(columns.find((column) => column.key === openNewMenuColumnKey));
 let noteColumnsElement: HTMLDivElement | undefined = $state();
+let inlineCreateInputElement: HTMLInputElement | undefined = $state();
 let collapsingColumnSpace = $state(0);
 let collapseAnimating = $state(false);
 let renderedColumnKeys: string[] = [];
+let focusedInlineCreateId = '';
 let pendingCollapseSpace = 0;
 let collapseAnimationTimeout: number | undefined;
 
 const columnCollapseDuration = 220;
+
+type DisplayDirectory = {
+	kind: 'directory';
+	name: string;
+	path: string;
+	children: DisplayNode[];
+};
+
+type PendingFileNode = {
+	id: string;
+	kind: 'pending-file';
+	name: string;
+	path: string;
+};
+
+type DisplayNode = DisplayDirectory | NoteTreeFile | PendingFileNode;
 
 type NoteColumn = {
 	directoryPath: string;
 	key: string;
 	label: string;
 	level: number;
-	items: NoteTreeNode[];
+	items: DisplayNode[];
 };
 
 $effect(() => {
-	selectedDirectoryPaths = activeDirectoryPaths;
+	selectedDirectoryPaths = inlineFileCreate ? inlineCreateDirectoryPaths : activeDirectoryPaths;
+});
+
+$effect(() => {
+	if (!inlineFileCreate) {
+		focusedInlineCreateId = '';
+		return;
+	}
+
+	if (!inlineCreateInputElement || focusedInlineCreateId === inlineFileCreate.id) {
+		return;
+	}
+
+	focusedInlineCreateId = inlineFileCreate.id;
+	void tick().then(() => {
+		inlineCreateInputElement?.focus();
+		inlineCreateInputElement?.select();
+	});
 });
 
 $effect(() => {
@@ -122,11 +170,11 @@ function isSelected(path: string, level: number) {
 	return selectedDirectoryPaths[level] === path;
 }
 
-function selectDirectory(node: NoteTreeDirectory, level: number) {
+function selectDirectory(node: DisplayDirectory, level: number) {
 	selectedDirectoryPaths = [...selectedDirectoryPaths.slice(0, level), node.path];
 }
 
-function buildColumns(rootNodes: NoteTreeNode[], selectedPaths: string[], rootColumnLabel: string): NoteColumn[] {
+function buildColumns(rootNodes: DisplayNode[], selectedPaths: string[], rootColumnLabel: string): NoteColumn[] {
 	const nextColumns: NoteColumn[] = [
 		{
 			key: 'root',
@@ -140,7 +188,7 @@ function buildColumns(rootNodes: NoteTreeNode[], selectedPaths: string[], rootCo
 
 	for (const path of selectedPaths) {
 		const selectedDirectory = currentItems.find(
-			(item): item is NoteTreeDirectory => item.kind === 'directory' && item.path === path
+			(item): item is DisplayDirectory => item.kind === 'directory' && item.path === path
 		);
 
 		if (!selectedDirectory) {
@@ -160,7 +208,87 @@ function buildColumns(rootNodes: NoteTreeNode[], selectedPaths: string[], rootCo
 	return nextColumns;
 }
 
-function findActiveDirectoryPaths(rootNodes: NoteTreeNode[], currentPath: string): string[] {
+function buildDisplayNodes(rootNodes: NoteTreeNode[], pendingCreate: InlineFileCreate | null): DisplayNode[] {
+	const nextNodes = cloneDisplayNodes(rootNodes);
+
+	if (!pendingCreate) {
+		return nextNodes;
+	}
+
+	const parent = ensureDisplayDirectory(nextNodes, pendingCreate.directoryPath);
+
+	parent.push({
+		id: pendingCreate.id,
+		kind: 'pending-file',
+		name: pendingCreate.fileName,
+		path: `__pending-file-create__:${pendingCreate.id}`
+	});
+	sortDisplayNodes(nextNodes);
+
+	return nextNodes;
+}
+
+function cloneDisplayNodes(rootNodes: NoteTreeNode[]): DisplayNode[] {
+	return rootNodes.map((node) => {
+		if (node.kind === 'file') {
+			return node;
+		}
+
+		return {
+			...node,
+			children: cloneDisplayNodes(node.children)
+		};
+	});
+}
+
+function ensureDisplayDirectory(rootNodes: DisplayNode[], directoryPath: string) {
+	if (!directoryPath) {
+		return rootNodes;
+	}
+
+	let currentNodes = rootNodes;
+	let currentPath = '';
+
+	for (const segment of directoryPath.split('/').filter(Boolean)) {
+		currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+
+		let directory = currentNodes.find(
+			(node): node is DisplayDirectory => node.kind === 'directory' && node.path === currentPath
+		);
+
+		if (!directory) {
+			directory = {
+				kind: 'directory',
+				name: segment,
+				path: currentPath,
+				children: []
+			};
+			currentNodes.push(directory);
+		}
+
+		currentNodes = directory.children;
+	}
+
+	return currentNodes;
+}
+
+function sortDisplayNodes(rootNodes: DisplayNode[]) {
+	rootNodes.sort((a, b) => {
+		if (a.kind !== b.kind) {
+			return a.kind === 'directory' ? -1 : b.kind === 'directory' ? 1 : 0;
+		}
+
+		return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+	});
+
+	for (const node of rootNodes) {
+		if (node.kind === 'directory') {
+			sortDisplayNodes(node.children);
+		}
+	}
+}
+
+function findActiveDirectoryPaths(rootNodes: DisplayNode[], currentPath: string): string[] {
 	if (!currentPath) {
 		return [];
 	}
@@ -174,6 +302,18 @@ function findActiveDirectoryPaths(rootNodes: NoteTreeNode[], currentPath: string
 	}
 
 	return [];
+}
+
+function getDirectoryPathSegments(directoryPath: string) {
+	const paths: string[] = [];
+	let currentPath = '';
+
+	for (const segment of directoryPath.split('/').filter(Boolean)) {
+		currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+		paths.push(currentPath);
+	}
+
+	return paths;
 }
 
 function isPathInsideDirectory(path: string, directoryPath: string) {
@@ -194,6 +334,22 @@ function toggleNewMenu(columnKey: string, event: MouseEvent) {
 async function createInColumn(create: (directoryPath: string) => void | Promise<void>, directoryPath: string) {
 	closeNewMenu();
 	await create(directoryPath);
+}
+
+function handleInlineFileCreateInput(event: Event) {
+	updateInlineFileCreateName?.((event.currentTarget as HTMLInputElement).value);
+}
+
+function handleInlineFileCreateKeydown(event: KeyboardEvent) {
+	if (event.key === 'Escape') {
+		event.preventDefault();
+		cancelInlineFileCreate?.();
+	}
+}
+
+function handleInlineFileCreateSubmit(event: SubmitEvent) {
+	event.preventDefault();
+	submitInlineFileCreate?.();
 }
 
 function closeNewMenu() {
@@ -392,7 +548,36 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 								<span class="chevron" aria-hidden="true"></span>
 							</button>
 						</li>
-					{:else if onSelect}
+					{:else if item.kind === 'pending-file' && inlineFileCreate}
+						<li class="pending-file-create">
+							<form onsubmit={handleInlineFileCreateSubmit}>
+								<span class="file-mark" aria-hidden="true"></span>
+								<input
+									bind:this={inlineCreateInputElement}
+									type="text"
+									value={inlineFileCreate.fileName}
+									aria-label={inlineFileCreate.inputLabel}
+									required
+									oninput={handleInlineFileCreateInput}
+									onkeydown={handleInlineFileCreateKeydown}
+								/>
+								<span class="pending-file-create-extension" aria-hidden="true">
+									{inlineFileCreate.extension}
+								</span>
+								<button type="submit" class="pending-file-create-submit">
+									{inlineFileCreate.submitLabel}
+								</button>
+								<button
+									type="button"
+									class="pending-file-create-cancel"
+									aria-label={`Cancel ${inlineFileCreate.title}`}
+									onclick={cancelInlineFileCreate}
+								>
+									Cancel
+								</button>
+							</form>
+						</li>
+					{:else if item.kind === 'file' && onSelect}
 						<li class:active={isActive(item.path)}>
 							<button
 								type="button"
@@ -405,7 +590,7 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 								<span class="name">{item.name}</span>
 							</button>
 						</li>
-					{:else}
+					{:else if item.kind === 'file'}
 						<li class:active={isActive(item.path)}>
 							<a
 								href={item.href}
@@ -668,6 +853,60 @@ button:focus-visible {
 	font-weight: 700;
 
 	background: oklch(0.86 0.06 205);
+}
+
+.pending-file-create form {
+	display: grid;
+	grid-template-columns: 1rem minmax(0, 1fr) auto auto auto;
+	align-items: center;
+	gap: 0.25rem;
+	min-height: 1.75rem;
+	padding: 0.15rem 0.2rem 0.15rem 0.45rem;
+	background: oklch(0.93 0.035 155);
+	border: 1px solid oklch(0.72 0.06 155);
+	border-radius: 0.35rem;
+}
+
+.pending-file-create input {
+	min-width: 0;
+	min-height: 1.45rem;
+	padding: 0.1rem 0.25rem;
+	color: oklch(0.22 0.055 245);
+	font: inherit;
+	background: oklch(0.995 0.006 235);
+	border: 1px solid oklch(0.7 0.05 185);
+	border-radius: 0.25rem;
+}
+
+.pending-file-create input:focus-visible {
+	outline: 2px solid oklch(0.55 0.14 250);
+	outline-offset: 1px;
+}
+
+.pending-file-create-extension {
+	color: oklch(0.38 0.06 245);
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	font-weight: 700;
+}
+
+.pending-file-create button {
+	display: block;
+	width: auto;
+	min-height: 1.45rem;
+	padding: 0.1rem 0.28rem;
+	font-family: var(--font-mono);
+	font-size: 0.65rem;
+	font-weight: 700;
+	text-align: center;
+	text-transform: uppercase;
+	background: oklch(0.98 0.012 155);
+	border: 1px solid oklch(0.72 0.06 155);
+	border-radius: 0.25rem;
+}
+
+.pending-file-create button:hover:not(:disabled) {
+	background: oklch(0.88 0.045 155);
 }
 
 .note-column-footer {

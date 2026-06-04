@@ -2,6 +2,7 @@
 import CommandPalette from '../components/CommandPalette.svelte';
 import EditorPane from '../editor/EditorPane.svelte';
 import PreviewPane from '../preview/PreviewPane.svelte';
+import RequestDialog from '../components/RequestDialog.svelte';
 import StatusBanners from '../components/StatusBanners.svelte';
 import Topbar from '../components/Topbar.svelte';
 import VaultSidebar from '../sidebar/VaultSidebar.svelte';
@@ -49,6 +50,13 @@ import {
 	writeStoredRecentNotePaths
 } from './stored-notes.js';
 import type { CollectionCellEdit } from '../shared/types.js';
+import type {
+	InlineFileCreate,
+	InlineFileCreateRequest,
+	RequestDialogConfig,
+	RequestDialogValues,
+	RequestTextOptions
+} from '../shared/types.js';
 import { createVaultFileActions } from '../actions/vault-file-actions.js';
 import { isNoteTemplatePath } from '../../note-model/template.js';
 import {
@@ -89,10 +97,22 @@ let collectionSortColumn = $state('title');
 let collectionSortDirection = $state<'asc' | 'desc'>('asc');
 let commandPaletteOpen = $state(false);
 let commandPaletteQuery = $state('');
+let inputRequest = $state<{
+	config: RequestDialogConfig;
+	resolve: (values: RequestDialogValues | null) => void;
+	values: RequestDialogValues;
+} | null>(null);
+let inlineFileCreate = $state<{
+	id: string;
+	request: InlineFileCreateRequest;
+	fileName: string;
+	resolve: (fileName: string | null) => void;
+} | null>(null);
 let lastCollectionFilePath = $state('');
 let lastCollectionViewDefaultsKey = $state('');
 let previewHtml = $state('');
 let monacoState = $state<'idle' | 'loading' | 'ready' | 'fallback'>('idle');
+let inlineFileCreateSequence = 0;
 
 let selectedFile = $derived(
 	files.find((file) => file.path === selectedPath) ??
@@ -347,6 +367,9 @@ const shellActionContext = {
 	reloadVaultAfterFileOperation: (nextStatus: string, preferredPath?: string) =>
 		vaultActions.reloadVaultAfterFileOperation(nextStatus, preferredPath),
 	replaceStoredNotePath,
+	requestInlineFileCreate,
+	requestForm,
+	requestText,
 	saveSelectedFile: () => vaultActions.saveSelectedFile(),
 	selectFile: (filePath: string) => vaultActions.selectFile(filePath)
 };
@@ -454,6 +477,150 @@ function setMonacoState(state: 'fallback' | 'idle' | 'loading' | 'ready') {
 
 function setPreviewHtml(html: string) {
 	previewHtml = html;
+}
+
+function requestForm(config: RequestDialogConfig) {
+	inputRequest?.resolve(null);
+	inlineFileCreate?.resolve(null);
+	inlineFileCreate = null;
+
+	return new Promise<RequestDialogValues | null>((resolve) => {
+		inputRequest = {
+			config,
+			resolve,
+			values: Object.fromEntries(config.fields.map((field) => [field.id, field.value]))
+		};
+	});
+}
+
+async function requestText(options: RequestTextOptions) {
+	const result = await requestForm({
+		description: options.description,
+		fields: [
+			{
+				id: 'value',
+				inputKind: options.inputKind ?? 'text',
+				label: options.label ?? options.title,
+				placeholder: options.placeholder,
+				required: options.required,
+				value: options.value ?? ''
+			}
+		],
+		submitLabel: options.submitLabel,
+		title: options.title
+	});
+
+	return result?.value ?? null;
+}
+
+function requestInlineFileCreate(request: InlineFileCreateRequest) {
+	inputRequest?.resolve(null);
+	inputRequest = null;
+	inlineFileCreate?.resolve(null);
+	vaultSearchQuery = '';
+
+	return new Promise<string | null>((resolve) => {
+		inlineFileCreateSequence += 1;
+		inlineFileCreate = {
+			fileName: getInlineFileCreateStem(request.fileName, request.extension),
+			id: `inline-file-create-${inlineFileCreateSequence}`,
+			request,
+			resolve
+		};
+	});
+}
+
+function updateInputRequestValue(id: string, value: string) {
+	if (!inputRequest) {
+		return;
+	}
+
+	inputRequest = {
+		...inputRequest,
+		values: {
+			...inputRequest.values,
+			[id]: value
+		}
+	};
+}
+
+function cancelInputRequest() {
+	const activeRequest = inputRequest;
+
+	if (!activeRequest) {
+		return;
+	}
+
+	inputRequest = null;
+	activeRequest.resolve(null);
+}
+
+function submitInputRequest(values: RequestDialogValues) {
+	const activeRequest = inputRequest;
+
+	if (!activeRequest) {
+		return;
+	}
+
+	inputRequest = null;
+	activeRequest.resolve(values);
+}
+
+function getInlineFileCreateProps(): InlineFileCreate | null {
+	if (!inlineFileCreate) {
+		return null;
+	}
+
+	return {
+		...inlineFileCreate.request,
+		fileName: inlineFileCreate.fileName,
+		id: inlineFileCreate.id
+	};
+}
+
+function updateInlineFileCreateName(fileName: string) {
+	if (!inlineFileCreate) {
+		return;
+	}
+
+	inlineFileCreate = {
+		...inlineFileCreate,
+		fileName
+	};
+}
+
+function cancelInlineFileCreate() {
+	const activeRequest = inlineFileCreate;
+
+	if (!activeRequest) {
+		return;
+	}
+
+	inlineFileCreate = null;
+	activeRequest.resolve(null);
+}
+
+function submitInlineFileCreate() {
+	const activeRequest = inlineFileCreate;
+
+	if (!activeRequest) {
+		return;
+	}
+
+	inlineFileCreate = null;
+	activeRequest.resolve(activeRequest.fileName);
+}
+
+function getInlineFileCreateStem(fileName: string, extension: string) {
+	const normalizedExtension = extension.trim();
+
+	if (!normalizedExtension) {
+		return fileName;
+	}
+
+	return fileName.toLowerCase().endsWith(normalizedExtension.toLowerCase())
+		? fileName.slice(0, -normalizedExtension.length)
+		: fileName;
 }
 
 function toggleSelectedPin() {
@@ -607,6 +774,16 @@ function escapeHtml(text: string) {
 		/>
 	{/if}
 
+	{#if inputRequest}
+		<RequestDialog
+			config={inputRequest.config}
+			values={inputRequest.values}
+			cancel={cancelInputRequest}
+			submit={submitInputRequest}
+			updateValue={updateInputRequestValue}
+		/>
+	{/if}
+
 	<div class="workspace">
 		<VaultSidebar
 			{fileTree}
@@ -620,6 +797,7 @@ function escapeHtml(text: string) {
 			{saving}
 			{searchingVault}
 			{selectedPath}
+			inlineFileCreate={getInlineFileCreateProps()}
 			vaultHasRecords={Boolean(vaultIndex.records.length)}
 			{vaultSearchQuery}
 			{vaultSearchResults}
@@ -627,13 +805,16 @@ function escapeHtml(text: string) {
 			createDrawingNote={noteActions.createDrawingNote}
 			createNote={noteActions.createNote}
 			createNoteFromTemplate={noteActions.createNoteFromTemplate}
+			{cancelInlineFileCreate}
 			deleteSavedVaultSearch={interactionActions.deleteSavedVaultSearch}
 			openSearchResult={interactionActions.openSearchResult}
 			openStoredNoteRecord={interactionActions.openStoredNoteRecord}
 			saveCurrentVaultSearch={interactionActions.saveCurrentVaultSearch}
 			selectFile={vaultActions.selectFile}
 			setVaultSearchQuery={interactionActions.setVaultSearchQuery}
+			{submitInlineFileCreate}
 			{togglePinnedPath}
+			{updateInlineFileCreateName}
 		/>
 
 		<EditorPane

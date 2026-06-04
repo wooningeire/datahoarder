@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
+import { fillInlineFileCreate, fillRequestFields } from './request-dialog.js';
 
 async function clickColumnNewItem(page: Page, columnName: string, itemName: string) {
 	const column = page
@@ -186,17 +187,14 @@ test('new drawing creates an Excalidraw starter note', async ({ page }) => {
 		};
 	}, vaultName);
 
-	page.on('dialog', async (dialog) => {
-		await dialog.accept('Sketches/Launch Map.md');
-	});
-
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 	await expect(page.locator('.sidebar-summary').getByText('0 notes', { exact: true })).toBeVisible();
 
 	await clickColumnNewItem(page, 'Files', 'New Drawing');
-	await expect(page.getByText('Created drawing Sketches/Launch Map.md')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('Sketches/Launch Map.md')).toBeVisible();
+	await fillInlineFileCreate(page, 'New drawing name', 'Launch Map');
+	await expect(page.getByText('Created drawing Launch Map.md')).toBeVisible();
+	await expect(page.getByLabel('Editor').getByText('Launch Map.md')).toBeVisible();
 	await expect(page.getByLabel('Preview').locator('.excalidraw-preview-svg')).toBeVisible();
 	await expect(page.getByLabel('Excalidraw drawing preview').getByText('Launch Map')).toBeVisible();
 	await expect(page.getByLabel('Editor').getByText('excalidraw-plugin: parsed')).toBeVisible();
@@ -204,7 +202,6 @@ test('new drawing creates an Excalidraw starter note', async ({ page }) => {
 
 test('drawing notes can append canvas elements', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-add-canvas-element-${Date.now()}`;
-	const promptResponses = ['rectangle', 'Milestone <risk> & reward'];
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
@@ -251,13 +248,18 @@ test('drawing notes can append canvas elements', async ({ page }) => {
 		};
 	}, vaultName);
 
-	page.on('dialog', async (dialog) => {
-		await dialog.accept(promptResponses.shift() ?? '');
-	});
-
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 	await page.getByRole('button', { name: 'Add Canvas Element' }).click();
+	await fillRequestFields(
+		page,
+		'Add Canvas Element',
+		{
+			'Element Type': 'rectangle',
+			'Element Label': 'Milestone <risk> & reward'
+		},
+		'Add Element'
+	);
 
 	await expect(page.getByText('Added rectangle to canvas.md')).toBeVisible();
 	await expect(page.getByLabel('Excalidraw drawing preview').getByText('Milestone <risk> & reward')).toBeVisible();
@@ -287,7 +289,6 @@ test('drawing notes can append canvas elements', async ({ page }) => {
 
 test('new from template creates a note with rendered placeholders', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-template-${Date.now()}`;
-	const promptResponses = ['Templates/Project.template.md', 'Projects/Launch Map.md'];
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
@@ -306,25 +307,29 @@ test('new from template creates a note with rendered placeholders', async ({ pag
 		};
 	}, vaultName);
 
-	page.on('dialog', async (dialog) => {
-		await dialog.accept(promptResponses.shift() ?? '');
-	});
-
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 	await clickColumnNewItem(page, 'Files', 'New From Template');
+	await fillRequestFields(
+		page,
+		'Choose Template',
+		{
+			Template: 'Templates/Project.template.md'
+		},
+		'Use Template'
+	);
+	await fillInlineFileCreate(page, 'New note name', 'Launch Map');
 
-	await expect(page.getByText('Created Projects/Launch Map.md from Templates/Project.template.md')).toBeVisible();
-	await expect(page.getByLabel('Editor').locator('.file-header').getByText('Projects/Launch Map.md')).toBeVisible();
+	await expect(page.getByText('Created Launch Map.md from Templates/Project.template.md')).toBeVisible();
+	await expect(page.getByLabel('Editor').locator('.file-header').getByText('Launch Map.md')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Launch Map' })).toBeVisible();
-	await expect(page.getByLabel('Preview').getByText('path:: Projects/Launch Map.md')).toBeVisible();
+	await expect(page.getByLabel('Preview').getByText('path:: Launch Map.md')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByText('slug:: launch-map')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByText(/created:: \d{4}-\d{2}-\d{2}/u)).toBeVisible();
 });
 
 test('set field updates inline note properties', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-set-field-${Date.now()}`;
-	const promptResponses = ['status', 'Interview'];
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
@@ -340,15 +345,20 @@ test('set field updates inline note properties', async ({ page }) => {
 		};
 	}, vaultName);
 
-	page.on('dialog', async (dialog) => {
-		await dialog.accept(promptResponses.shift() ?? '');
-	});
-
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 	await expect(page.getByLabel('Preview').getByText('status:: Applied')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Set Field' }).click();
+	await fillRequestFields(
+		page,
+		'Set Inline Field',
+		{
+			'Field Name': 'status',
+			'Field Value': 'Interview'
+		},
+		'Update Field'
+	);
 	await expect(page.getByText('Updated status on application.md')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByText('status:: Interview')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByText('status:: Applied')).toHaveCount(0);
@@ -542,7 +552,6 @@ test('public notes can be published as a static vault subset', async ({ page }) 
 
 test('public publishing sees inline field updates without a full vault reload', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-publish-after-field-${Date.now()}`;
-	const promptResponses = ['public', 'true'];
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
@@ -558,15 +567,20 @@ test('public publishing sees inline field updates without a full vault reload', 
 		};
 	}, vaultName);
 
-	page.on('dialog', async (dialog) => {
-		await dialog.accept(promptResponses.shift() ?? '');
-	});
-
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Draft' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Set Field' }).click();
+	await fillRequestFields(
+		page,
+		'Set Inline Field',
+		{
+			'Field Name': 'public',
+			'Field Value': 'true'
+		},
+		'Update Field'
+	);
 	await expect(page.getByText('Updated public on Draft.md')).toBeVisible();
 	await page.getByRole('button', { name: 'Publish Public' }).click();
 	await expect(page.getByText('Published 1 public notes to public/.')).toBeVisible();

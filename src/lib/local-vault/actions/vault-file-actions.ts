@@ -27,6 +27,7 @@ import {
 	type SavedVaultSearch
 } from '../../vault/saved-search.js';
 import { assertNoManagedPathCollision as assertNoLocalManagedPathCollision } from '../shared/path-availability.js';
+import type { RequestTextOptions } from '../shared/types.js';
 
 type DatahoarderWindow = Window & {
 	showDirectoryPicker?: (options?: { mode?: DatahoarderPermissionMode }) => Promise<LocalDirectoryHandle>;
@@ -54,6 +55,7 @@ type VaultFileActionContext = {
 	pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void;
 	recordRecentNote: (path: string) => void;
 	replaceStoredNotePath: (previousPath: string, nextPath: string) => void;
+	requestText: (options: RequestTextOptions) => Promise<string | null>;
 };
 
 export type VaultFileActions = ReturnType<typeof createVaultFileActions>;
@@ -251,7 +253,13 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 			return;
 		}
 
-		const requestedPath = window.prompt('Rename or move file', context.selectedFile.path);
+		const requestedPath = await context.requestText({
+			label: 'File Path',
+			required: true,
+			submitLabel: 'Rename File',
+			title: 'Rename Or Move File',
+			value: context.selectedFile.path
+		});
 
 		if (requestedPath === null) {
 			return;

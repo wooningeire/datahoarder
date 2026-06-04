@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fillInlineFileCreate, fillRequestText } from './request-dialog.js';
 
 async function clickColumnNewItem(page: Page, columnName: string, itemName: string) {
 	const column = page
@@ -11,7 +12,6 @@ async function clickColumnNewItem(page: Page, columnName: string, itemName: stri
 
 test('note lifecycle actions create rename and delete notes', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-lifecycle-${Date.now()}`;
-	const promptResponses = ['inbox/capture.md', 'archive/capture-renamed.md'];
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
@@ -22,11 +22,6 @@ test('note lifecycle actions create rename and delete notes', async ({ page }) =
 	}, vaultName);
 
 	page.on('dialog', async (dialog) => {
-		if (dialog.type() === 'prompt') {
-			await dialog.accept(promptResponses.shift() ?? '');
-			return;
-		}
-
 		await dialog.accept();
 	});
 
@@ -35,11 +30,13 @@ test('note lifecycle actions create rename and delete notes', async ({ page }) =
 	await expect(page.locator('.sidebar-summary').getByText('0 notes', { exact: true })).toBeVisible();
 
 	await clickColumnNewItem(page, 'Files', 'New Note');
-	await expect(page.getByText('Created inbox/capture.md')).toBeVisible();
+	await fillInlineFileCreate(page, 'New note name', 'capture');
+	await expect(page.getByText('Created capture.md')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'capture' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Rename' }).click();
-	await expect(page.getByText('Renamed inbox/capture.md to archive/capture-renamed.md')).toBeVisible();
+	await fillRequestText(page, 'Rename Or Move File', 'File Path', 'archive/capture-renamed.md', 'Rename File');
+	await expect(page.getByText('Renamed capture.md to archive/capture-renamed.md')).toBeVisible();
 	await expect(page.getByLabel('Editor').getByText('archive/capture-renamed.md')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Delete' }).click();
@@ -50,7 +47,6 @@ test('note lifecycle actions create rename and delete notes', async ({ page }) =
 
 test('column new menu creates notes in the selected folder', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-column-new-${Date.now()}`;
-	let promptDefault = '';
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
@@ -66,11 +62,6 @@ test('column new menu creates notes in the selected folder', async ({ page }) =>
 			return directory;
 		};
 	}, vaultName);
-
-	page.on('dialog', async (dialog) => {
-		promptDefault = dialog.defaultValue();
-		await dialog.accept(promptDefault);
-	});
 
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
@@ -105,8 +96,12 @@ test('column new menu creates notes in the selected folder', async ({ page }) =>
 	expect(newMenuBox!.y + newMenuBox!.height).toBeLessThanOrEqual(openedNewButtonBox!.y + 1);
 	await expect.poll(async () => noteColumns.evaluate((node) => node.scrollTop)).toBe(initialScrollTop);
 	await newMenu.getByRole('menuitem', { name: 'New Note' }).click();
+	const noteNameInput = page.getByRole('textbox', { name: 'New note name' });
+	const pendingCreate = page.locator('.pending-file-create');
 
+	await expect(noteNameInput).toHaveValue('Untitled');
+	await expect(pendingCreate.getByText('.md')).toBeVisible();
+	await noteNameInput.press('Enter');
 	await expect(page.getByText('Created Projects/Untitled.md')).toBeVisible();
-	expect(promptDefault).toBe('Projects/Untitled.md');
 	await expect(page.getByLabel('Editor').getByText('Projects/Untitled.md')).toBeVisible();
 });

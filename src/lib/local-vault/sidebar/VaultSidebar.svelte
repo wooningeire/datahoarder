@@ -4,6 +4,7 @@ import type { NoteTreeNode } from '../../note-model/tree.js';
 import type { SavedVaultSearch } from '../../vault/saved-search.js';
 import type { VaultIndex } from '../../vault/index.js';
 import type { VaultSearchResult } from '../../vault/search.js';
+import type { InlineFileCreate } from '../shared/types.js';
 
 type VaultRecord = VaultIndex['records'][number];
 
@@ -19,10 +20,12 @@ type Props = {
 	saving: boolean;
 	searchingVault: boolean;
 	selectedPath: string;
+	inlineFileCreate: InlineFileCreate | null;
 	vaultHasRecords: boolean;
 	vaultSearchQuery: string;
 	vaultSearchResults: VaultSearchResult[];
 	applySavedVaultSearch: (search: SavedVaultSearch) => void;
+	cancelInlineFileCreate: () => void;
 	createDrawingNote: (directoryPath: string) => void;
 	createNote: (directoryPath: string) => void;
 	createNoteFromTemplate: (directoryPath: string) => void;
@@ -32,7 +35,9 @@ type Props = {
 	saveCurrentVaultSearch: () => void;
 	selectFile: (filePath: string) => void;
 	setVaultSearchQuery: (query: string) => void;
+	submitInlineFileCreate: () => void;
 	togglePinnedPath: (path: string) => void;
+	updateInlineFileCreateName: (fileName: string) => void;
 };
 
 let {
@@ -47,10 +52,12 @@ let {
 	saving,
 	searchingVault,
 	selectedPath,
+	inlineFileCreate,
 	vaultHasRecords,
 	vaultSearchQuery,
 	vaultSearchResults,
 	applySavedVaultSearch,
+	cancelInlineFileCreate,
 	createDrawingNote,
 	createNote,
 	createNoteFromTemplate,
@@ -60,7 +67,9 @@ let {
 	saveCurrentVaultSearch,
 	selectFile,
 	setVaultSearchQuery,
-	togglePinnedPath
+	submitInlineFileCreate,
+	togglePinnedPath,
+	updateInlineFileCreateName
 }: Props = $props();
 
 function handleVaultSearchInput(event: Event) {
@@ -162,8 +171,12 @@ function handleVaultSearchInput(event: Event) {
 					{createDrawingNote}
 					{createNote}
 					{createNoteFromTemplate}
+					{inlineFileCreate}
+					{cancelInlineFileCreate}
 					onSelect={selectFile}
 					rootLabel="Files"
+					{submitInlineFileCreate}
+					{updateInlineFileCreateName}
 				/>
 			{:else}
 				<p class="empty-state">No editable text files are indexed yet.</p>

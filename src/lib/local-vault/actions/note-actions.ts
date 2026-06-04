@@ -24,6 +24,11 @@ import {
 	assertNoManagedPathCollision as assertNoLocalManagedPathCollision,
 	getAvailableNotePath as getAvailableLocalNotePath
 } from '../shared/path-availability.js';
+import type {
+	InlineFileCreateRequest,
+	RequestDialogConfig,
+	RequestDialogValues
+} from '../shared/types.js';
 
 type NoteActionContext = {
 	collectionRecordCreationError: string;
@@ -46,6 +51,8 @@ type NoteActionContext = {
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
 	reloadVaultAfterFileOperation: (nextStatus: string, preferredPath?: string) => Promise<void>;
+	requestInlineFileCreate: (request: InlineFileCreateRequest) => Promise<string | null>;
+	requestForm: (config: RequestDialogConfig) => Promise<RequestDialogValues | null>;
 };
 
 export type NoteActions = ReturnType<typeof createNoteActions>;
@@ -70,18 +77,30 @@ export function createNoteActions(context: NoteActionContext) {
 			return;
 		}
 
-		const requestedKey = window.prompt('Field name', 'status');
+		const requestedField = await context.requestForm({
+			fields: [
+				{
+					id: 'key',
+					label: 'Field Name',
+					required: true,
+					value: 'status'
+				},
+				{
+					id: 'value',
+					label: 'Field Value',
+					value: formatVaultValue(getVaultRecordValue(context.selectedRecord, 'status'))
+				}
+			],
+			submitLabel: 'Update Field',
+			title: 'Set Inline Field'
+		});
 
-		if (requestedKey === null) {
+		if (requestedField === null) {
 			return;
 		}
 
-		const existingValue = formatVaultValue(getVaultRecordValue(context.selectedRecord, requestedKey));
-		const requestedValue = window.prompt('Field value', existingValue);
-
-		if (requestedValue === null) {
-			return;
-		}
+		const requestedKey = requestedField.key;
+		const requestedValue = requestedField.value;
 
 		context.saving = true;
 		context.errorMessage = '';
@@ -121,15 +140,24 @@ export function createNoteActions(context: NoteActionContext) {
 			context.files,
 			getSuggestedCreatePath(directoryPath, 'Untitled.md', 'Untitled.md')
 		);
-		const requestedPath = window.prompt('New note path', suggestedPath);
+		const suggestedCreatePath = splitCreatePath(suggestedPath);
+		const requestedFileName = await context.requestInlineFileCreate({
+			directoryPath: suggestedCreatePath.directoryPath,
+			extension: '.md',
+			fileName: suggestedCreatePath.fileName,
+			inputLabel: 'New note name',
+			kind: 'note',
+			submitLabel: 'Create',
+			title: 'New Note'
+		});
 
-		if (requestedPath === null) {
+		if (requestedFileName === null) {
 			return;
 		}
 
 		try {
 			context.errorMessage = '';
-			const nextPath = normalizeLocalTextPath(requestedPath, '.md');
+			const nextPath = getInlineCreatePath(suggestedCreatePath.directoryPath, requestedFileName, '.md');
 			assertNoLocalManagedPathCollision(context.files, nextPath);
 			const content = `# ${getNoteTitle(nextPath)}\n\n`;
 			const createdPath = await createLocalFile(context.vaultHandle, nextPath, content, '.md');
@@ -154,15 +182,24 @@ export function createNoteActions(context: NoteActionContext) {
 			context.files,
 			getSuggestedCreatePath(directoryPath, 'Drawings/Untitled Drawing.md', 'Untitled Drawing.md')
 		);
-		const requestedPath = window.prompt('New drawing path', suggestedPath);
+		const suggestedCreatePath = splitCreatePath(suggestedPath);
+		const requestedFileName = await context.requestInlineFileCreate({
+			directoryPath: suggestedCreatePath.directoryPath,
+			extension: '.md',
+			fileName: suggestedCreatePath.fileName,
+			inputLabel: 'New drawing name',
+			kind: 'drawing',
+			submitLabel: 'Create',
+			title: 'New Drawing'
+		});
 
-		if (requestedPath === null) {
+		if (requestedFileName === null) {
 			return;
 		}
 
 		try {
 			context.errorMessage = '';
-			const nextPath = normalizeLocalTextPath(requestedPath, '.md');
+			const nextPath = getInlineCreatePath(suggestedCreatePath.directoryPath, requestedFileName, '.md');
 			assertNoLocalManagedPathCollision(context.files, nextPath);
 			const draft = createExcalidrawNoteDraft(getNoteTitle(nextPath));
 			const createdPath = await createLocalFile(context.vaultHandle, nextPath, draft.content, '.md');
@@ -182,17 +219,38 @@ export function createNoteActions(context: NoteActionContext) {
 			return;
 		}
 
-		const requestedKind = window.prompt('Canvas element type', 'text');
+		const requestedElement = await context.requestForm({
+			fields: [
+				{
+					id: 'kind',
+					inputKind: 'select',
+					label: 'Element Type',
+					options: [
+						{ label: 'Text', value: 'text' },
+						{ label: 'Rectangle', value: 'rectangle' },
+						{ label: 'Ellipse', value: 'ellipse' },
+						{ label: 'Diamond', value: 'diamond' },
+						{ label: 'Arrow', value: 'arrow' }
+					],
+					required: true,
+					value: 'text'
+				},
+				{
+					id: 'label',
+					label: 'Element Label',
+					value: getNoteTitle(context.selectedFile.path)
+				}
+			],
+			submitLabel: 'Add Element',
+			title: 'Add Canvas Element'
+		});
 
-		if (requestedKind === null) {
+		if (requestedElement === null) {
 			return;
 		}
 
-		const requestedLabel = window.prompt('Canvas element label', getNoteTitle(context.selectedFile.path));
-
-		if (requestedLabel === null) {
-			return;
-		}
+		const requestedKind = requestedElement.kind;
+		const requestedLabel = requestedElement.label;
 
 		context.saving = true;
 		context.errorMessage = '';
@@ -233,12 +291,29 @@ export function createNoteActions(context: NoteActionContext) {
 			return;
 		}
 
-		const requestedTemplate = window.prompt('Template path or name', context.templateFiles[0]?.path ?? '');
+		const requestedTemplateSelection = await context.requestForm({
+			fields: [
+				{
+					id: 'template',
+					inputKind: 'select',
+					label: 'Template',
+					options: context.templateFiles.map((file) => ({
+						label: `${getTemplateDisplayName(file.path)} (${file.path})`,
+						value: file.path
+					})),
+					required: true,
+					value: context.templateFiles[0]?.path ?? ''
+				}
+			],
+			submitLabel: 'Use Template',
+			title: 'Choose Template'
+		});
 
-		if (requestedTemplate === null) {
+		if (requestedTemplateSelection === null) {
 			return;
 		}
 
+		const requestedTemplate = requestedTemplateSelection.template;
 		const templateFile = findTemplateFile(requestedTemplate);
 
 		if (!templateFile) {
@@ -254,15 +329,24 @@ export function createNoteActions(context: NoteActionContext) {
 				`${getTemplateDisplayName(templateFile.path)}.md`
 			)
 		);
-		const requestedPath = window.prompt('New note path', suggestedPath);
+		const suggestedCreatePath = splitCreatePath(suggestedPath);
+		const requestedFileName = await context.requestInlineFileCreate({
+			directoryPath: suggestedCreatePath.directoryPath,
+			extension: '.md',
+			fileName: suggestedCreatePath.fileName,
+			inputLabel: 'New note name',
+			kind: 'template',
+			submitLabel: 'Create',
+			title: 'New Note From Template'
+		});
 
-		if (requestedPath === null) {
+		if (requestedFileName === null) {
 			return;
 		}
 
 		try {
 			context.errorMessage = '';
-			const nextPath = normalizeLocalTextPath(requestedPath, '.md');
+			const nextPath = getInlineCreatePath(suggestedCreatePath.directoryPath, requestedFileName, '.md');
 			assertNoLocalManagedPathCollision(context.files, nextPath);
 			const templateContent = await readLocalFile(templateFile);
 			const renderedTemplate = renderNoteTemplate(templateContent, { path: nextPath });
@@ -290,16 +374,27 @@ export function createNoteActions(context: NoteActionContext) {
 			return;
 		}
 
-		const requestedTitle = window.prompt('New collection record title', 'Untitled');
+		const suggestedDraft = createCollectionRecordDraft(context.selectedCollection.definition, 'Untitled');
+		const suggestedPath = getAvailableLocalNotePath(context.files, suggestedDraft.path);
+		const suggestedCreatePath = splitCreatePath(suggestedPath);
+		const requestedFileName = await context.requestInlineFileCreate({
+			directoryPath: suggestedCreatePath.directoryPath,
+			extension: '.md',
+			fileName: suggestedCreatePath.fileName,
+			inputLabel: 'New record file name',
+			kind: 'collection-record',
+			submitLabel: 'Create',
+			title: 'New Collection Record'
+		});
 
-		if (requestedTitle === null) {
+		if (requestedFileName === null) {
 			return;
 		}
 
 		try {
 			context.errorMessage = '';
-			const draft = createCollectionRecordDraft(context.selectedCollection.definition, requestedTitle);
-			const nextPath = getAvailableLocalNotePath(context.files, draft.path);
+			const nextPath = getInlineCreatePath(suggestedCreatePath.directoryPath, requestedFileName, '.md');
+			const draft = createCollectionRecordDraft(context.selectedCollection.definition, getNoteTitle(nextPath));
 			assertNoLocalManagedPathCollision(context.files, nextPath);
 			const createdPath = await createLocalFile(context.vaultHandle, nextPath, draft.content, '.md');
 
@@ -328,17 +423,32 @@ export function createNoteActions(context: NoteActionContext) {
 			return;
 		}
 
-		const requestedName = window.prompt('New collection field name', 'priority');
+		const requestedField = await context.requestForm({
+			fields: [
+				{
+					id: 'name',
+					label: 'Field Name',
+					required: true,
+					value: 'priority'
+				},
+				{
+					help: 'Examples: text, number, date, boolean, enum.',
+					id: 'type',
+					label: 'Field Type',
+					required: true,
+					value: 'text'
+				}
+			],
+			submitLabel: 'Add Field',
+			title: 'New Collection Field'
+		});
 
-		if (requestedName === null) {
+		if (requestedField === null) {
 			return;
 		}
 
-		const requestedType = window.prompt('New collection field type', 'text');
-
-		if (requestedType === null) {
-			return;
-		}
+		const requestedName = requestedField.name;
+		const requestedType = requestedField.type;
 
 		context.saving = true;
 		context.errorMessage = '';
@@ -388,4 +498,43 @@ function getSuggestedCreatePath(directoryPath: string | undefined, globalPath: s
 	const normalizedDirectoryPath = directoryPath.trim().replace(/\\/gu, '/').replace(/^\/+|\/+$/gu, '');
 
 	return normalizedDirectoryPath ? `${normalizedDirectoryPath}/${localFileName}` : localFileName;
+}
+
+function splitCreatePath(path: string) {
+	const segments = path.split('/').filter(Boolean);
+	const fileName = segments.pop() ?? 'Untitled.md';
+
+	return {
+		directoryPath: segments.join('/'),
+		fileName
+	};
+}
+
+function getInlineCreatePath(directoryPath: string, fileName: string, defaultExtension: string) {
+	const fileNameStem = stripMatchingExtension(fileName, defaultExtension);
+
+	if (!fileNameStem) {
+		throw new Error('File name is required.');
+	}
+
+	const nextFileName = normalizeLocalTextPath(
+		fileNameStem + defaultExtension,
+		''
+	);
+
+	if (nextFileName.includes('/')) {
+		throw new Error('Use a file name, not a path. Choose the folder in the sidebar first.');
+	}
+
+	return directoryPath ? `${directoryPath}/${nextFileName}` : nextFileName;
+}
+
+function stripMatchingExtension(fileName: string, extension: string) {
+	const trimmedFileName = fileName.trim();
+
+	if (!extension || !trimmedFileName.toLowerCase().endsWith(extension.toLowerCase())) {
+		return trimmedFileName;
+	}
+
+	return trimmedFileName.slice(0, -extension.length);
 }

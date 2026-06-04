@@ -61,6 +61,32 @@ describe('renderPortableMarkdown', () => {
 		expect(html).not.toContain('data-task-index="1"');
 	});
 
+	it('preserves nested ordered list structure', () => {
+		const html = renderPortableMarkdown(
+			[
+				'1. transition-based testing',
+				'   1. variant of unit testing that is based on state changes',
+				'   1. use custom runtime or injection that tracks states',
+				'1. transition-based version control',
+				'   1. git cli confusing',
+				'   1. editor that tracks state changes and uses undo history'
+			].join('\n')
+		);
+
+		expect(html).toContain([
+			'<ol>',
+			'<li>transition-based testing<ol>',
+			'<li>variant of unit testing that is based on state changes</li>',
+			'<li>use custom runtime or injection that tracks states</li>',
+			'</ol></li>',
+			'<li>transition-based version control<ol>',
+			'<li>git cli confusing</li>',
+			'<li>editor that tracks state changes and uses undo history</li>',
+			'</ol></li>',
+			'</ol>'
+		].join(''));
+	});
+
 	it('renders escaped markdown tables with inline formatting', () => {
 		const html = renderPortableMarkdown(
 			[

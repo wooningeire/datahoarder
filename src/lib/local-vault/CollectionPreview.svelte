@@ -4,8 +4,8 @@ import type {
 	CollectionSummaryResult,
 	CollectionTimelineItem,
 	ResolvedCollection
-} from '../collection.js';
-import type { VaultRecord } from '../vault-index.js';
+} from '../collections/index.js';
+import type { VaultRecord } from '../vault/index.js';
 import CollectionCellEditor from './CollectionCellEditor.svelte';
 import {
 	getCollectionCellInputKind,

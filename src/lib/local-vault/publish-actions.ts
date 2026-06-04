@@ -3,16 +3,16 @@ import {
 	serializeCollectionRecordsAsJson,
 	type CollectionSummaryResult,
 	type ResolvedCollection
-} from '../collection.js';
-import { createStandaloneHtmlDocument } from '../html-export.js';
-import type { LocalDirectoryHandle, LocalVaultFile } from '../local-vault.js';
-import { getNoteTitle } from '../paths.js';
+} from '../collections/index.js';
+import { createStandaloneHtmlDocument } from '../publishing/html-export.js';
+import type { LocalDirectoryHandle, LocalVaultFile } from '../vault/local-files.js';
+import { getNoteTitle } from '../vault/paths.js';
 import {
 	createPublicPublishBundle,
 	getPublicPublishRecords,
 	type PublicPublishProfile
-} from '../public-publish.js';
-import type { VaultIndex, VaultRecord } from '../vault-index.js';
+} from '../publishing/public-publish.js';
+import type { VaultIndex, VaultRecord } from '../vault/index.js';
 import { downloadTextFile, slugifyDownloadName } from './downloads.js';
 import { writeOrCreateLocalTextFile } from './file-output.js';
 import {

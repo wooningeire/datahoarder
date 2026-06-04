@@ -1,7 +1,7 @@
-import { addCollectionField } from '../collection-edit.js';
-import { createCollectionRecordDraft, type ResolvedCollection } from '../collection.js';
-import { addExcalidrawElement } from '../excalidraw-edit.js';
-import { createExcalidrawNoteDraft } from '../excalidraw-preview.js';
+import { addCollectionField } from '../collections/edit.js';
+import { createCollectionRecordDraft, type ResolvedCollection } from '../collections/index.js';
+import { addExcalidrawElement } from '../drawings/edit.js';
+import { createExcalidrawNoteDraft } from '../drawings/preview.js';
 import {
 	createLocalFile,
 	normalizeLocalTextPath,
@@ -9,17 +9,17 @@ import {
 	writeLocalFile,
 	type LocalDirectoryHandle,
 	type LocalVaultFile
-} from '../local-vault.js';
-import { hasInlineField, setInlineField } from '../note-fields.js';
-import { getTemplateDisplayName, renderNoteTemplate } from '../note-template.js';
-import { getNoteTitle } from '../paths.js';
+} from '../vault/local-files.js';
+import { hasInlineField, setInlineField } from '../note-model/fields.js';
+import { getTemplateDisplayName, renderNoteTemplate } from '../note-model/template.js';
+import { getNoteTitle } from '../vault/paths.js';
 import {
 	buildLocalVaultIndex,
 	formatVaultValue,
 	getVaultRecordValue,
 	type VaultIndex,
 	type VaultRecord
-} from '../vault-index.js';
+} from '../vault/index.js';
 import {
 	assertNoManagedPathCollision as assertNoLocalManagedPathCollision,
 	getAvailableNotePath as getAvailableLocalNotePath

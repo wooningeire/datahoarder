@@ -1,25 +1,25 @@
-import type { CollectionSummaryResult, ResolvedCollection } from '../collection.js';
-import { renderExcalidrawNotePreview } from '../excalidraw-preview.js';
+import type { CollectionSummaryResult, ResolvedCollection } from '../collections/index.js';
+import { renderExcalidrawNotePreview } from '../drawings/preview.js';
 import {
 	renderCollectionKanbanHtml,
 	renderCollectionSummariesHtml,
 	renderCollectionTableHtml,
 	renderCollectionTimelineHtml,
 	renderSourceHtml
-} from '../html-export.js';
-import type { LocalVaultFile } from '../local-vault.js';
+} from '../publishing/html-export.js';
+import type { LocalVaultFile } from '../vault/local-files.js';
 import {
 	isDatahoarderBoardFile,
 	renderDatahoarderBoard
-} from '../local-board.js';
-import { renderPortableMarkdown } from '../markdown-render.js';
-import { stripCompiledNoteExtension } from '../paths.js';
+} from '../boards/local-board.js';
+import { renderPortableMarkdown } from '../markdown/render.js';
+import { stripCompiledNoteExtension } from '../vault/paths.js';
 import {
 	getPublicPublishHref,
 	type PublicPublishEntry
-} from '../public-publish.js';
-import { isExcalidrawNote } from '../raw-notes.js';
-import type { VaultIndex, VaultRecord } from '../vault-index.js';
+} from '../publishing/public-publish.js';
+import { isExcalidrawNote } from '../note-model/raw.js';
+import type { VaultIndex, VaultRecord } from '../vault/index.js';
 
 type LocalRenderContext = {
 	files: LocalVaultFile[];

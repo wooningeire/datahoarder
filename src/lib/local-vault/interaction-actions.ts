@@ -1,11 +1,11 @@
-import { createLocalFile, deleteLocalFile, writeLocalFile, type LocalDirectoryHandle, type LocalVaultFile } from '../local-vault.js';
-import { toggleMarkdownTask } from '../markdown-tasks.js';
+import { createLocalFile, deleteLocalFile, writeLocalFile, type LocalDirectoryHandle, type LocalVaultFile } from '../vault/local-files.js';
+import { toggleMarkdownTask } from '../markdown/tasks.js';
 import {
 	createSavedVaultSearchContent,
 	getSavedVaultSearchPath,
 	type SavedVaultSearch
-} from '../saved-search.js';
-import { buildLocalVaultIndex, type VaultIndex } from '../vault-index.js';
+} from '../vault/saved-search.js';
+import { buildLocalVaultIndex, type VaultIndex } from '../vault/index.js';
 import type { CommandPaletteItem } from './types.js';
 
 type InteractionActionContext = {

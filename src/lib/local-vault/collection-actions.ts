@@ -1,7 +1,7 @@
-import { formatCollectionRecordValue, type ResolvedCollection } from '../collection.js';
-import { readLocalFile, writeLocalFile, type LocalDirectoryHandle, type LocalVaultFile } from '../local-vault.js';
-import { hasInlineField, setInlineField } from '../note-fields.js';
-import { buildLocalVaultIndex, type VaultIndex, type VaultRecord } from '../vault-index.js';
+import { formatCollectionRecordValue, type ResolvedCollection } from '../collections/index.js';
+import { readLocalFile, writeLocalFile, type LocalDirectoryHandle, type LocalVaultFile } from '../vault/local-files.js';
+import { hasInlineField, setInlineField } from '../note-model/fields.js';
+import { buildLocalVaultIndex, type VaultIndex, type VaultRecord } from '../vault/index.js';
 import {
 	getCollectionColumnLabel,
 	getCollectionViewSortColumn,

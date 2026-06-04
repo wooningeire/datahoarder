@@ -1,7 +1,7 @@
 <script lang="ts">
 import { onDestroy, tick } from 'svelte';
-import type { LocalVaultFile } from '../local-vault.js';
-import { getNoteTitle } from '../paths.js';
+import type { LocalVaultFile } from '../vault/local-files.js';
+import { getNoteTitle } from '../vault/paths.js';
 import { getEditorLanguage as getMonacoEditorLanguage } from './editor-language.js';
 import { loadMonaco, type MonacoApi, type MonacoEditor } from './monaco.js';
 

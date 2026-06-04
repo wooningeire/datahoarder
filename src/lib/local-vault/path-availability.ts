@@ -2,7 +2,7 @@ import {
 	getLocalRoutePath,
 	normalizeLocalTextPath,
 	type LocalVaultFile
-} from '../local-vault.js';
+} from '../vault/local-files.js';
 
 export function getAvailableNotePath(files: LocalVaultFile[], basePath: string) {
 	const normalizedBasePath = normalizeLocalTextPath(basePath, '.md');

@@ -470,11 +470,11 @@ test('quick notes track recent and pinned local notes', async ({ page }) => {
 	await expect(statusRow).toBeVisible();
 	const workspaceBox = await workspace.boundingBox();
 	const statusRowBox = await statusRow.boundingBox();
+	const viewport = page.viewportSize();
 	expect(workspaceBox).not.toBeNull();
 	expect(statusRowBox).not.toBeNull();
-	expect(
-		Math.abs(statusRowBox!.y + statusRowBox!.height - (workspaceBox!.y + workspaceBox!.height))
-	).toBeLessThan(2);
+	expect(viewport).not.toBeNull();
+	expect(Math.abs(statusRowBox!.y + statusRowBox!.height - viewport!.height)).toBeLessThan(2);
 	const initialNoteColumnsBox = await noteColumns.boundingBox();
 	expect(initialNoteColumnsBox).not.toBeNull();
 	const initialNoteColumnsTop = initialNoteColumnsBox!.y;

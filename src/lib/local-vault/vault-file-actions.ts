@@ -13,19 +13,19 @@ import {
 	type DatahoarderPermissionMode,
 	type LocalDirectoryHandle,
 	type LocalVaultFile
-} from '../local-vault.js';
+} from '../vault/local-files.js';
 import {
 	buildLocalVaultIndex,
 	type VaultIndex
-} from '../vault-index.js';
+} from '../vault/index.js';
 import {
 	readPublicPublishProfiles,
 	type PublicPublishProfile
-} from '../public-publish.js';
+} from '../publishing/public-publish.js';
 import {
 	readSavedVaultSearches,
 	type SavedVaultSearch
-} from '../saved-search.js';
+} from '../vault/saved-search.js';
 import { assertNoManagedPathCollision as assertNoLocalManagedPathCollision } from './path-availability.js';
 
 type DatahoarderWindow = Window & {

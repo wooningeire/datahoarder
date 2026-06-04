@@ -33,6 +33,14 @@ type RenderedMarkdownTable = {
 	nextLineIndex: number;
 };
 
+type MarkdownListType = 'ordered' | 'unordered';
+
+type MarkdownListItem = {
+	content: string;
+	indent: number;
+	type: MarkdownListType;
+};
+
 export function renderPortableMarkdown(content: string, options: PortableMarkdownOptions = {}) {
 	const body = stripFrontmatter(content).trim();
 	const lines = body.split(/\r?\n/u);
@@ -41,8 +49,6 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 	let fenceInfo = '';
 	let fenceLines: string[] = [];
 	let paragraphLines: string[] = [];
-	let listItems: string[] = [];
-	let orderedListItems: string[] = [];
 	let taskListIndex = 0;
 
 	function flushParagraph() {
@@ -52,18 +58,6 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		html.push(`<p>${renderInline(paragraphLines.join(' '), options)}</p>`);
 		paragraphLines = [];
-	}
-
-	function flushList() {
-		if (listItems.length) {
-			html.push(`<ul>${listItems.join('')}</ul>`);
-			listItems = [];
-		}
-
-		if (orderedListItems.length) {
-			html.push(`<ol>${orderedListItems.map((item) => `<li>${item}</li>`).join('')}</ol>`);
-			orderedListItems = [];
-		}
 	}
 
 	for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
@@ -78,7 +72,6 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 				inFence = false;
 			} else {
 				flushParagraph();
-				flushList();
 				fenceInfo = fenceMatch[1].trim();
 				inFence = true;
 			}
@@ -93,7 +86,6 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (!line.trim()) {
 			flushParagraph();
-			flushList();
 			continue;
 		}
 
@@ -101,7 +93,6 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (table) {
 			flushParagraph();
-			flushList();
 			html.push(table.html);
 			lineIndex = table.nextLineIndex;
 			continue;
@@ -111,7 +102,6 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (heading) {
 			flushParagraph();
-			flushList();
 			const level = heading[1].length;
 			html.push(`<h${level}>${renderInline(heading[2], options)}</h${level}>`);
 			continue;
@@ -119,28 +109,20 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (/^\s*[-*_]{3,}\s*$/u.test(line)) {
 			flushParagraph();
-			flushList();
 			html.push('<hr>');
 			continue;
 		}
 
-		const unorderedItem = line.match(/^\s*[-*]\s+(.+)$/u);
+		const listItem = getMarkdownListItem(line);
 
-		if (unorderedItem) {
+		if (listItem) {
 			flushParagraph();
-			orderedListItems = [];
-			const renderedItem = renderUnorderedListItem(unorderedItem[1], options, taskListIndex);
-			listItems.push(renderedItem.html);
-			taskListIndex += renderedItem.task ? 1 : 0;
-			continue;
-		}
-
-		const orderedItem = line.match(/^\s*\d+\.\s+(.+)$/u);
-
-		if (orderedItem) {
-			flushParagraph();
-			listItems = [];
-			orderedListItems.push(renderInline(orderedItem[1], options));
+			const parsedList = parseMarkdownList(lines, lineIndex, listItem.indent, listItem.type, options, {
+				value: taskListIndex
+			});
+			html.push(parsedList.html);
+			taskListIndex = parsedList.nextTaskListIndex;
+			lineIndex = parsedList.nextLineIndex - 1;
 			continue;
 		}
 
@@ -148,7 +130,6 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (quote) {
 			flushParagraph();
-			flushList();
 			html.push(`<blockquote>${renderInline(quote[1], options)}</blockquote>`);
 			continue;
 		}
@@ -157,7 +138,6 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (embed) {
 			flushParagraph();
-			flushList();
 			html.push(renderEmbedBlock(embed[1], options));
 			continue;
 		}
@@ -170,7 +150,6 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 	}
 
 	flushParagraph();
-	flushList();
 
 	return html.join('\n');
 }
@@ -316,30 +295,104 @@ function renderMarkdownTableCell(
 	return `<${tagName}${alignmentAttribute}>${renderInline(content, options)}</${tagName}>`;
 }
 
-function renderUnorderedListItem(content: string, options: PortableMarkdownOptions, taskIndex: number) {
-	const taskItem = content.match(/^\[([ xX])\]\s+(.+)$/u);
+function parseMarkdownList(
+	lines: string[],
+	startIndex: number,
+	indent: number,
+	type: MarkdownListType,
+	options: PortableMarkdownOptions,
+	taskListIndex: { value: number }
+) {
+	const tagName = type === 'ordered' ? 'ol' : 'ul';
+	const items: string[] = [];
+	let lineIndex = startIndex;
 
-	if (taskItem) {
-		const checked = taskItem[1].toLowerCase() === 'x';
-		const checkboxAttributes = options.interactiveTaskLists
-			? ` data-task-index="${taskIndex}"`
-			: ' disabled';
+	while (lineIndex < lines.length) {
+		const item = getMarkdownListItem(lines[lineIndex]);
 
-		return {
-			html: [
-				'<li class="task-list-item">',
-				`<input type="checkbox"${checkboxAttributes}${checked ? ' checked' : ''}>`,
-				` <span>${renderInline(taskItem[2], options)}</span>`,
-				'</li>'
-			].join(''),
-			task: true
-		};
+		if (!item || item.indent < indent || item.indent > indent || item.type !== type) {
+			break;
+		}
+
+		const itemStart = renderMarkdownListItemStart(item, options, taskListIndex);
+		let nestedHtml = '';
+		lineIndex += 1;
+
+		while (lineIndex < lines.length) {
+			const nestedItem = getMarkdownListItem(lines[lineIndex]);
+
+			if (!nestedItem || nestedItem.indent <= indent) {
+				break;
+			}
+
+			const nestedList = parseMarkdownList(
+				lines,
+				lineIndex,
+				nestedItem.indent,
+				nestedItem.type,
+				options,
+				taskListIndex
+			);
+			nestedHtml += nestedList.html;
+			lineIndex = nestedList.nextLineIndex;
+		}
+
+		items.push(`${itemStart}${nestedHtml}</li>`);
 	}
 
 	return {
-		html: `<li>${renderInline(content, options)}</li>`,
-		task: false
+		html: `<${tagName}>${items.join('')}</${tagName}>`,
+		nextLineIndex: lineIndex,
+		nextTaskListIndex: taskListIndex.value
 	};
+}
+
+function getMarkdownListItem(line: string): MarkdownListItem | null {
+	const match = line.match(/^([ \t]*)(?:(\d+)\.|[-*])\s+(.+)$/u);
+
+	if (!match) {
+		return null;
+	}
+
+	return {
+		content: match[3],
+		indent: getMarkdownIndentWidth(match[1]),
+		type: match[2] ? 'ordered' : 'unordered'
+	};
+}
+
+function getMarkdownIndentWidth(indent: string) {
+	let width = 0;
+
+	for (const character of indent) {
+		width += character === '\t' ? 4 - (width % 4) : 1;
+	}
+
+	return width;
+}
+
+function renderMarkdownListItemStart(
+	item: MarkdownListItem,
+	options: PortableMarkdownOptions,
+	taskListIndex: { value: number }
+) {
+	const taskItem = item.type === 'unordered' ? item.content.match(/^\[([ xX])\]\s+(.+)$/u) : null;
+
+	if (!taskItem) {
+		return `<li>${renderInline(item.content, options)}`;
+	}
+
+	const checked = taskItem[1].toLowerCase() === 'x';
+	const checkboxAttributes = options.interactiveTaskLists
+		? ` data-task-index="${taskListIndex.value}"`
+		: ' disabled';
+	taskListIndex.value += 1;
+
+	return [
+		'<li class="task-list-item">',
+		`<input type="checkbox"${checkboxAttributes}${checked ? ' checked' : ''}>`,
+		` <span>${renderInline(taskItem[2], options)}</span>`
+	].join('');
 }
 
 function renderInline(text: string, options: PortableMarkdownOptions) {

@@ -25,6 +25,7 @@ import {
 } from '../../collections/index.js';
 import {
 	buildLocalVaultTree,
+	canUseServerVault,
 	canUseFileSystemAccess,
 	type LocalDirectoryHandle,
 	type LocalVaultFile
@@ -462,15 +463,21 @@ $effect(() => {
 });
 
 onMount(() => {
-	supported = canUseFileSystemAccess();
+	void initializeVaultAccess();
+});
+
+async function initializeVaultAccess() {
+	const serverVaultSupported = await canUseServerVault();
+
+	supported = serverVaultSupported || canUseFileSystemAccess();
 
 	if (!supported) {
-		status = 'File System Access is unavailable in this browser. Use Chrome or Edge over HTTPS.';
+		status = 'Set DATAHOARDER_OPEN_FOLDER for process-backed access, or use Chrome or Edge over HTTPS.';
 		return;
 	}
 
 	void vaultActions.restoreVaultHandle();
-});
+}
 
 function setSelectedContent(content: string) {
 	selectedContent = content;

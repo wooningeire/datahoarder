@@ -15,6 +15,7 @@ import {
 } from '../../drawings/preview.js';
 import { isDatahoarderBoardFile } from '../../boards/local-board.js';
 import type { LocalVaultFile } from '../../vault/local-files.js';
+import { isServerVaultFile } from '../../vault/local-files.js';
 import { getNoteTitle } from '../../vault/paths.js';
 import { isExcalidrawNote, isWhiteboardNote } from '../../note-model/raw.js';
 import type { VaultBacklink, VaultIndex, VaultRecord } from '../../vault/index.js';
@@ -126,6 +127,11 @@ let previewRenderToken = 0;
 
 let previewRenderFile = $derived(
 	files.find((file) => file.path === previewRenderPath && file.path === selectedFile?.path) ?? null
+);
+let serverPreviewRoute = $derived.by(() =>
+	shouldFrameServerPreview(previewRenderFile, previewRenderContent)
+		? getServerPreviewRoute(previewRenderFile)
+		: ''
 );
 let previewHtml = $derived.by(() => {
 	if (!previewRenderFile) {
@@ -280,6 +286,52 @@ function handleWhiteboardItemsChange(nextItems: WhiteboardItem[]) {
 function toPersistableWhiteboardItems(items: WhiteboardItem[]): WhiteboardDrawingNoteItem[] {
 	return items.filter((item): item is WhiteboardDrawingNoteItem => item.kind !== 'component');
 }
+
+function shouldFrameServerPreview(file: LocalVaultFile | null, content: string) {
+	if (!file) {
+		return false;
+	}
+
+	if (isSvelteKitRoutePreviewFile(file.path)) {
+		return true;
+	}
+
+	if (!isServerVaultFile(file)) {
+		return false;
+	}
+
+	if (file.extension === '.base' || (file.extension === '.svx' && isWhiteboardNote(content))) {
+		return false;
+	}
+
+	return (
+		file.extension === '.md' ||
+		file.extension === '.svx' ||
+		file.extension === '.svelte' ||
+		isDatahoarderBoardFile(file.path)
+	);
+}
+
+function getServerPreviewRoute(file: LocalVaultFile | null) {
+	if (!file) {
+		return '';
+	}
+
+	const encodedPath = file.path.split('/').map(encodeURIComponent).join('/');
+	const params = new URLSearchParams({ v: String(file.updatedAt) });
+
+	return `/preview/${encodedPath}?${params.toString()}`;
+}
+
+function isSvelteKitRoutePreviewFile(path: string) {
+	const normalizedPath = path.replace(/\\/gu, '/');
+	const fileName = normalizedPath.split('/').at(-1) ?? '';
+
+	return (
+		(normalizedPath.startsWith('src/routes/') || normalizedPath.includes('/src/routes/')) &&
+		/^\+(?:page|layout)(?:@[^.]+)?(?:\.server)?\.(?:svelte|ts|js)$/u.test(fileName)
+	);
+}
 </script>
 
 <section class="preview-pane" aria-label="Preview">
@@ -327,6 +379,13 @@ function toPersistableWhiteboardItems(items: WhiteboardItem[]): WhiteboardDrawin
 				onchange={handleWhiteboardItemsChange}
 			/>
 		</article>
+	{:else if serverPreviewRoute && selectedFile}
+		<iframe
+			class="server-preview-frame"
+			src={serverPreviewRoute}
+			title={`${getNoteTitle(selectedFile.path)} server preview`}
+		></iframe>
+		<Backlinks backlinks={selectedBacklinks} {openBacklink} />
 	{:else if previewHtml}
 		<MarkdownPreview
 			html={previewHtml}
@@ -362,6 +421,15 @@ function toPersistableWhiteboardItems(items: WhiteboardItem[]): WhiteboardDrawin
 	min-height: min(72vh, 44rem);
 	overflow: hidden;
 
+	border: 1px solid oklch(0.78 0.04 100);
+	border-radius: 0.35rem;
+}
+
+.server-preview-frame {
+	width: 100%;
+	min-height: min(72vh, 48rem);
+
+	background: white;
 	border: 1px solid oklch(0.78 0.04 100);
 	border-radius: 0.35rem;
 }

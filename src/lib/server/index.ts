@@ -6,6 +6,8 @@ import {
 	type VaultRouteConfig
 } from '../vault/paths.js';
 
+export * from './open-folder.js';
+
 type ModuleMap = Record<string, unknown>;
 
 export function findVaultModulePath(

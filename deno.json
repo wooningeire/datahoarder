@@ -19,6 +19,8 @@
 	},
 	"tasks": {
 		"dev": "deno run -A npm:vite dev",
+		"dev:folder": "node scripts/open-folder-dev.mjs",
+		"dev:folder:deno": "node scripts/open-folder-dev.mjs --runtime deno",
 		"sync": "deno run -A npm:@sveltejs/kit sync",
 		"build:app": "deno run -A npm:vite build",
 		"preview": "deno run -A npm:vite preview",

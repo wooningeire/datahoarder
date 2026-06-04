@@ -8,7 +8,7 @@ import {
 export type DatahoarderPermissionMode = 'read' | 'readwrite';
 export type DatahoarderPermissionState = 'granted' | 'denied' | 'prompt';
 
-export type LocalFileHandle = {
+export type BrowserLocalFileHandle = {
 	kind: 'file';
 	name: string;
 	getFile: () => Promise<File>;
@@ -17,19 +17,38 @@ export type LocalFileHandle = {
 	requestPermission?: (descriptor?: { mode?: DatahoarderPermissionMode }) => Promise<DatahoarderPermissionState>;
 };
 
-export type LocalDirectoryHandle = {
+export type ServerLocalFileHandle = {
+	kind: 'file';
+	name: string;
+	path: string;
+	source: 'server';
+	getFile: () => Promise<File>;
+};
+
+export type LocalFileHandle = BrowserLocalFileHandle | ServerLocalFileHandle;
+
+export type BrowserLocalDirectoryHandle = {
 	kind: 'directory';
 	name: string;
-	entries: () => AsyncIterableIterator<[string, LocalDirectoryHandle | LocalFileHandle]>;
+	entries: () => AsyncIterableIterator<[string, BrowserLocalDirectoryHandle | LocalFileHandle]>;
 	getDirectoryHandle?: (
 		name: string,
 		options?: { create?: boolean }
-	) => Promise<LocalDirectoryHandle>;
+	) => Promise<BrowserLocalDirectoryHandle>;
 	getFileHandle?: (name: string, options?: { create?: boolean }) => Promise<LocalFileHandle>;
 	queryPermission?: (descriptor?: { mode?: DatahoarderPermissionMode }) => Promise<DatahoarderPermissionState>;
 	removeEntry?: (name: string, options?: { recursive?: boolean }) => Promise<void>;
 	requestPermission?: (descriptor?: { mode?: DatahoarderPermissionMode }) => Promise<DatahoarderPermissionState>;
 };
+
+export type ServerLocalDirectoryHandle = {
+	kind: 'server-directory';
+	name: string;
+	root: string;
+	source: 'server';
+};
+
+export type LocalDirectoryHandle = BrowserLocalDirectoryHandle | ServerLocalDirectoryHandle;
 
 export type FileSystemWritableFileStreamLike = {
 	write: (data: string) => Promise<void>;
@@ -50,11 +69,56 @@ const objectStoreName = 'handles';
 const vaultHandleKey = 'vault-directory-handle';
 const textExtensionPattern = /\.(base|css|csv|html|js|json|md|scss|svelte|svx|ts|txt|yaml|yml)$/iu;
 
+type ServerVaultMetadata = {
+	enabled: boolean;
+	name: string;
+	root: string;
+};
+
+type ServerVaultFileResponse = {
+	extension: string;
+	path: string;
+	routePath: string;
+	size: number;
+	updatedAt: number;
+};
+
 export function canUseFileSystemAccess() {
 	return typeof window !== 'undefined' && 'showDirectoryPicker' in window && 'indexedDB' in window;
 }
 
+export async function getServerVaultHandle() {
+	const metadata = await fetchServerVaultMetadata();
+
+	if (!metadata?.enabled) {
+		return null;
+	}
+
+	return {
+		kind: 'server-directory',
+		name: metadata.name,
+		root: metadata.root,
+		source: 'server'
+	} satisfies ServerLocalDirectoryHandle;
+}
+
+export async function canUseServerVault() {
+	return Boolean(await getServerVaultHandle());
+}
+
+export function isServerDirectoryHandle(handle: LocalDirectoryHandle | null): handle is ServerLocalDirectoryHandle {
+	return handle?.kind === 'server-directory';
+}
+
+export function isServerVaultFile(file: LocalVaultFile | null | undefined) {
+	return Boolean(file && 'source' in file.handle && file.handle.source === 'server');
+}
+
 export async function readLocalVault(handle: LocalDirectoryHandle) {
+	if (isServerDirectoryHandle(handle)) {
+		return readServerVault();
+	}
+
 	const files: LocalVaultFile[] = [];
 
 	await collectFiles(handle, '', files);
@@ -147,6 +211,11 @@ export async function createLocalFile(
 	defaultExtension = '.md'
 ) {
 	const normalizedPath = normalizeLocalTextPath(path, defaultExtension);
+
+	if (isServerDirectoryHandle(root)) {
+		return createServerFile(normalizedPath, content);
+	}
+
 	const { directory, fileName } = await getLocalParentDirectory(root, normalizedPath, true);
 
 	if (!directory.getFileHandle) {
@@ -165,6 +234,12 @@ export async function createLocalFile(
 
 export async function deleteLocalFile(root: LocalDirectoryHandle, path: string) {
 	const normalizedPath = normalizeLocalTextPath(path, '');
+
+	if (isServerDirectoryHandle(root)) {
+		await deleteServerFile(normalizedPath);
+		return;
+	}
+
 	const { directory, fileName } = await getLocalParentDirectory(root, normalizedPath, false);
 
 	if (!directory.removeEntry) {
@@ -192,6 +267,10 @@ export async function moveLocalFile(
 
 	if (normalizedCurrentPath.toLowerCase() === normalizedNextPath.toLowerCase()) {
 		throw new Error('Case-only renames are not supported yet.');
+	}
+
+	if (isServerDirectoryHandle(root)) {
+		return moveServerFile(normalizedCurrentPath, normalizedNextPath, content);
 	}
 
 	await createLocalFile(root, normalizedNextPath, content, '');
@@ -243,6 +322,11 @@ export function normalizeLocalTextPath(path: string, defaultExtension = '.md') {
 }
 
 async function writeLocalFileHandle(handle: LocalFileHandle, content: string) {
+	if (isServerFileHandle(handle)) {
+		await writeServerFile(handle.path, content);
+		return;
+	}
+
 	if (!handle.createWritable) {
 		throw new Error('This browser does not support writing to selected files.');
 	}
@@ -261,7 +345,7 @@ async function writeLocalFileHandle(handle: LocalFileHandle, content: string) {
 }
 
 async function getLocalParentDirectory(
-	root: LocalDirectoryHandle,
+	root: BrowserLocalDirectoryHandle,
 	path: string,
 	create: boolean
 ) {
@@ -272,7 +356,7 @@ async function getLocalParentDirectory(
 		throw new Error('File path is required.');
 	}
 
-	let directory = root;
+	let directory: BrowserLocalDirectoryHandle = root;
 
 	for (const segment of segments) {
 		if (!directory.getDirectoryHandle) {
@@ -285,7 +369,7 @@ async function getLocalParentDirectory(
 	return { directory, fileName };
 }
 
-async function localFileExists(directory: LocalDirectoryHandle, fileName: string) {
+async function localFileExists(directory: BrowserLocalDirectoryHandle, fileName: string) {
 	if (!directory.getFileHandle) {
 		return false;
 	}
@@ -318,6 +402,10 @@ export async function verifyPermission(
 	mode: DatahoarderPermissionMode,
 	request = false
 ) {
+	if (isServerDirectoryHandle(handle)) {
+		return true;
+	}
+
 	if (!handle.queryPermission || !handle.requestPermission) {
 		return true;
 	}
@@ -336,6 +424,10 @@ export async function verifyPermission(
 }
 
 export async function getStoredVaultHandle() {
+	if (typeof indexedDB === 'undefined') {
+		return undefined;
+	}
+
 	const database = await openHandleDatabase();
 	const transaction = database.transaction(objectStoreName, 'readonly');
 	const request = transaction.objectStore(objectStoreName).get(vaultHandleKey);
@@ -344,6 +436,10 @@ export async function getStoredVaultHandle() {
 }
 
 export async function storeVaultHandle(handle: LocalDirectoryHandle) {
+	if (isServerDirectoryHandle(handle)) {
+		return;
+	}
+
 	const database = await openHandleDatabase();
 	const transaction = database.transaction(objectStoreName, 'readwrite');
 	const request = transaction.objectStore(objectStoreName).put(handle, vaultHandleKey);
@@ -352,7 +448,7 @@ export async function storeVaultHandle(handle: LocalDirectoryHandle) {
 }
 
 async function collectFiles(
-	directory: LocalDirectoryHandle,
+	directory: BrowserLocalDirectoryHandle,
 	parentPath: string,
 	files: LocalVaultFile[]
 ) {
@@ -382,6 +478,127 @@ async function collectFiles(
 			size: blob.size,
 			updatedAt: blob.lastModified
 		});
+	}
+}
+
+async function fetchServerVaultMetadata() {
+	if (typeof fetch === 'undefined') {
+		return null;
+	}
+
+	try {
+		const response = await fetch('/api/vault', { cache: 'no-store' });
+
+		if (!response.ok) {
+			return null;
+		}
+
+		return (await response.json()) as ServerVaultMetadata;
+	} catch {
+		return null;
+	}
+}
+
+async function readServerVault() {
+	const response = await serverRequest<ServerVaultFileResponse[]>('/api/vault/files');
+
+	return response.map(createServerVaultFile);
+}
+
+function createServerVaultFile(file: ServerVaultFileResponse): LocalVaultFile {
+	return {
+		...file,
+		handle: {
+			kind: 'file',
+			name: file.path.split('/').at(-1) ?? file.path,
+			path: file.path,
+			source: 'server',
+			getFile: async () => {
+				const content = await readServerFile(file.path);
+				return new File([content], file.path.split('/').at(-1) ?? file.path, {
+					lastModified: file.updatedAt,
+					type: 'text/plain'
+				});
+			}
+		}
+	};
+}
+
+function isServerFileHandle(handle: LocalFileHandle): handle is ServerLocalFileHandle {
+	return 'source' in handle && handle.source === 'server';
+}
+
+async function readServerFile(path: string) {
+	const response = await fetch(`/api/vault/file?path=${encodeURIComponent(path)}`, {
+		cache: 'no-store'
+	});
+
+	if (!response.ok) {
+		throw new Error(await getServerResponseError(response));
+	}
+
+	return response.text();
+}
+
+async function writeServerFile(path: string, content: string) {
+	await serverRequest('/api/vault/file', {
+		body: JSON.stringify({ content, path }),
+		headers: { 'content-type': 'application/json' },
+		method: 'PUT'
+	});
+}
+
+async function createServerFile(path: string, content: string) {
+	const result = await serverRequest<{ path: string }>('/api/vault/file', {
+		body: JSON.stringify({ content, path }),
+		headers: { 'content-type': 'application/json' },
+		method: 'POST'
+	});
+
+	return result.path;
+}
+
+async function deleteServerFile(path: string) {
+	await serverRequest('/api/vault/file', {
+		body: JSON.stringify({ path }),
+		headers: { 'content-type': 'application/json' },
+		method: 'DELETE'
+	});
+}
+
+async function moveServerFile(currentPath: string, nextPath: string, content: string) {
+	const result = await serverRequest<{ path: string }>('/api/vault/file', {
+		body: JSON.stringify({ content, currentPath, nextPath }),
+		headers: { 'content-type': 'application/json' },
+		method: 'PATCH'
+	});
+
+	return result.path;
+}
+
+async function serverRequest<T = unknown>(url: string, init?: RequestInit) {
+	const response = await fetch(url, {
+		cache: 'no-store',
+		...init
+	});
+
+	if (!response.ok) {
+		throw new Error(await getServerResponseError(response));
+	}
+
+	if (response.status === 204) {
+		return undefined as T;
+	}
+
+	return (await response.json()) as T;
+}
+
+async function getServerResponseError(response: Response) {
+	try {
+		const payload = (await response.json()) as { message?: string };
+		return payload.message || response.statusText;
+	} catch {
+		return response.statusText;
 	}
 }
 

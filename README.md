@@ -13,11 +13,29 @@ deno task dev
 
 To pass Vite flags through Deno, append them directly, for example `deno task dev --port 5191`.
 
-Open the URL Vite prints, then choose your notes folder, usually `C:\Users\V\_\obsidian\obsidian\src\lib\notes`.
+For process-backed folder access, pass the open folder to the dev launcher:
 
-The shell intentionally previews portable markdown, `.base` files, and Datahoarder board files only. Custom Svelte execution stays in the private notes SvelteKit project.
+```powershell
+deno task dev:folder C:\Users\V\_\obsidian\obsidian\src\lib\notes
+```
 
-Available project commands live in `deno.json`; `package.json` is package metadata, not the command surface.
+The launcher sets `DATAHOARDER_OPEN_FOLDER` and starts `vite dev` with Node. Use `deno task dev:folder:deno` to run the Vite process through Deno instead, or use `npm run dev -- C:\path\to\notes` from the Node command surface. Vite flags can be passed after `--`, for example:
+
+```powershell
+deno task dev:folder C:\path\to\notes -- --port 5191
+```
+
+When `DATAHOARDER_OPEN_FOLDER` is set, the shell loads that folder through SvelteKit server routes. The preview pane shows `/preview/<path>` in an iframe. If `DATAHOARDER_PREVIEW_ORIGIN` is set, that route embeds the actual page from the running Vite/Deno server; otherwise it falls back to the portable server-rendered preview. Without a process-backed folder, the browser File System Access picker remains available in Chrome or Edge.
+
+Point previews at another Vite/SvelteKit app by setting `DATAHOARDER_PREVIEW_ORIGIN` and, when needed, `DATAHOARDER_PREVIEW_ROUTE_BASE`:
+
+```powershell
+$env:DATAHOARDER_PREVIEW_ORIGIN = "http://127.0.0.1:5174"
+$env:DATAHOARDER_PREVIEW_ROUTE_BASE = "/notes"
+deno task dev:folder C:\path\to\notes
+```
+
+Primary project commands live in `deno.json`; `package.json` carries npm aliases for the folder-aware dev flow and common checks.
 
 ## Run the Native Shell
 

@@ -188,6 +188,16 @@ let { html, host = $bindable<HTMLElement | undefined>(), previewLinkNavigation }
 			border-radius: 0.35rem;
 		}
 
+		.server-vite-preview-frame {
+			display: block;
+			width: 100%;
+			min-height: min(72vh, 48rem);
+
+			background: white;
+			border: 1px solid oklch(0.78 0.04 100);
+			border-radius: 0.35rem;
+		}
+
 		.math-display,
 		mjx-container[display="true"] {
 			max-width: 100%;

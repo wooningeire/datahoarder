@@ -1,6 +1,7 @@
 import { tick } from 'svelte';
 import {
 	deleteLocalFile,
+	getServerVaultHandle,
 	getStoredVaultHandle,
 	isEditableTextFile,
 	moveLocalFile,
@@ -66,6 +67,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		canMutateVault,
 		chooseFolder,
 		deleteSelectedFile,
+		loadServerVault,
 		loadVault,
 		openFile,
 		refreshVault,
@@ -80,6 +82,10 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 
 	async function restoreVaultHandle() {
 		try {
+			if (await actions.loadServerVault('Loaded dev-process folder.')) {
+				return;
+			}
+
 			const storedHandle = await getStoredVaultHandle();
 
 			if (!storedHandle) {
@@ -99,9 +105,14 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 	}
 
 	async function chooseFolder() {
+		if (await actions.loadServerVault('Loaded dev-process folder.')) {
+			return;
+		}
+
 		const picker = (window as unknown as DatahoarderWindow).showDirectoryPicker;
 
 		if (!picker) {
+			context.status = 'Set DATAHOARDER_OPEN_FOLDER or use a browser with folder access.';
 			return;
 		}
 
@@ -134,6 +145,19 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		}
 
 		await actions.loadVault(context.vaultHandle, 'Reopened local vault.', true);
+	}
+
+	async function loadServerVault(nextStatus: string) {
+		const serverHandle = await getServerVaultHandle();
+
+		if (!serverHandle) {
+			return false;
+		}
+
+		context.vaultHandle = serverHandle;
+		await actions.loadVault(serverHandle, nextStatus, true);
+
+		return true;
 	}
 
 	async function refreshVault() {

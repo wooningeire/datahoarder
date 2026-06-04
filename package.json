@@ -18,6 +18,13 @@
 	"sideEffects": [
 		"**/*.scss"
 	],
+	"scripts": {
+		"dev": "node scripts/open-folder-dev.mjs",
+		"dev:deno": "node scripts/open-folder-dev.mjs --runtime deno",
+		"build": "deno task build",
+		"check": "deno task check",
+		"test:unit": "deno task test:unit"
+	},
 	"peerDependencies": {
 		"svelte": "^5.0.0"
 	},

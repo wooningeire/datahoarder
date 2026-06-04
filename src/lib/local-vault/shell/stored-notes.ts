@@ -1,4 +1,4 @@
-import type { VaultRecord } from '../vault/index.js';
+import type { VaultRecord } from '../../vault/index.js';
 
 export type StoredNoteLists = {
 	pinned: string[];

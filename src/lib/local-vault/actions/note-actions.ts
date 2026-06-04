@@ -1,7 +1,7 @@
-import { addCollectionField } from '../collections/edit.js';
-import { createCollectionRecordDraft, type ResolvedCollection } from '../collections/index.js';
-import { addExcalidrawElement } from '../drawings/edit.js';
-import { createExcalidrawNoteDraft } from '../drawings/preview.js';
+import { addCollectionField } from '../../collections/edit.js';
+import { createCollectionRecordDraft, type ResolvedCollection } from '../../collections/index.js';
+import { addExcalidrawElement } from '../../drawings/edit.js';
+import { createExcalidrawNoteDraft } from '../../drawings/preview.js';
 import {
 	createLocalFile,
 	normalizeLocalTextPath,
@@ -9,21 +9,21 @@ import {
 	writeLocalFile,
 	type LocalDirectoryHandle,
 	type LocalVaultFile
-} from '../vault/local-files.js';
-import { hasInlineField, setInlineField } from '../note-model/fields.js';
-import { getTemplateDisplayName, renderNoteTemplate } from '../note-model/template.js';
-import { getNoteTitle } from '../vault/paths.js';
+} from '../../vault/local-files.js';
+import { hasInlineField, setInlineField } from '../../note-model/fields.js';
+import { getTemplateDisplayName, renderNoteTemplate } from '../../note-model/template.js';
+import { getNoteTitle } from '../../vault/paths.js';
 import {
 	buildLocalVaultIndex,
 	formatVaultValue,
 	getVaultRecordValue,
 	type VaultIndex,
 	type VaultRecord
-} from '../vault/index.js';
+} from '../../vault/index.js';
 import {
 	assertNoManagedPathCollision as assertNoLocalManagedPathCollision,
 	getAvailableNotePath as getAvailableLocalNotePath
-} from './path-availability.js';
+} from '../shared/path-availability.js';
 
 type NoteActionContext = {
 	collectionRecordCreationError: string;

@@ -3,22 +3,22 @@ import {
 	serializeCollectionRecordsAsJson,
 	type CollectionSummaryResult,
 	type ResolvedCollection
-} from '../collections/index.js';
-import { createStandaloneHtmlDocument } from '../publishing/html-export.js';
-import type { LocalDirectoryHandle, LocalVaultFile } from '../vault/local-files.js';
-import { getNoteTitle } from '../vault/paths.js';
+} from '../../collections/index.js';
+import { createStandaloneHtmlDocument } from '../../publishing/html-export.js';
+import type { LocalDirectoryHandle, LocalVaultFile } from '../../vault/local-files.js';
+import { getNoteTitle } from '../../vault/paths.js';
 import {
 	createPublicPublishBundle,
 	getPublicPublishRecords,
 	type PublicPublishProfile
-} from '../publishing/public-publish.js';
-import type { VaultIndex, VaultRecord } from '../vault/index.js';
-import { downloadTextFile, slugifyDownloadName } from './downloads.js';
-import { writeOrCreateLocalTextFile } from './file-output.js';
+} from '../../publishing/public-publish.js';
+import type { VaultIndex, VaultRecord } from '../../vault/index.js';
+import { downloadTextFile, slugifyDownloadName } from '../shared/downloads.js';
+import { writeOrCreateLocalTextFile } from '../shared/file-output.js';
 import {
 	renderPublicRecordBodyHtml,
 	renderSelectedExportBodyHtml
-} from './rendering.js';
+} from '../preview/rendering.js';
 
 type PublishActionContext = {
 	collectionRecords: VaultRecord[];

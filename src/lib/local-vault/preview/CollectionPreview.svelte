@@ -4,8 +4,8 @@ import type {
 	CollectionSummaryResult,
 	CollectionTimelineItem,
 	ResolvedCollection
-} from '../collections/index.js';
-import type { VaultRecord } from '../vault/index.js';
+} from '../../collections/index.js';
+import type { VaultRecord } from '../../vault/index.js';
 import CollectionCellEditor from './CollectionCellEditor.svelte';
 import {
 	getCollectionCellInputKind,
@@ -14,7 +14,7 @@ import {
 	getCollectionSortIndicator,
 	isEditableCollectionColumn
 } from './collection-view.js';
-import type { CollectionCellEdit } from './types.js';
+import type { CollectionCellEdit } from '../shared/types.js';
 
 type Props = {
 	collectionCellEdit: CollectionCellEdit | null;

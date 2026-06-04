@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { PublicPublishProfile } from '../publishing/public-publish.js';
+import type { PublicPublishProfile } from '../../publishing/public-publish.js';
 
 type Props = {
 	dirty: boolean;

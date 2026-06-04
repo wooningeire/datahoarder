@@ -4,7 +4,7 @@ import {
 	writeLocalFile,
 	type LocalDirectoryHandle,
 	type LocalVaultFile
-} from '../vault/local-files.js';
+} from '../../vault/local-files.js';
 
 export async function writeOrCreateLocalTextFile(
 	vaultHandle: LocalDirectoryHandle | null,

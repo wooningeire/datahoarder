@@ -1,14 +1,14 @@
-import { formatCollectionRecordValue, type ResolvedCollection } from '../collections/index.js';
-import { readLocalFile, writeLocalFile, type LocalDirectoryHandle, type LocalVaultFile } from '../vault/local-files.js';
-import { hasInlineField, setInlineField } from '../note-model/fields.js';
-import { buildLocalVaultIndex, type VaultIndex, type VaultRecord } from '../vault/index.js';
+import { formatCollectionRecordValue, type ResolvedCollection } from '../../collections/index.js';
+import { readLocalFile, writeLocalFile, type LocalDirectoryHandle, type LocalVaultFile } from '../../vault/local-files.js';
+import { hasInlineField, setInlineField } from '../../note-model/fields.js';
+import { buildLocalVaultIndex, type VaultIndex, type VaultRecord } from '../../vault/index.js';
 import {
 	getCollectionColumnLabel,
 	getCollectionViewSortColumn,
 	hasOwnCaseInsensitiveProperty,
 	isEditableCollectionColumn
-} from './collection-view.js';
-import type { CollectionCellEdit } from './types.js';
+} from '../preview/collection-view.js';
+import type { CollectionCellEdit } from '../shared/types.js';
 
 type CollectionActionContext = {
 	collectionCellEdit: CollectionCellEdit | null;

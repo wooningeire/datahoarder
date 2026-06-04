@@ -1,4 +1,4 @@
-export { default as LocalVaultShell } from './local-vault/LocalVaultShell.svelte';
+export { default as LocalVaultShell } from './local-vault/shell/LocalVaultShell.svelte';
 export { default as NotePage } from './note-ui/NotePage.svelte';
 export { default as NoteTree } from './note-ui/NoteTree.svelte';
 export { default as VaultOverview } from './note-ui/VaultOverview.svelte';

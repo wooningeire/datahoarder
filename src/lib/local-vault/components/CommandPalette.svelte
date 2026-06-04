@@ -1,6 +1,6 @@
 <script lang="ts">
 import { onMount } from 'svelte';
-import type { CommandPaletteItem } from './types.js';
+import type { CommandPaletteItem } from '../shared/types.js';
 
 type Props = {
 	items: CommandPaletteItem[];

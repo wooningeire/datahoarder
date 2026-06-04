@@ -1,8 +1,8 @@
-import type { ResolvedCollection } from '../collections/index.js';
-import type { LocalVaultFile } from '../vault/local-files.js';
-import type { SavedVaultSearch } from '../vault/saved-search.js';
-import type { VaultRecord } from '../vault/index.js';
-import type { CommandPaletteItem } from './types.js';
+import type { ResolvedCollection } from '../../collections/index.js';
+import type { LocalVaultFile } from '../../vault/local-files.js';
+import type { SavedVaultSearch } from '../../vault/saved-search.js';
+import type { VaultRecord } from '../../vault/index.js';
+import type { CommandPaletteItem } from '../shared/types.js';
 
 type CommandPaletteContext = {
 	collectionRecordsCount: number;

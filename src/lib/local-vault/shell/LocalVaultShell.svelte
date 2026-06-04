@@ -1,12 +1,12 @@
 <script lang="ts">
-import CommandPalette from './CommandPalette.svelte';
-import EditorPane from './EditorPane.svelte';
-import PreviewPane from './PreviewPane.svelte';
-import StatusBanners from './StatusBanners.svelte';
-import Topbar from './Topbar.svelte';
-import VaultSidebar from './VaultSidebar.svelte';
+import CommandPalette from '../components/CommandPalette.svelte';
+import EditorPane from '../editor/EditorPane.svelte';
+import PreviewPane from '../preview/PreviewPane.svelte';
+import StatusBanners from '../components/StatusBanners.svelte';
+import Topbar from '../components/Topbar.svelte';
+import VaultSidebar from '../sidebar/VaultSidebar.svelte';
 import { onMount } from 'svelte';
-import { getBaseViews } from '../note-model/base.js';
+import { getBaseViews } from '../../note-model/base.js';
 import {
 	filterCollectionRecords,
 	formatCollectionRecordValue,
@@ -21,22 +21,22 @@ import {
 	sortCollectionRecordsForTimeline,
 	summarizeCollectionRecords,
 	type ResolvedCollection
-} from '../collections/index.js';
+} from '../../collections/index.js';
 import {
 	buildLocalVaultTree,
 	canUseFileSystemAccess,
 	type LocalDirectoryHandle,
 	type LocalVaultFile
-} from '../vault/local-files.js';
+} from '../../vault/local-files.js';
 import { buildCommandPaletteItems, filterCommandPaletteItems } from './command-palette.js';
-import { createCollectionActions } from './collection-actions.js';
+import { createCollectionActions } from '../actions/collection-actions.js';
 import {
 	getCollectionViewDefaultsKey,
 	getCollectionViewSortColumn
-} from './collection-view.js';
-import { createInteractionActions } from './interaction-actions.js';
-import { createNoteActions } from './note-actions.js';
-import { createPublishActions } from './publish-actions.js';
+} from '../preview/collection-view.js';
+import { createInteractionActions } from '../actions/interaction-actions.js';
+import { createNoteActions } from '../actions/note-actions.js';
+import { createPublishActions } from '../actions/publish-actions.js';
 import {
 	getRecentNotePaths,
 	getStoredNoteRecords,
@@ -48,22 +48,22 @@ import {
 	writeStoredPinnedNotePaths,
 	writeStoredRecentNotePaths
 } from './stored-notes.js';
-import type { CollectionCellEdit } from './types.js';
-import { createVaultFileActions } from './vault-file-actions.js';
-import { isNoteTemplatePath } from '../note-model/template.js';
+import type { CollectionCellEdit } from '../shared/types.js';
+import { createVaultFileActions } from '../actions/vault-file-actions.js';
+import { isNoteTemplatePath } from '../../note-model/template.js';
 import {
 	getPublicPublishRecords,
 	type PublicPublishProfile
-} from '../publishing/public-publish.js';
-import { isExcalidrawNote } from '../note-model/raw.js';
-import type { SavedVaultSearch } from '../vault/saved-search.js';
+} from '../../publishing/public-publish.js';
+import { isExcalidrawNote } from '../../note-model/raw.js';
+import type { SavedVaultSearch } from '../../vault/saved-search.js';
 import {
 	createEmptyVaultIndex,
 	getVaultBacklinks,
 	type VaultIndex,
 	type VaultRecord
-} from '../vault/index.js';
-import { searchVaultRecords } from '../vault/search.js';
+} from '../../vault/index.js';
+import { searchVaultRecords } from '../../vault/search.js';
 
 let supported = $state(false);
 let vaultHandle = $state<LocalDirectoryHandle | null>(null);

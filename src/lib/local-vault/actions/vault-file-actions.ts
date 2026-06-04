@@ -13,20 +13,20 @@ import {
 	type DatahoarderPermissionMode,
 	type LocalDirectoryHandle,
 	type LocalVaultFile
-} from '../vault/local-files.js';
+} from '../../vault/local-files.js';
 import {
 	buildLocalVaultIndex,
 	type VaultIndex
-} from '../vault/index.js';
+} from '../../vault/index.js';
 import {
 	readPublicPublishProfiles,
 	type PublicPublishProfile
-} from '../publishing/public-publish.js';
+} from '../../publishing/public-publish.js';
 import {
 	readSavedVaultSearches,
 	type SavedVaultSearch
-} from '../vault/saved-search.js';
-import { assertNoManagedPathCollision as assertNoLocalManagedPathCollision } from './path-availability.js';
+} from '../../vault/saved-search.js';
+import { assertNoManagedPathCollision as assertNoLocalManagedPathCollision } from '../shared/path-availability.js';
 
 type DatahoarderWindow = Window & {
 	showDirectoryPicker?: (options?: { mode?: DatahoarderPermissionMode }) => Promise<LocalDirectoryHandle>;

@@ -1,9 +1,9 @@
 <script lang="ts">
-import NoteTree from '../note-ui/NoteTree.svelte';
-import type { NoteTreeNode } from '../note-model/tree.js';
-import type { SavedVaultSearch } from '../vault/saved-search.js';
-import type { VaultIndex } from '../vault/index.js';
-import type { VaultSearchResult } from '../vault/search.js';
+import NoteTree from '../../note-ui/NoteTree.svelte';
+import type { NoteTreeNode } from '../../note-model/tree.js';
+import type { SavedVaultSearch } from '../../vault/saved-search.js';
+import type { VaultIndex } from '../../vault/index.js';
+import type { VaultSearchResult } from '../../vault/search.js';
 
 type VaultRecord = VaultIndex['records'][number];
 

@@ -1,22 +1,22 @@
 <script lang="ts">
 import { onDestroy, tick } from 'svelte';
-import type { BaseView } from '../note-model/base.js';
+import type { BaseView } from '../../note-model/base.js';
 import type {
 	CollectionKanbanGroup,
 	CollectionSummaryResult,
 	CollectionTimelineItem,
 	ResolvedCollection
-} from '../collections/index.js';
-import { renderExcalidrawNotePreview } from '../drawings/preview.js';
-import { isDatahoarderBoardFile } from '../boards/local-board.js';
-import type { LocalVaultFile } from '../vault/local-files.js';
-import { getNoteTitle } from '../vault/paths.js';
-import { isExcalidrawNote } from '../note-model/raw.js';
-import type { VaultBacklink, VaultIndex, VaultRecord } from '../vault/index.js';
+} from '../../collections/index.js';
+import { renderExcalidrawNotePreview } from '../../drawings/preview.js';
+import { isDatahoarderBoardFile } from '../../boards/local-board.js';
+import type { LocalVaultFile } from '../../vault/local-files.js';
+import { getNoteTitle } from '../../vault/paths.js';
+import { isExcalidrawNote } from '../../note-model/raw.js';
+import type { VaultBacklink, VaultIndex, VaultRecord } from '../../vault/index.js';
 import CollectionPreview from './CollectionPreview.svelte';
 import { hasMath as containsMath, loadMathJax as loadMathJaxApi } from './mathjax.js';
 import { renderLocalBoard, renderLocalMarkdown } from './rendering.js';
-import type { CollectionCellEdit } from './types.js';
+import type { CollectionCellEdit } from '../shared/types.js';
 
 type Props = {
 	baseViews: BaseView[];

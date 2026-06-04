@@ -2,7 +2,7 @@ import {
 	getCollectionField,
 	isComputedCollectionColumn,
 	type ResolvedCollection
-} from '../collections/index.js';
+} from '../../collections/index.js';
 
 export function getCollectionViewDefaultsKey(collection: ResolvedCollection) {
 	return [

@@ -1,4 +1,4 @@
-import type { LocalVaultFile } from '../vault/local-files.js';
+import type { LocalVaultFile } from '../../vault/local-files.js';
 
 export function getEditorLanguage(file: LocalVaultFile | null) {
 	if (!file) {

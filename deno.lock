@@ -13,6 +13,9 @@
     "npm:@sveltejs/package@^2.5.7": "2.5.7_svelte@5.56.1_typescript@6.0.3",
     "npm:@sveltejs/vite-plugin-svelte@7.1.2": "7.1.2_svelte@5.56.1_vite@8.0.16__@types+node@25.9.1__sass@1.100.0_sass@1.100.0",
     "npm:@sveltejs/vite-plugin-svelte@^7.1.2": "7.1.2_svelte@5.56.1_vite@8.0.16__@types+node@25.9.1__sass@1.100.0_sass@1.100.0",
+    "npm:@tauri-apps/cli@*": "2.11.2",
+    "npm:@tauri-apps/cli@2.11.2": "2.11.2",
+    "npm:@tauri-apps/cli@^2.11.2": "2.11.2",
     "npm:@types/node@^25.9.1": "25.9.1",
     "npm:@vitest/browser-playwright@4.1.5": "4.1.5_playwright@1.57.0_vitest@4.1.5_sass@1.100.0",
     "npm:@vitest/browser-playwright@^4.0.15": "4.1.5_playwright@1.57.0_vitest@4.1.5_sass@1.100.0",
@@ -348,6 +351,78 @@
         "vite",
         "vitefu"
       ]
+    },
+    "@tauri-apps/cli-darwin-arm64@2.11.2": {
+      "integrity": "sha512-+4UZzLt+eOAEQCwgd+TqKgyUJMrvx+BgdXLLaqJYmPqzP+nE6YZr/hY6CWLYGQb8jFn99jEkmC6uA3tNvamA1w==",
+      "os": ["darwin"],
+      "cpu": ["arm64"]
+    },
+    "@tauri-apps/cli-darwin-x64@2.11.2": {
+      "integrity": "sha512-VjYYtZUPqDMLutSfJEyxFE3Bz+DPi7c8wC3imckgvciLDZLq4qwKJxBicg0BXGhXjJsl8vKWgWRFNMPELQ+Xyg==",
+      "os": ["darwin"],
+      "cpu": ["x64"]
+    },
+    "@tauri-apps/cli-linux-arm-gnueabihf@2.11.2": {
+      "integrity": "sha512-yMemD6f4i95AQriS8EazyOFzbE34yjnP16i3IOzpHGQvBoy2DjypFMFBq0NtPuITURv/cOGguRtHR5d79/9CSA==",
+      "os": ["linux"],
+      "cpu": ["arm"]
+    },
+    "@tauri-apps/cli-linux-arm64-gnu@2.11.2": {
+      "integrity": "sha512-cgI91D2wL8GSgoWwZXDqt+DwnuZCP2/bz03QAE4TrhgAKIsrB4hX26W/H1EONPUUNkqrsgeCD0wU6pcNjV/5kw==",
+      "os": ["linux"],
+      "cpu": ["arm64"]
+    },
+    "@tauri-apps/cli-linux-arm64-musl@2.11.2": {
+      "integrity": "sha512-X1rm0BERqAAggtYTESSgXrS3sz4Sb/OiPiz54UqISlXW+GkR3vNIGnsy/lejNmoXGVqri3Q53BCfQiclOIyRPw==",
+      "os": ["linux"],
+      "cpu": ["arm64"]
+    },
+    "@tauri-apps/cli-linux-riscv64-gnu@2.11.2": {
+      "integrity": "sha512-usbMLJbT3KtkOrBMDVeGYNM35aTHXx38SJSzTMSqqjeUIOQ+iVPjb2yAGNAE+KqmBbAx4FOFIyMeKXx2M/JKGQ==",
+      "os": ["linux"],
+      "cpu": ["riscv64"]
+    },
+    "@tauri-apps/cli-linux-x64-gnu@2.11.2": {
+      "integrity": "sha512-Ru4gwJKPG0ctVGchRGpRup4Y4lW2SSfFnrbQcyHhCliKy4g8Qz97TrUgCur4CbWyAgKxvGh3SjrkA0LDYzDGiw==",
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "@tauri-apps/cli-linux-x64-musl@2.11.2": {
+      "integrity": "sha512-eUm7T6clN1MMmNSRQ9gaWsQdyehQx2Gmn5hht/QUlqZQI/qcP2OJK5dnaxqwFzCr2HdsEo9ydxaqcS1oJzMvUw==",
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "@tauri-apps/cli-win32-arm64-msvc@2.11.2": {
+      "integrity": "sha512-HeeZW80jU+gVTOEX4X/hC6NVSAdDVXajwP5fxIZ/3z9WvUC7qrudX2GMTilYq6Dg0e0sk0XgsAJD1hZ5wPBXUA==",
+      "os": ["win32"],
+      "cpu": ["arm64"]
+    },
+    "@tauri-apps/cli-win32-ia32-msvc@2.11.2": {
+      "integrity": "sha512-YhjQNZcXfbkCLyazSv1nPnJ9iRFE1wm6kc51FDbU10/Dk09io+6PAGMLjkxnX2GdM0qMnDmTjstY8mTDVvtKeA==",
+      "os": ["win32"],
+      "cpu": ["ia32"]
+    },
+    "@tauri-apps/cli-win32-x64-msvc@2.11.2": {
+      "integrity": "sha512-d2JchlFIpZevZVReyqhQOekJmb1UH3rhZ5VX6sH3ty9ETE0TKQavpihvoScUXfKKpW6HZC0MrFGRU0ZtD+w3gA==",
+      "os": ["win32"],
+      "cpu": ["x64"]
+    },
+    "@tauri-apps/cli@2.11.2": {
+      "integrity": "sha512-bk3HemqvGRoy+5D/dVMUQHKMYLglD0jVnMm/0iGMH6ufZ+p8r14m6BpIixwij3PBvZdvORUp1YifTD8QxVZ1Nw==",
+      "optionalDependencies": [
+        "@tauri-apps/cli-darwin-arm64",
+        "@tauri-apps/cli-darwin-x64",
+        "@tauri-apps/cli-linux-arm-gnueabihf",
+        "@tauri-apps/cli-linux-arm64-gnu",
+        "@tauri-apps/cli-linux-arm64-musl",
+        "@tauri-apps/cli-linux-riscv64-gnu",
+        "@tauri-apps/cli-linux-x64-gnu",
+        "@tauri-apps/cli-linux-x64-musl",
+        "@tauri-apps/cli-win32-arm64-msvc",
+        "@tauri-apps/cli-win32-ia32-msvc",
+        "@tauri-apps/cli-win32-x64-msvc"
+      ],
+      "bin": true
     },
     "@testing-library/svelte-core@1.0.0_svelte@5.56.1": {
       "integrity": "sha512-VkUePoLV6oOYwSUvX6ShA8KLnJqZiYMIbP2JW2t0GLWLkJxKGvuH5qrrZBV/X7cXFnLGuFQEC7RheYiZOW68KQ==",
@@ -997,6 +1072,7 @@
         "npm:@sveltejs/kit@^2.61.1",
         "npm:@sveltejs/package@^2.5.7",
         "npm:@sveltejs/vite-plugin-svelte@^7.1.2",
+        "npm:@tauri-apps/cli@^2.11.2",
         "npm:@types/node@^25.9.1",
         "npm:@vitest/browser-playwright@^4.0.15",
         "npm:monaco-editor@~0.55.1",

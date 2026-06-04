@@ -30,6 +30,7 @@
 		"@sveltejs/kit": "^2.61.1",
 		"@sveltejs/package": "^2.5.7",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
+		"@tauri-apps/cli": "^2.11.2",
 		"@types/node": "^25.9.1",
 		"@vitest/browser-playwright": "^4.0.15",
 		"playwright": "^1.57.0",

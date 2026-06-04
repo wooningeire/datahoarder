@@ -13,6 +13,7 @@
 .markdown-preview blockquote,
 .markdown-preview .note-embed,
 .markdown-preview .markdown-table-wrapper,
+.markdown-preview .whiteboard-preview-svg,
 .markdown-preview .datahoarder-board,
 .markdown-preview .datahoarder-metrics,
 .markdown-preview pre {
@@ -136,7 +137,8 @@
 	border-left-color: oklch(0.66 0.12 35);
 }
 
-.markdown-preview .excalidraw-preview-svg {
+.markdown-preview .excalidraw-preview-svg,
+.markdown-preview .whiteboard-preview-svg {
 	width: 100%;
 	max-height: 42rem;
 	background: oklch(0.995 0.006 95);

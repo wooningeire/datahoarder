@@ -1,8 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { addExcalidrawElement, normalizeExcalidrawElementKind } from './edit.js';
-import { createExcalidrawNoteDraft, parseExcalidrawScene, renderExcalidrawNotePreview } from './preview.js';
+import { addDrawingElement, addExcalidrawElement, normalizeExcalidrawElementKind } from './edit.js';
+import {
+	createExcalidrawNoteDraft,
+	createWhiteboardNoteDraft,
+	parseExcalidrawScene,
+	parseWhiteboardNoteState,
+	renderExcalidrawNotePreview,
+	renderWhiteboardNotePreview
+} from './preview.js';
 
-describe('Excalidraw editing', () => {
+describe('Drawing editing', () => {
+	it('appends a labeled shape to a whiteboard SVX note', () => {
+		const draft = createWhiteboardNoteDraft('Launch Map');
+		const result = addDrawingElement(draft.content, {
+			kind: 'rectangle',
+			text: 'Decision point'
+		});
+		const state = parseWhiteboardNoteState(result.content);
+		const preview = renderWhiteboardNotePreview(result.content);
+
+		expect(result.kind).toBe('rectangle');
+		expect(result.elements).toHaveLength(1);
+		expect(result.elements[0]).toMatchObject({
+			kind: 'shape',
+			shape: 'rectangle',
+			label: 'Decision point',
+			width: 210,
+			height: 110
+		});
+		expect(state?.items).toHaveLength(4);
+		expect(preview).toContain('Decision point');
+		expect(result.content).toContain('let items = $state<WhiteboardItem[]>');
+	});
+
 	it('appends a labeled shape to an existing drawing scene', () => {
 		const draft = createExcalidrawNoteDraft('Launch Map');
 		const result = addExcalidrawElement(draft.content, {

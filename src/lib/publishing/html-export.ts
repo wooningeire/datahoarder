@@ -217,7 +217,7 @@ article {
 	gap: 0.9rem;
 }
 
-article :is(h1, h2, h3, p, ul, ol, blockquote, pre, .note-embed, .markdown-table-wrapper, .datahoarder-board, .datahoarder-metrics) {
+article :is(h1, h2, h3, p, ul, ol, blockquote, pre, .note-embed, .markdown-table-wrapper, .whiteboard-preview-svg, .datahoarder-board, .datahoarder-metrics) {
 	margin: 0;
 }
 
@@ -308,7 +308,8 @@ blockquote {
 	border-left-color: #fb923c;
 }
 
-.excalidraw-preview-svg {
+.excalidraw-preview-svg,
+.whiteboard-preview-svg {
 	width: 100%;
 	max-height: 42rem;
 	background: white;

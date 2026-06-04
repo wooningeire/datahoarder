@@ -1,7 +1,7 @@
 import { addCollectionField } from '../../collections/edit.js';
 import { createCollectionRecordDraft, type ResolvedCollection } from '../../collections/index.js';
-import { addExcalidrawElement } from '../../drawings/edit.js';
-import { createExcalidrawNoteDraft } from '../../drawings/preview.js';
+import { addDrawingElement } from '../../drawings/edit.js';
+import { createWhiteboardNoteDraft } from '../../drawings/preview.js';
 import {
 	createLocalFile,
 	normalizeLocalTextPath,
@@ -180,12 +180,12 @@ export function createNoteActions(context: NoteActionContext) {
 
 		const suggestedPath = getAvailableLocalNotePath(
 			context.files,
-			getSuggestedCreatePath(directoryPath, 'Drawings/Untitled Drawing.md', 'Untitled Drawing.md')
+			getSuggestedCreatePath(directoryPath, 'Drawings/Untitled Drawing.svx', 'Untitled Drawing.svx')
 		);
 		const suggestedCreatePath = splitCreatePath(suggestedPath);
 		const requestedFileName = await context.requestInlineFileCreate({
 			directoryPath: suggestedCreatePath.directoryPath,
-			extension: '.md',
+			extension: '.svx',
 			fileName: suggestedCreatePath.fileName,
 			inputLabel: 'New drawing name',
 			kind: 'drawing',
@@ -199,10 +199,10 @@ export function createNoteActions(context: NoteActionContext) {
 
 		try {
 			context.errorMessage = '';
-			const nextPath = getInlineCreatePath(suggestedCreatePath.directoryPath, requestedFileName, '.md');
+			const nextPath = getInlineCreatePath(suggestedCreatePath.directoryPath, requestedFileName, '.svx');
 			assertNoLocalManagedPathCollision(context.files, nextPath);
-			const draft = createExcalidrawNoteDraft(getNoteTitle(nextPath));
-			const createdPath = await createLocalFile(context.vaultHandle, nextPath, draft.content, '.md');
+			const draft = createWhiteboardNoteDraft(getNoteTitle(nextPath));
+			const createdPath = await createLocalFile(context.vaultHandle, nextPath, draft.content, '.svx');
 
 			await context.reloadVaultAfterFileOperation(`Created drawing ${createdPath}`, createdPath);
 		} catch (error) {
@@ -256,7 +256,7 @@ export function createNoteActions(context: NoteActionContext) {
 		context.errorMessage = '';
 
 		try {
-			const result = addExcalidrawElement(context.selectedContent, {
+			const result = addDrawingElement(context.selectedContent, {
 				kind: requestedKind,
 				text: requestedLabel
 			});

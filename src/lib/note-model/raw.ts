@@ -2,6 +2,10 @@ export function isExcalidrawNote(content: string) {
 	return /(?:^|\r?\n)excalidraw-plugin:/u.test(content);
 }
 
+export function isWhiteboardNote(content: string) {
+	return /<InfiniteWhiteboard\b/u.test(content) && /\bWhiteboardItem\b/u.test(content);
+}
+
 export function getRawPreview(content: string) {
 	const body = stripFrontmatter(content).trim();
 	const drawingIndex = body.search(/^#{1,2} Drawing\s*$/mu);

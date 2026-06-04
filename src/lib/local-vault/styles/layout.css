@@ -807,6 +807,13 @@ button:disabled {
 	border-right: none;
 }
 
+.whiteboard-note-preview {
+	min-height: min(72vh, 44rem);
+	overflow: hidden;
+	border: 1px solid oklch(0.78 0.04 100);
+	border-radius: 0.35rem;
+}
+
 .preview-pane header {
 	display: grid;
 	gap: 0.25rem;

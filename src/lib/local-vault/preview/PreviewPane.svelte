@@ -7,16 +7,23 @@ import type {
 	CollectionTimelineItem,
 	ResolvedCollection
 } from '../../collections/index.js';
-import { renderExcalidrawNotePreview } from '../../drawings/preview.js';
+import {
+	parseWhiteboardNoteState,
+	renderExcalidrawNotePreview,
+	updateWhiteboardNoteState,
+	type WhiteboardDrawingNoteItem
+} from '../../drawings/preview.js';
 import { isDatahoarderBoardFile } from '../../boards/local-board.js';
 import type { LocalVaultFile } from '../../vault/local-files.js';
 import { getNoteTitle } from '../../vault/paths.js';
-import { isExcalidrawNote } from '../../note-model/raw.js';
+import { isExcalidrawNote, isWhiteboardNote } from '../../note-model/raw.js';
 import type { VaultBacklink, VaultIndex, VaultRecord } from '../../vault/index.js';
 import CollectionPreview from './CollectionPreview.svelte';
+import InfiniteWhiteboard from '../../whiteboard/InfiniteWhiteboard.svelte';
 import { hasMath as containsMath, loadMathJax as loadMathJaxApi } from './mathjax.js';
 import { renderLocalBoard, renderLocalMarkdown } from './rendering.js';
 import type { CollectionCellEdit } from '../shared/types.js';
+import type { WhiteboardItem, WhiteboardViewport } from '../../whiteboard/whiteboard.js';
 
 type Props = {
 	baseViews: BaseView[];
@@ -55,6 +62,7 @@ type Props = {
 	saveCollectionCellEdit: (record: VaultRecord, column: string) => Promise<void>;
 	selectCollectionView: (viewIndex: number) => void;
 	setPreviewHtml: (html: string) => void;
+	setSelectedContent: (content: string) => void;
 	setCollectionFilter: (filter: string) => void;
 	sortCollectionBy: (column: string) => void;
 	updateCollectionCellEditValue: (value: string) => void;
@@ -97,6 +105,7 @@ let {
 	saveCollectionCellEdit,
 	selectCollectionView,
 	setPreviewHtml,
+	setSelectedContent,
 	setCollectionFilter,
 	sortCollectionBy,
 	updateCollectionCellEditValue
@@ -104,6 +113,10 @@ let {
 let markdownPreviewHost: HTMLElement | undefined = $state();
 let previewRenderContent = $state('');
 let previewRenderPath = $state('');
+let whiteboardItems = $state<WhiteboardItem[]>([]);
+let whiteboardSourceContent = $state('');
+let whiteboardSourcePath = $state('');
+let whiteboardViewport = $state<WhiteboardViewport>({ x: 0, y: 0, scale: 1 });
 let mathTypesetToken = 0;
 let previewRenderToken = 0;
 
@@ -127,6 +140,10 @@ let previewHtml = $derived.by(() => {
 		return renderExcalidrawNotePreview(previewRenderContent);
 	}
 
+	if (previewRenderFile.extension === '.svx' && isWhiteboardNote(previewRenderContent)) {
+		return '';
+	}
+
 	if (previewRenderFile.extension === '.md' || previewRenderFile.extension === '.svx') {
 		return renderLocalMarkdown(previewRenderContent, previewRenderFile, { files, vaultIndex }, {
 			interactiveTaskLists: true
@@ -134,6 +151,13 @@ let previewHtml = $derived.by(() => {
 	}
 
 	return '';
+});
+let whiteboardState = $derived.by(() => {
+	if (previewRenderFile?.extension !== '.svx' || !isWhiteboardNote(previewRenderContent)) {
+		return null;
+	}
+
+	return parseWhiteboardNoteState(previewRenderContent);
 });
 
 $effect(() => {
@@ -160,6 +184,28 @@ $effect(() => {
 	}, 0);
 
 	return () => window.clearTimeout(timeout);
+});
+
+$effect(() => {
+	const state = whiteboardState;
+	const path = previewRenderFile?.path ?? '';
+
+	if (!state || !path) {
+		return;
+	}
+
+	if (selectedFile?.path === path && selectedContent !== previewRenderContent && whiteboardSourcePath === path) {
+		return;
+	}
+
+	if (whiteboardSourcePath === path && whiteboardSourceContent === previewRenderContent) {
+		return;
+	}
+
+	whiteboardSourcePath = path;
+	whiteboardSourceContent = previewRenderContent;
+	whiteboardItems = state.items;
+	whiteboardViewport = state.viewport;
 });
 
 $effect(() => {
@@ -201,6 +247,34 @@ function queuePreviewMathTypeset() {
 		await mathJax.startup?.promise;
 		await mathJax.typesetPromise([markdownPreviewHost]);
 	});
+}
+
+function handleWhiteboardItemsChange(nextItems: WhiteboardItem[]) {
+	if (!selectedFile || selectedFile.path !== whiteboardSourcePath) {
+		return;
+	}
+
+	const currentState = parseWhiteboardNoteState(selectedContent);
+
+	if (!currentState) {
+		return;
+	}
+
+	const nextContent = updateWhiteboardNoteState(selectedContent, {
+		items: toPersistableWhiteboardItems(nextItems),
+		viewport: whiteboardViewport
+	});
+
+	if (nextContent === selectedContent) {
+		return;
+	}
+
+	whiteboardSourceContent = nextContent;
+	setSelectedContent(nextContent);
+}
+
+function toPersistableWhiteboardItems(items: WhiteboardItem[]): WhiteboardDrawingNoteItem[] {
+	return items.filter((item): item is WhiteboardDrawingNoteItem => item.kind !== 'component');
 }
 </script>
 
@@ -256,6 +330,15 @@ function queuePreviewMathTypeset() {
 		{/if}
 
 		<pre>{selectedContent}</pre>
+	{:else if whiteboardState && selectedFile}
+		<article class="whiteboard-note-preview" aria-label="Whiteboard Preview">
+			<InfiniteWhiteboard
+				bind:items={whiteboardItems}
+				bind:viewport={whiteboardViewport}
+				ariaLabel={`${getNoteTitle(selectedFile.path)} whiteboard`}
+				onchange={handleWhiteboardItemsChange}
+			/>
+		</article>
 	{:else if previewHtml}
 		<article
 			class="markdown-preview"

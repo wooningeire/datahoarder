@@ -176,7 +176,7 @@ test('Excalidraw notes render a static SVG preview', async ({ page }) => {
 	expect(htmlContent).not.toContain('<script>');
 });
 
-test('new drawing creates an Excalidraw starter note', async ({ page }) => {
+test('new drawing creates a whiteboard SVX note', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-new-drawing-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -193,63 +193,28 @@ test('new drawing creates an Excalidraw starter note', async ({ page }) => {
 
 	await clickColumnNewItem(page, 'Files', 'New Drawing');
 	await fillInlineFileCreate(page, 'New drawing name', 'Launch Map');
-	await expect(page.getByText('Created drawing Launch Map.md')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('Launch Map.md')).toBeVisible();
-	await expect(page.getByLabel('Preview').locator('.excalidraw-preview-svg')).toBeVisible();
-	await expect(page.getByLabel('Excalidraw drawing preview').getByText('Launch Map')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('excalidraw-plugin: parsed')).toBeVisible();
+	await expect(page.getByText('Created drawing Launch Map.svx')).toBeVisible();
+	await expect(page.getByLabel('Editor').getByText('Launch Map.svx')).toBeVisible();
+	await expect(page.getByLabel('Preview').getByLabel('Launch Map whiteboard')).toBeVisible();
+	await expect(page.getByLabel('Preview').getByText('Launch Map')).toBeVisible();
+	await expect(page.getByLabel('Editor').getByText('InfiniteWhiteboard')).toBeVisible();
 });
 
-test('drawing notes can append canvas elements', async ({ page }) => {
+test('whiteboard drawing notes can append canvas elements', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-add-canvas-element-${Date.now()}`;
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
 			const root = await navigator.storage.getDirectory();
-			const directory = await root.getDirectoryHandle(name, { create: true });
-			const file = await directory.getFileHandle('canvas.md', { create: true });
-			const writable = await file.createWritable();
 
-			await writable.write(
-				[
-					'---',
-					'excalidraw-plugin: parsed',
-					'tags: [drawing]',
-					'---',
-					'# Canvas',
-					'',
-					'## Drawing',
-					'```json',
-					JSON.stringify({
-						type: 'excalidraw',
-						version: 2,
-						source: 'datahoarder',
-						elements: [
-							{
-								id: 'start',
-								type: 'text',
-								x: 20,
-								y: 40,
-								width: 80,
-								height: 32,
-								strokeColor: '#111827',
-								text: 'Start'
-							}
-						],
-						appState: { viewBackgroundColor: '#ffffff' },
-						files: {}
-					}),
-					'```'
-				].join('\n')
-			);
-			await writable.close();
-
-			return directory;
+			return root.getDirectoryHandle(name, { create: true });
 		};
 	}, vaultName);
 
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
+	await clickColumnNewItem(page, 'Files', 'New Drawing');
+	await fillInlineFileCreate(page, 'New drawing name', 'Canvas');
 	await page.getByRole('button', { name: 'Add Canvas Element' }).click();
 	await fillRequestFields(
 		page,
@@ -261,20 +226,21 @@ test('drawing notes can append canvas elements', async ({ page }) => {
 		'Add Element'
 	);
 
-	await expect(page.getByText('Added rectangle to canvas.md')).toBeVisible();
-	await expect(page.getByLabel('Excalidraw drawing preview').getByText('Milestone <risk> & reward')).toBeVisible();
+	await expect(page.getByText('Added rectangle to Canvas.svx')).toBeVisible();
+	await expect(page.getByLabel('Canvas whiteboard').getByText('Milestone <risk> & reward')).toBeVisible();
 
 	const savedDrawingContent = await page.evaluate(async (name) => {
 		const root = await navigator.storage.getDirectory();
 		const directory = await root.getDirectoryHandle(name);
-		const file = await directory.getFileHandle('canvas.md');
+		const file = await directory.getFileHandle('Canvas.svx');
 		const blob = await file.getFile();
 
 		return blob.text();
 	}, vaultName);
 
-	expect(savedDrawingContent).toContain('"type": "rectangle"');
-	expect(savedDrawingContent).toContain('"Milestone <risk> & reward"');
+	expect(savedDrawingContent).toContain('"kind": "shape"');
+	expect(savedDrawingContent).toContain('"shape": "rectangle"');
+	expect(savedDrawingContent).toContain('"label": "Milestone <risk> & reward"');
 
 	const htmlDownloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export HTML' }).click();
@@ -283,8 +249,10 @@ test('drawing notes can append canvas elements', async ({ page }) => {
 	expect(htmlPath).toBeTruthy();
 	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
 
+	expect(htmlContent).toContain('class="whiteboard-preview-svg"');
 	expect(htmlContent).toContain('Milestone &lt;risk&gt; &amp; reward');
 	expect(htmlContent).not.toContain('Milestone <risk> & reward');
+	expect(htmlContent).not.toContain('<script>');
 });
 
 test('new from template creates a note with rendered placeholders', async ({ page }) => {

@@ -1,12 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import {
 	createExcalidrawNoteDraft,
+	createWhiteboardNoteDraft,
 	parseExcalidrawScene,
+	parseWhiteboardNoteState,
 	renderExcalidrawNotePreview,
-	renderExcalidrawSvg
+	renderExcalidrawSvg,
+	renderWhiteboardNotePreview
 } from './preview.js';
 
-describe('Excalidraw previews', () => {
+describe('Drawing previews', () => {
+	it('creates a starter whiteboard SVX note that can be parsed and rendered', () => {
+		const draft = createWhiteboardNoteDraft('Launch Map');
+		const state = parseWhiteboardNoteState(draft.content);
+		const preview = renderWhiteboardNotePreview(draft.content);
+
+		expect(draft.title).toBe('Launch Map');
+		expect(draft.content).toContain("import { InfiniteWhiteboard");
+		expect(draft.content).toContain('tags: [drawing, whiteboard]');
+		expect(draft.content).toContain('<InfiniteWhiteboard bind:items bind:viewport');
+		expect(state?.items).toHaveLength(3);
+		expect(state?.viewport).toEqual({ x: 120, y: 96, scale: 1 });
+		expect(preview).toContain('class="whiteboard-preview-svg"');
+		expect(preview).toContain('Launch Map');
+	});
+
 	it('creates a starter drawing note that can be parsed and rendered', () => {
 		const draft = createExcalidrawNoteDraft('Launch Map');
 		const scene = parseExcalidrawScene(draft.content);

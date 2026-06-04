@@ -78,9 +78,9 @@ export function buildCommandPaletteItems(context: CommandPaletteContext): Comman
 				title: 'New Note'
 			},
 			{
-				detail: 'Create an Excalidraw Markdown note',
+				detail: 'Create an SVX whiteboard note',
 				id: 'new-drawing',
-				keywords: ['canvas', 'whiteboard', 'excalidraw'],
+				keywords: ['canvas', 'whiteboard', 'drawing', 'svx'],
 				run: context.createDrawingNote,
 				title: 'New Drawing'
 			},
@@ -146,7 +146,7 @@ export function buildCommandPaletteItems(context: CommandPaletteContext): Comman
 		items.push({
 			detail: `Append an element to ${context.selectedFile?.path ?? 'the drawing'}`,
 			id: 'add-canvas-element',
-			keywords: ['drawing', 'excalidraw', 'whiteboard'],
+			keywords: ['drawing', 'excalidraw', 'whiteboard', 'svx'],
 			run: context.addCanvasElement,
 			title: 'Add Canvas Element'
 		});

@@ -63,7 +63,7 @@ import {
 	getPublicPublishRecords,
 	type PublicPublishProfile
 } from '../../publishing/public-publish.js';
-import { isExcalidrawNote } from '../../note-model/raw.js';
+import { isExcalidrawNote, isWhiteboardNote } from '../../note-model/raw.js';
 import type { SavedVaultSearch } from '../../vault/saved-search.js';
 import {
 	createEmptyVaultIndex,
@@ -131,7 +131,12 @@ let selectedPublicPublishProfile = $derived(
 	publicPublishProfiles.find((profile) => profile.path === selectedPublicPublishProfilePath) ?? null
 );
 let publicRecords = $derived(getPublicPublishRecords(vaultIndex.records, selectedPublicPublishProfile));
-let selectedExcalidrawNote = $derived(Boolean(selectedFile?.extension === '.md' && isExcalidrawNote(selectedContent)));
+let selectedExcalidrawNote = $derived(
+	Boolean(
+		(selectedFile?.extension === '.md' && isExcalidrawNote(selectedContent)) ||
+		(selectedFile?.extension === '.svx' && isWhiteboardNote(selectedContent))
+	)
+);
 let selectedFilePinned = $derived(selectedFile ? pinnedNotePaths.includes(selectedFile.path) : false);
 let pinnedNotes = $derived(
 	getStoredNoteRecords(pinnedNotePaths.filter((path) => path !== selectedFile?.path), vaultIndex.recordsByPath)
@@ -862,6 +867,7 @@ function escapeHtml(text: string) {
 			selectCollectionView={collectionActions.selectCollectionView}
 			setCollectionFilter={collectionActions.setCollectionFilter}
 			{setPreviewHtml}
+			{setSelectedContent}
 			sortCollectionBy={collectionActions.sortCollectionBy}
 			updateCollectionCellEditValue={collectionActions.updateCollectionCellEditValue}
 		/>

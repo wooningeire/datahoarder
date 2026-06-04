@@ -1,4 +1,11 @@
-import type { ExcalidrawElement } from './preview.js';
+import {
+	isWhiteboardNoteContent,
+	parseWhiteboardNoteState,
+	updateWhiteboardNoteState,
+	type ExcalidrawElement,
+	type WhiteboardDrawingNoteItem
+} from './preview.js';
+import type { WhiteboardShapeKind } from '../whiteboard/whiteboard.js';
 
 export type ExcalidrawElementKind = 'arrow' | 'diamond' | 'ellipse' | 'rectangle' | 'text';
 
@@ -12,6 +19,14 @@ export type AddExcalidrawElementResult = {
 	elements: ExcalidrawElement[];
 	kind: ExcalidrawElementKind;
 };
+
+export type AddWhiteboardElementResult = {
+	content: string;
+	elements: WhiteboardDrawingNoteItem[];
+	kind: ExcalidrawElementKind;
+};
+
+export type AddDrawingElementResult = AddExcalidrawElementResult | AddWhiteboardElementResult;
 
 type RawExcalidrawScene = {
 	elements: ExcalidrawElement[];
@@ -31,6 +46,17 @@ type Bounds = {
 
 const drawingHeadingPattern = /^#{1,2} Drawing\s*$/gmu;
 const elementKinds = ['arrow', 'diamond', 'ellipse', 'rectangle', 'text'] as const;
+
+export function addDrawingElement(
+	content: string,
+	options: AddExcalidrawElementOptions = {}
+): AddDrawingElementResult {
+	if (isWhiteboardNoteContent(content)) {
+		return addWhiteboardElement(content, options);
+	}
+
+	return addExcalidrawElement(content, options);
+}
 
 export function addExcalidrawElement(
 	content: string,
@@ -53,6 +79,30 @@ export function addExcalidrawElement(
 
 	return {
 		content: `${content.slice(0, sceneRange.start)}${nextJson}${content.slice(sceneRange.end)}`,
+		elements,
+		kind
+	};
+}
+
+export function addWhiteboardElement(
+	content: string,
+	options: AddExcalidrawElementOptions = {}
+): AddWhiteboardElementResult {
+	const kind = normalizeExcalidrawElementKind(options.kind);
+	const state = parseWhiteboardNoteState(content);
+
+	if (!state) {
+		throw new Error('Whiteboard state was not readable.');
+	}
+
+	const elements = createWhiteboardElements(kind, options.text ?? '', state.items);
+	const nextState = {
+		...state,
+		items: [...state.items, ...elements]
+	};
+
+	return {
+		content: updateWhiteboardNoteState(content, nextState),
 		elements,
 		kind
 	};
@@ -129,6 +179,133 @@ function parseRawExcalidrawScene(jsonText: string): RawExcalidrawScene {
 		...parsed,
 		elements: parsed.elements.filter(isObjectElement)
 	};
+}
+
+function createWhiteboardElements(
+	kind: ExcalidrawElementKind,
+	text: string,
+	existingItems: WhiteboardDrawingNoteItem[]
+): WhiteboardDrawingNoteItem[] {
+	const label = text.trim();
+	const bounds = getWhiteboardInsertionBounds(existingItems);
+	const x = round(bounds.maxX + 48);
+	const y = round(bounds.minY);
+
+	if (kind === 'text') {
+		return [createWhiteboardTextItem(existingItems, label || 'New text', x, y)];
+	}
+
+	if (kind === 'arrow') {
+		const arrow: WhiteboardDrawingNoteItem = {
+			kind: 'drawing',
+			id: createWhiteboardSourceItemId(existingItems, 'arrow', label || 'arrow'),
+			x,
+			y: y + 48,
+			width: 184,
+			height: 16,
+			points: [
+				{ x: 2, y: 8 },
+				{ x: 184, y: 8 }
+			],
+			stroke: 'oklch(0.5 0.16 248)',
+			strokeWidth: 4
+		};
+
+		return label ? [arrow, createWhiteboardTextItem(existingItems, label, x + 42, y + 8, 'arrow-label')] : [arrow];
+	}
+
+	const shape: WhiteboardDrawingNoteItem = {
+		kind: 'shape',
+		id: createWhiteboardSourceItemId(existingItems, kind, label || kind),
+		x,
+		y,
+		width: 210,
+		height: 110,
+		shape: kind satisfies WhiteboardShapeKind,
+		label,
+		fill: getWhiteboardShapeFill(kind),
+		stroke: getWhiteboardShapeStroke(kind),
+		strokeWidth: 2
+	};
+
+	return [shape];
+}
+
+function createWhiteboardTextItem(
+	existingItems: WhiteboardDrawingNoteItem[],
+	text: string,
+	x: number,
+	y: number,
+	idLabel = 'text'
+): WhiteboardDrawingNoteItem {
+	const lines = text.split(/\r?\n/u);
+	const width = clamp(Math.max(...lines.map((line) => line.length), 4) * 13, 100, 420);
+
+	return {
+		kind: 'text',
+		id: createWhiteboardSourceItemId(existingItems, idLabel, text),
+		x,
+		y,
+		width,
+		height: Math.max(64, lines.length * 34 + 28),
+		text,
+		background: 'oklch(0.98 0.04 95)',
+		color: 'oklch(0.24 0.04 260)'
+	};
+}
+
+function createWhiteboardSourceItemId(
+	existingItems: WhiteboardDrawingNoteItem[],
+	kind: string,
+	label: string
+) {
+	const existingIds = new Set(existingItems.map((item) => item.id));
+	const slug = slugifyLabel(label);
+	let candidate = `datahoarder-whiteboard-${kind}-${existingItems.length + 1}-${slug}`;
+	let suffix = 2;
+
+	while (existingIds.has(candidate)) {
+		candidate = `datahoarder-whiteboard-${kind}-${existingItems.length + suffix}-${slug}`;
+		suffix += 1;
+	}
+
+	return candidate;
+}
+
+function getWhiteboardInsertionBounds(items: WhiteboardDrawingNoteItem[]): Bounds {
+	if (!items.length) {
+		return { maxX: 20, minY: 40 };
+	}
+
+	return items.reduce(
+		(bounds, item) => ({
+			maxX: Math.max(bounds.maxX, item.x + Math.abs(item.width)),
+			minY: Math.min(bounds.minY, item.y)
+		}),
+		{ maxX: -Infinity, minY: Infinity }
+	);
+}
+
+function getWhiteboardShapeFill(kind: WhiteboardShapeKind) {
+	switch (kind) {
+		case 'diamond':
+			return 'oklch(0.93 0.07 320)';
+		case 'ellipse':
+			return 'oklch(0.91 0.08 175)';
+		case 'rectangle':
+			return 'oklch(0.95 0.06 72)';
+	}
+}
+
+function getWhiteboardShapeStroke(kind: WhiteboardShapeKind) {
+	switch (kind) {
+		case 'diamond':
+			return 'oklch(0.5 0.13 320)';
+		case 'ellipse':
+			return 'oklch(0.45 0.12 175)';
+		case 'rectangle':
+			return 'oklch(0.51 0.12 62)';
+	}
 }
 
 function createExcalidrawElements(

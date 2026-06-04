@@ -19,7 +19,7 @@ The shell intentionally previews portable markdown, `.base` files, and Datahoard
 
 Available project commands live in `deno.json`; `package.json` is package metadata, not the command surface.
 
-The local shell can search the full opened vault, use a `Ctrl`/`Cmd` + `K` command palette to jump to notes or run common actions, save reusable global searches as vault files, create notes, create notes from local templates, create starter Excalidraw drawing notes, append simple Excalidraw canvas elements, update inline note fields, add collection fields, edit inline-backed collection cells, rename or move files, delete files, preview common Excalidraw scenes as static SVG, export notes/views as standalone HTML, publish a static public subset, export collection views as CSV/JSON, and keep browser-local pinned/recent note lists for quick retrieval.
+The local shell can search the full opened vault, use a `Ctrl`/`Cmd` + `K` command palette to jump to notes or run common actions, save reusable global searches as vault files, create notes, create notes from local templates, create starter SVX whiteboard drawing notes, append simple whiteboard or legacy Excalidraw canvas elements, update inline note fields, add collection fields, edit inline-backed collection cells, rename or move files, delete files, preview common Excalidraw scenes and whiteboards as static SVG, export notes/views as standalone HTML, publish a static public subset, export collection views as CSV/JSON, and keep browser-local pinned/recent note lists for quick retrieval.
 
 Vault refreshes reuse unchanged indexed note records by path, route path, extension, size, and updated timestamp, while local note edits explicitly invalidate their own record before rebuilding the index.
 

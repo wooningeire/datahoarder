@@ -1,7 +1,9 @@
 export { default as LocalVaultShell } from './local-vault/shell/LocalVaultShell.svelte';
+export { default as InfiniteWhiteboard } from './whiteboard/InfiniteWhiteboard.svelte';
 export { default as NotePage } from './note-ui/NotePage.svelte';
 export { default as NoteTree } from './note-ui/NoteTree.svelte';
 export { default as VaultOverview } from './note-ui/VaultOverview.svelte';
+export * from './whiteboard/whiteboard.js';
 export * from './note-model/base.js';
 export * from './collections/edit.js';
 export * from './collections/index.js';

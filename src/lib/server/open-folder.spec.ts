@@ -87,6 +87,17 @@ describe('open folder server vault', () => {
 		expect(routeHtml).not.toContain('/notes/src/routes/notes/');
 	});
 
+	it('embeds same-origin SvelteKit route previews without an opened process folder', async () => {
+		deleteEnv(envName);
+		deleteEnv(previewOriginEnvName);
+		deleteEnv(previewRouteBaseEnvName);
+
+		const routeHtml = await renderOpenFolderPreviewDocument({ path: 'src/routes/+page.svelte' });
+
+		expect(routeHtml).toContain('class="server-vite-preview-frame"');
+		expect(routeHtml).toContain('src="/"');
+	});
+
 	it('rejects paths outside the open folder', async () => {
 		await seedOpenFolder({
 			'Index.md': '# Index'

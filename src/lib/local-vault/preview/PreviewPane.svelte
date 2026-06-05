@@ -15,7 +15,6 @@ import {
 } from '../../drawings/preview.js';
 import { isDatahoarderBoardFile } from '../../boards/local-board.js';
 import type { LocalVaultFile } from '../../vault/local-files.js';
-import { isServerVaultFile } from '../../vault/local-files.js';
 import { getNoteTitle } from '../../vault/paths.js';
 import { isExcalidrawNote, isWhiteboardNote } from '../../note-model/raw.js';
 import type { VaultBacklink, VaultIndex, VaultRecord } from '../../vault/index.js';
@@ -27,6 +26,7 @@ import MarkdownPreview from './MarkdownPreview.svelte';
 import PreviewEmpty from './PreviewEmpty.svelte';
 import { hasMath as containsMath, loadMathJax as loadMathJaxApi } from './mathjax.js';
 import { renderLocalBoard, renderLocalMarkdown } from './rendering.js';
+import { getServerPreviewRoute, shouldFrameServerPreview } from './server-preview.js';
 import type { CollectionCellEdit } from '../shared/types.js';
 import type { WhiteboardItem, WhiteboardViewport } from '../../whiteboard/whiteboard.js';
 
@@ -174,6 +174,12 @@ $effect(() => {
 	const file = selectedFile;
 	const content = selectedContent;
 	const path = file?.path ?? '';
+
+	if (shouldPatchActiveWhiteboardPreview(file, content, path)) {
+		previewRenderContent = content;
+		return;
+	}
+
 	const token = previewRenderToken + 1;
 
 	previewRenderToken = token;
@@ -287,51 +293,16 @@ function toPersistableWhiteboardItems(items: WhiteboardItem[]): WhiteboardDrawin
 	return items.filter((item): item is WhiteboardDrawingNoteItem => item.kind !== 'component');
 }
 
-function shouldFrameServerPreview(file: LocalVaultFile | null, content: string) {
-	if (!file) {
-		return false;
-	}
-
-	if (isSvelteKitRoutePreviewFile(file.path)) {
-		return true;
-	}
-
-	if (!isServerVaultFile(file)) {
-		return false;
-	}
-
-	if (file.extension === '.base' || (file.extension === '.svx' && isWhiteboardNote(content))) {
-		return false;
-	}
-
-	return (
-		file.extension === '.md' ||
-		file.extension === '.svx' ||
-		file.extension === '.svelte' ||
-		isDatahoarderBoardFile(file.path)
+function shouldPatchActiveWhiteboardPreview(file: LocalVaultFile | null, content: string, path: string) {
+	return Boolean(
+		file &&
+		path &&
+		previewRenderPath === path &&
+		file.extension === '.svx' &&
+		isWhiteboardNote(content)
 	);
 }
 
-function getServerPreviewRoute(file: LocalVaultFile | null) {
-	if (!file) {
-		return '';
-	}
-
-	const encodedPath = file.path.split('/').map(encodeURIComponent).join('/');
-	const params = new URLSearchParams({ v: String(file.updatedAt) });
-
-	return `/preview/${encodedPath}?${params.toString()}`;
-}
-
-function isSvelteKitRoutePreviewFile(path: string) {
-	const normalizedPath = path.replace(/\\/gu, '/');
-	const fileName = normalizedPath.split('/').at(-1) ?? '';
-
-	return (
-		(normalizedPath.startsWith('src/routes/') || normalizedPath.includes('/src/routes/')) &&
-		/^\+(?:page|layout)(?:@[^.]+)?(?:\.server)?\.(?:svelte|ts|js)$/u.test(fileName)
-	);
-}
 </script>
 
 <section class="preview-pane" aria-label="Preview">

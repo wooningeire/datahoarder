@@ -362,14 +362,22 @@ function renderPreviewFrame(routePath: string, href: string) {
 
 function getWorkspacePreviewHref(routePath: string) {
 	const previewOrigin = getEnv('DATAHOARDER_PREVIEW_ORIGIN');
+	const svelteKitRoutePath = getSvelteKitRoutePath(routePath);
+
+	if (svelteKitRoutePath !== null) {
+		if (!previewOrigin) {
+			return svelteKitRoutePath || '/';
+		}
+
+		return new URL(svelteKitRoutePath || '/', previewOrigin).href;
+	}
 
 	if (!previewOrigin) {
 		return '';
 	}
 
 	const routeBase = normalizeRouteBase(getEnv('DATAHOARDER_PREVIEW_ROUTE_BASE') ?? '/notes');
-	const svelteKitRoutePath = getSvelteKitRoutePath(routePath);
-	const previewPath = svelteKitRoutePath ?? joinPreviewRouteBase(routeBase, stripCompiledNoteExtension(routePath));
+	const previewPath = joinPreviewRouteBase(routeBase, stripCompiledNoteExtension(routePath));
 	const url = new URL(previewPath || '/', previewOrigin);
 
 	return url.href;

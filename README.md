@@ -46,7 +46,7 @@ cd C:\Users\V\_\dev\datahoarder
 deno task tauri dev
 ```
 
-The Tauri config points development at `http://127.0.0.1:5173` and production builds at the SvelteKit static output in `build/`.
+The Deno/TypeScript Tauri dev wrapper prefers `http://127.0.0.1:5173`. If that port already hosts a Datahoarder Vite server, it reuses it. If another process owns the port, the wrapper starts Vite on the next free port and passes Tauri a temporary `devUrl` override. Set `DATAHOARDER_TAURI_DEV_PORT` to choose a different starting port. Direct Tauri CLI invocations still use the fixed config URL at `http://127.0.0.1:5173`, but the `beforeDevCommand` now reports the process occupying that port instead of surfacing a raw Vite stack. Production builds use the SvelteKit static output in `build/`.
 
 The local shell can search the full opened vault, use a `Ctrl`/`Cmd` + `K` command palette to jump to notes or run common actions, save reusable global searches as vault files, create notes, create notes from local templates, create starter SVX whiteboard drawing notes, append simple whiteboard or legacy Excalidraw canvas elements, update inline note fields, add collection fields, edit inline-backed collection cells, rename or move files, delete files, preview common Excalidraw scenes and whiteboards as static SVG, export notes/views as standalone HTML, publish a static public subset, export collection views as CSV/JSON, and keep browser-local pinned/recent note lists for quick retrieval.
 

@@ -24,7 +24,7 @@
 		"sync": "deno run -A npm:@sveltejs/kit sync",
 		"build:app": "deno run -A npm:vite build",
 		"preview": "deno run -A npm:vite preview",
-		"tauri": "deno run -A npm:@tauri-apps/cli",
+		"tauri": "deno run -A scripts/tauri.ts",
 		"prepack": "deno task sync && deno run -A npm:@sveltejs/package",
 		"build": "deno task build:app && deno task prepack",
 		"check": "deno task sync && deno run -A npm:svelte-check --tsconfig ./tsconfig.json",

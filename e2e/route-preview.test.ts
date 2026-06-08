@@ -202,7 +202,9 @@ test("ordinary markdown notes render through Datahoarder instead of source-only"
         await expect(page.getByText("Source Only")).toHaveCount(0);
         await expect(previewDocument.getByRole("heading", { name: "Markdown note preview" })).toBeVisible();
         await expect(previewDocument.getByText("markdown value 2")).toBeVisible();
+        await expect(previewDocument.locator(".math-display")).toContainText("\\frac");
         await expect(previewDocument.getByText("markdown value {x}")).toHaveCount(0);
+        await expect(previewDocument.getByText("Svelte Note Preview Failed")).toHaveCount(0);
         await expect(previewDocument.getByText("<script")).toHaveCount(0);
         await expect(page.getByText("Preview Server Required")).toHaveCount(0);
     } finally {
@@ -252,6 +254,10 @@ async function createRouteWorkspace() {
             "# Markdown note preview",
             "",
             "markdown value {x}",
+            "",
+            "$$",
+            "f(x) = e^{-\\frac12\\left(\\frac{x - \\bar x}\\sigma\\right)^2}",
+            "$$",
         ].join("\n"),
         "utf8",
     );

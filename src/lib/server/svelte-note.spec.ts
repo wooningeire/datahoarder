@@ -57,6 +57,23 @@ describe("Svelte note preview rendering", () => {
         expect(html).not.toContain("&lt;script");
     }, svelteNotePreviewTimeoutMs);
 
+    it("server-renders markdown display math before Svelte parses TeX escapes", async () => {
+        resetSvelteNotePreviewCacheForTest();
+
+        const html = await renderSvelteNotePreview(
+            [
+                "$$",
+                "f(x) = e^{-\\frac12\\left(\\frac{x - \\bar x}\\sigma\\right)^2}",
+                "$$",
+            ].join("\n"),
+            createFile("Notes/Gaussian.md"),
+        );
+
+        expect(html).toContain('class="math-display"');
+        expect(html).toContain("\\frac");
+        expect(html).not.toContain("Svelte Note Preview Failed");
+    }, svelteNotePreviewTimeoutMs);
+
     it("server-renders an mdsvex svx note with Svelte expressions", async () => {
         resetSvelteNotePreviewCacheForTest();
 

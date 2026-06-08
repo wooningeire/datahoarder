@@ -202,7 +202,10 @@ test("ordinary markdown notes render through Datahoarder instead of source-only"
         await expect(page.getByText("Source Only")).toHaveCount(0);
         await expect(previewDocument.getByRole("heading", { name: "Markdown note preview" })).toBeVisible();
         await expect(previewDocument.getByText("markdown value 2")).toBeVisible();
+        await expect(previewDocument.locator(".math-inline")).toContainText("E = mc^2");
         await expect(previewDocument.locator(".math-display")).toContainText("\\frac");
+        await expect(previewDocument.locator("mark")).toHaveText("marked");
+        await expect(previewDocument.locator("u")).toHaveText("underlined");
         await expect(previewDocument.getByText("markdown value {x}")).toHaveCount(0);
         await expect(previewDocument.getByText("Svelte Note Preview Failed")).toHaveCount(0);
         await expect(previewDocument.getByText("<script")).toHaveCount(0);
@@ -254,6 +257,8 @@ async function createRouteWorkspace() {
             "# Markdown note preview",
             "",
             "markdown value {x}",
+            "",
+            "Inline $E = mc^2$ and ==marked== and _underlined_.",
             "",
             "$$",
             "f(x) = e^{-\\frac12\\left(\\frac{x - \\bar x}\\sigma\\right)^2}",

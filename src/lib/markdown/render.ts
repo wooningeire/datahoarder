@@ -1,10 +1,17 @@
 import { getDirectoryPath, joinRouteBase, stripCompiledNoteExtension } from '../vault/paths.js';
 import { stripFrontmatter } from '../note-model/raw.js';
 import { renderFenceBlock } from './fences.js';
+import {
+	parseMarkdownDisplayMathBlock,
+	renderConfiguredInlineMarkdownRules,
+	resolveMarkdownRules,
+	type MarkdownRuleConfig
+} from './rules.js';
 
 export type PortableMarkdownOptions = {
 	currentPath?: string;
 	interactiveTaskLists?: boolean;
+	markdownRules?: MarkdownRuleConfig;
 	maxEmbedDepth?: number;
 	notePaths?: string[];
 	resolveEmbedContent?: (notePath: string) => string | null | undefined;
@@ -44,6 +51,7 @@ type MarkdownListItem = {
 export function renderPortableMarkdown(content: string, options: PortableMarkdownOptions = {}) {
 	const body = stripFrontmatter(content).trim();
 	const lines = body.split(/\r?\n/u);
+	const markdownRules = resolveMarkdownRules(options.markdownRules);
 	const html: string[] = [];
 	let inFence = false;
 	let fenceInfo = '';
@@ -86,6 +94,15 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (!line.trim()) {
 			flushParagraph();
+			continue;
+		}
+
+		const displayMath = parseMarkdownDisplayMathBlock(lines, lineIndex, markdownRules);
+
+		if (displayMath) {
+			flushParagraph();
+			html.push(displayMath.html);
+			lineIndex = displayMath.nextLineIndex;
 			continue;
 		}
 
@@ -397,8 +414,17 @@ function renderMarkdownListItemStart(
 
 function renderInline(text: string, options: PortableMarkdownOptions) {
 	let rendered = escapeHtml(text);
+	const codeSpans = new Map<string, string>();
+	let codeSpanIndex = 0;
 
-	rendered = rendered.replace(/`([^`]+)`/gu, '<code>$1</code>');
+	rendered = rendered.replace(/`([^`]+)`/gu, (_match, code: string) => {
+		const token = `datahoarder-inline-code-token-${codeSpanIndex}:`;
+
+		codeSpanIndex += 1;
+		codeSpans.set(token, `<code>${code}</code>`);
+		return token;
+	});
+	rendered = renderConfiguredInlineMarkdownRules(rendered, resolveMarkdownRules(options.markdownRules));
 	rendered = rendered.replace(/\*\*([^*]+)\*\*/gu, '<strong>$1</strong>');
 	rendered = rendered.replace(/\*([^*]+)\*/gu, '<em>$1</em>');
 	rendered = rendered.replace(/!\[([^\]]*)\]\(([^)]+)\)/gu, (_match, alt, src) => {
@@ -429,6 +455,16 @@ function renderInline(text: string, options: PortableMarkdownOptions) {
 
 		return renderAnchor(escapeHtml(link.label), link);
 	});
+
+	return replaceInlineCodeTokens(rendered, codeSpans);
+}
+
+function replaceInlineCodeTokens(html: string, codeSpans: Map<string, string>) {
+	let rendered = html;
+
+	for (const [token, codeSpan] of codeSpans) {
+		rendered = rendered.replaceAll(token, codeSpan);
+	}
 
 	return rendered;
 }

@@ -1,0 +1,346 @@
+export type MarkdownRuleConfig = {
+    displayMath?: boolean;
+    inlineMath?: boolean;
+    mark?: boolean;
+    underline?: boolean;
+};
+
+export type ResolvedMarkdownRuleConfig = Required<MarkdownRuleConfig>;
+
+export type MarkdownSourceRuleOptions = {
+    filename?: string;
+    rules?: MarkdownRuleConfig;
+};
+
+type DisplayMathBlock = {
+    html: string;
+    nextLineIndex: number;
+};
+
+const defaultMarkdownRules = {
+    displayMath: true,
+    inlineMath: true,
+    mark: true,
+    underline: true,
+} satisfies ResolvedMarkdownRuleConfig;
+
+export const getDefaultMarkdownRules = () => {
+    return { ...defaultMarkdownRules };
+};
+
+export const resolveMarkdownRules = (rules: MarkdownRuleConfig = {}) => {
+    return {
+        ...defaultMarkdownRules,
+        ...rules,
+    };
+};
+
+export const applyMarkdownSourceRules = (
+    content: string,
+    options: MarkdownSourceRuleOptions = {},
+) => {
+    if (options.filename && !options.filename.toLowerCase().endsWith(".md")) {
+        return content;
+    }
+
+    const rules = resolveMarkdownRules(options.rules);
+    const displayPatchedContent = rules.displayMath
+        ? applyDisplayMathSourceRule(content)
+        : content;
+
+    return transformMarkdownTextOutsideFences(displayPatchedContent, (line) => {
+        let transformed = line;
+
+        if (rules.inlineMath) {
+            transformed = replaceInlineMath(transformed, renderEncodedInlineMath);
+        }
+
+        if (rules.mark) {
+            transformed = replaceMarkSyntax(transformed, "mark");
+        }
+
+        if (rules.underline) {
+            transformed = replaceUnderlineSyntax(transformed, "u");
+        }
+
+        return transformed;
+    });
+};
+
+export const parseMarkdownDisplayMathBlock = (
+    lines: string[],
+    startIndex: number,
+    rules: ResolvedMarkdownRuleConfig,
+): DisplayMathBlock | null => {
+    if (!rules.displayMath) {
+        return null;
+    }
+
+    const line = lines[startIndex] ?? "";
+    const trimmedLine = line.trim();
+
+    if (!trimmedLine.startsWith("$$")) {
+        return null;
+    }
+
+    const firstMathLine = trimmedLine.slice(2);
+    const sameLineCloseIndex = firstMathLine.indexOf("$$");
+
+    if (sameLineCloseIndex >= 0) {
+        const suffix = firstMathLine.slice(sameLineCloseIndex + 2);
+
+        if (suffix.trim()) {
+            return null;
+        }
+
+        return {
+            html: renderDisplayMathHtml(firstMathLine.slice(0, sameLineCloseIndex).trim()),
+            nextLineIndex: startIndex,
+        };
+    }
+
+    const mathLines = [firstMathLine];
+
+    for (let lineIndex = startIndex + 1; lineIndex < lines.length; lineIndex += 1) {
+        const mathLine = lines[lineIndex] ?? "";
+        const closeIndex = mathLine.indexOf("$$");
+
+        if (closeIndex >= 0) {
+            const suffix = mathLine.slice(closeIndex + 2);
+
+            if (suffix.trim()) {
+                return null;
+            }
+
+            mathLines.push(mathLine.slice(0, closeIndex));
+
+            return {
+                html: renderDisplayMathHtml(mathLines.join("\n").trim()),
+                nextLineIndex: lineIndex,
+            };
+        }
+
+        mathLines.push(mathLine);
+    }
+
+    return null;
+};
+
+export const renderConfiguredInlineMarkdownRules = (
+    escapedHtml: string,
+    rules: ResolvedMarkdownRuleConfig,
+) => {
+    let rendered = escapedHtml;
+
+    if (rules.inlineMath) {
+        rendered = replaceInlineMath(rendered, renderInlineMathHtml);
+    }
+
+    if (rules.mark) {
+        rendered = replaceMarkSyntax(rendered, "mark");
+    }
+
+    if (rules.underline) {
+        rendered = replaceUnderlineSyntax(rendered, "u");
+    }
+
+    return rendered;
+};
+
+const transformMarkdownTextOutsideFences = (
+    content: string,
+    transformLine: (line: string) => string,
+) => {
+    const newline = content.includes("\r\n") ? "\r\n" : "\n";
+    const lines = content.split(/\r?\n/u);
+    let inFence = false;
+
+    return lines.map((line) => {
+        if (/^\s*(`{3,}|~{3,})/u.test(line)) {
+            inFence = !inFence;
+            return line;
+        }
+
+        return inFence ? line : transformLine(line);
+    }).join(newline);
+};
+
+const applyDisplayMathSourceRule = (content: string) => {
+    const newline = content.includes("\r\n") ? "\r\n" : "\n";
+    const lines = content.split(/\r?\n/u);
+    const patchedLines: string[] = [];
+    let inFence = false;
+
+    for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index] ?? "";
+
+        if (/^\s*(`{3,}|~{3,})/u.test(line)) {
+            inFence = !inFence;
+            patchedLines.push(line);
+            continue;
+        }
+
+        if (inFence) {
+            patchedLines.push(line);
+            continue;
+        }
+
+        let rest = line;
+        let patchedLine = "";
+
+        while (rest.length) {
+            const openIndex = rest.indexOf("$$");
+
+            if (openIndex < 0) {
+                patchedLine += rest;
+                break;
+            }
+
+            const closeIndex = rest.indexOf("$$", openIndex + 2);
+
+            if (closeIndex >= 0) {
+                patchedLine += rest.slice(0, openIndex);
+                patchedLine += renderEncodedDisplayMath(rest.slice(openIndex + 2, closeIndex).trim());
+                rest = rest.slice(closeIndex + 2);
+                continue;
+            }
+
+            const mathLines = [rest.slice(openIndex + 2)];
+            let suffix = "";
+            let foundClose = false;
+            let closeLineIndex = index + 1;
+
+            for (; closeLineIndex < lines.length; closeLineIndex += 1) {
+                const mathLine = lines[closeLineIndex] ?? "";
+                const mathCloseIndex = mathLine.indexOf("$$");
+
+                if (mathCloseIndex >= 0) {
+                    mathLines.push(mathLine.slice(0, mathCloseIndex));
+                    suffix = mathLine.slice(mathCloseIndex + 2);
+                    foundClose = true;
+                    break;
+                }
+
+                mathLines.push(mathLine);
+            }
+
+            if (!foundClose) {
+                patchedLine += rest;
+                break;
+            }
+
+            patchedLine += rest.slice(0, openIndex);
+            patchedLine += renderEncodedDisplayMath(mathLines.join("\n").trim());
+            rest = suffix;
+            index = closeLineIndex;
+        }
+
+        patchedLines.push(patchedLine);
+    }
+
+    return patchedLines.join(newline);
+};
+
+const replaceInlineMath = (
+    text: string,
+    renderMath: (math: string) => string,
+) => {
+    let rendered = "";
+    let index = 0;
+
+    while (index < text.length) {
+        const openIndex = findNextInlineMathOpen(text, index);
+
+        if (openIndex < 0) {
+            rendered += text.slice(index);
+            break;
+        }
+
+        const closeIndex = findInlineMathClose(text, openIndex + 1);
+
+        if (closeIndex < 0) {
+            rendered += text.slice(index);
+            break;
+        }
+
+        rendered += text.slice(index, openIndex);
+        rendered += renderMath(text.slice(openIndex + 1, closeIndex));
+        index = closeIndex + 1;
+    }
+
+    return rendered;
+};
+
+const findNextInlineMathOpen = (text: string, startIndex: number) => {
+    for (let index = startIndex; index < text.length; index += 1) {
+        if (text[index] !== "$") {
+            continue;
+        }
+
+        const previous = text[index - 1] ?? "";
+        const next = text[index + 1] ?? "";
+
+        if (previous === "\\" || next === "$" || !next || /\s/u.test(next)) {
+            continue;
+        }
+
+        return index;
+    }
+
+    return -1;
+};
+
+const findInlineMathClose = (text: string, startIndex: number) => {
+    for (let index = startIndex; index < text.length; index += 1) {
+        if (text[index] !== "$") {
+            continue;
+        }
+
+        const previous = text[index - 1] ?? "";
+        const next = text[index + 1] ?? "";
+
+        if (previous === "\\" || previous === "$" || /\s/u.test(previous) || next === "$") {
+            continue;
+        }
+
+        return index;
+    }
+
+    return -1;
+};
+
+const replaceMarkSyntax = (text: string, tagName: "mark") => {
+    return text.replace(
+        /(^|[^=])==([^\s=](?:[\s\S]*?[^\s=])?)==/gu,
+        (_match, prefix: string, value: string) => `${prefix}<${tagName}>${value}</${tagName}>`,
+    );
+};
+
+const replaceUnderlineSyntax = (text: string, tagName: "u") => {
+    return text.replace(
+        /(^|[^\p{L}\p{N}_])_([^\s_](?:[^_]*?[^\s_])?)_(?=$|[^\p{L}\p{N}_])/gu,
+        (_match, prefix: string, value: string) => `${prefix}<${tagName}>${value}</${tagName}>`,
+    );
+};
+
+const renderEncodedInlineMath = (math: string) => {
+    return `<span class="math-inline">${encodeMathText(`\\(${math}\\)`)}</span>`;
+};
+
+const renderEncodedDisplayMath = (math: string) => {
+    return `<span class="math-display">${encodeMathText(`\\[\n${math}\n\\]`)}</span>`;
+};
+
+const renderInlineMathHtml = (math: string) => {
+    return `<span class="math-inline">\\(${math}\\)</span>`;
+};
+
+const renderDisplayMathHtml = (math: string) => {
+    return `<span class="math-display">\\[\n${math}\n\\]</span>`;
+};
+
+const encodeMathText = (text: string) => {
+    return Array.from(text)
+        .map((character) => `&#${character.codePointAt(0)};`)
+        .join("");
+};

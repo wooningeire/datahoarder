@@ -251,6 +251,7 @@ export async function renderOpenFolderPreviewDocument(request: OpenFolderPreview
 		'<style>',
 		'body{margin:0;padding:1rem;color:oklch(0.22 0.035 245);background:oklch(0.99 0.01 95);font-family:Inter,ui-sans-serif,system-ui,sans-serif;line-height:1.55}',
 		'.server-vite-preview-frame{display:block;width:100%;min-height:calc(100vh - 2rem);border:1px solid oklch(0.78 0.04 235);border-radius:.35rem;background:white}',
+		'.math-display,.math-inline{max-width:100%;overflow-x:auto;overflow-y:hidden}.math-display{display:block;margin:1rem 0;text-align:center}.math-inline{display:inline-block;vertical-align:middle}',
 		'</style>',
 		'</head>',
 		'<body>',

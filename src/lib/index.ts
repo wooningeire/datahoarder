@@ -14,6 +14,7 @@ export * from './boards/local-board.js';
 export * from './vault/local-files.js';
 export * from './markdown/preprocess.js';
 export * from './markdown/render.js';
+export * from './markdown/rules.js';
 export * from './markdown/tasks.js';
 export * from './note-model/fields.js';
 export * from './note-model/template.js';

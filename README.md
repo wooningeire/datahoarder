@@ -101,7 +101,18 @@ source:
 
 Profile output directories are written independently, so `public/portfolio` and `public/roadmap` can be regenerated from the same vault without sharing index pages.
 
-Markdown previews can toggle task-list checkboxes back into the local Markdown source, while HTML exports and public pages render task lists as disabled static checkboxes. Pipe-style Markdown tables render with header alignment in previews, exports, and public pages. Previews and exports also support reusable note embeds with Obsidian-style syntax such as `![[Reusable Note]]`, `![[Reusable Note#Section]]`, and `![[Reusable Note|Alias]]`. Embeds strip frontmatter, stop recursive loops, and public publishing only embeds targets that are part of the public subset.
+Markdown previews can toggle task-list checkboxes back into the local Markdown source, while HTML exports and public pages render task lists as disabled static checkboxes. Pipe-style Markdown tables render with header alignment in previews, exports, and public pages. Datahoarder also enables custom Markdown rules for inline math (`$x$`), display math (`$$x$$`), mark (`==text==`), and underline (`_text_`). Package users can pass `markdownRules` to `renderPortableMarkdown` or `applyMarkdownSourceRules` to disable any of those rules for their own render surface. Previews and exports also support reusable note embeds with Obsidian-style syntax such as `![[Reusable Note]]`, `![[Reusable Note#Section]]`, and `![[Reusable Note|Alias]]`. Embeds strip frontmatter, stop recursive loops, and public publishing only embeds targets that are part of the public subset.
+
+```ts
+renderPortableMarkdown(content, {
+    markdownRules: {
+        inlineMath: true,
+        displayMath: true,
+        mark: false,
+        underline: false,
+    },
+});
+```
 
 Reusable embeds can also accept simple parameters. Put `{{placeholder}}` values in the reusable note or section, then pass `key=value` parts after the alias:
 

@@ -255,6 +255,24 @@ blockquote {
 	text-align: right;
 }
 
+.math-display,
+.math-inline {
+	max-width: 100%;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+.math-display {
+	display: block;
+	margin: 1rem 0;
+	text-align: center;
+}
+
+.math-inline {
+	display: inline-block;
+	vertical-align: middle;
+}
+
 .task-list-item {
 	display: flex;
 	gap: 0.45rem;

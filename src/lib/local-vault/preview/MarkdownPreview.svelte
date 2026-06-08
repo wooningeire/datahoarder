@@ -199,6 +199,7 @@ let { html, host = $bindable<HTMLElement | undefined>(), previewLinkNavigation }
 		}
 
 		.math-display,
+		.math-inline,
 		mjx-container[display="true"] {
 			max-width: 100%;
 			overflow-x: auto;
@@ -210,6 +211,12 @@ let { html, host = $bindable<HTMLElement | undefined>(), previewLinkNavigation }
 			margin: 1rem 0;
 
 			text-align: center;
+		}
+
+		.math-inline {
+			display: inline-block;
+
+			vertical-align: middle;
 		}
 
 		mjx-container[display="true"] {

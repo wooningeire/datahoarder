@@ -112,6 +112,40 @@ describe('renderPortableMarkdown', () => {
 		expect(html).not.toContain('Acme <Labs>');
 	});
 
+	it('renders configurable custom markdown rules', () => {
+		const html = renderPortableMarkdown(
+			[
+				'Inline $E = mc^2$ and ==marked== and _underlined_ with `$code$ ==code== _code_`.',
+				'',
+				'$$',
+				'f(x) = x^2',
+				'$$'
+			].join('\n')
+		);
+
+		expect(html).toContain('<span class="math-inline">\\(E = mc^2\\)</span>');
+		expect(html).toContain('<mark>marked</mark>');
+		expect(html).toContain('<u>underlined</u>');
+		expect(html).toContain('<code>$code$ ==code== _code_</code>');
+		expect(html).toContain('<span class="math-display">\\[\nf(x) = x^2\n\\]</span>');
+	});
+
+	it('lets callers disable custom markdown rules', () => {
+		const html = renderPortableMarkdown('Inline $x$ and ==marked== and _underlined_.', {
+			markdownRules: {
+				displayMath: false,
+				inlineMath: false,
+				mark: false,
+				underline: false
+			}
+		});
+
+		expect(html).toContain('<p>Inline $x$ and ==marked== and _underlined_.</p>');
+		expect(html).not.toContain('math-inline');
+		expect(html).not.toContain('<mark>');
+		expect(html).not.toContain('<u>');
+	});
+
 	it('renders standalone Obsidian embeds with aliases and heading sections', () => {
 		const html = renderPortableMarkdown('Before\n\n![[Reusable Note#Summary|Shared block]]\n\nAfter', {
 			currentPath: 'Parent',

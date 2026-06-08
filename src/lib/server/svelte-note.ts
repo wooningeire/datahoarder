@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Component } from "svelte";
-import { normalizeMarkdownMath } from "../markdown/preprocess.js";
+import { applyMarkdownSourceRules } from "../markdown/rules.js";
 import { isSvelteKitRoutePreviewFile } from "../shared/sveltekit-routes.js";
 import type { LocalVaultFile } from "../vault/local-files.js";
 
@@ -140,14 +140,9 @@ const getSvelteNoteSource = async (
 };
 
 const patchMdsvexContent = (content: string, path: string) => {
-    const filename = path.replace(/\\/gu, "/");
-    const mathPreprocessor = normalizeMarkdownMath();
-    const mathPatch = mathPreprocessor.markup({
-        content,
-        filename,
+    return applyMarkdownSourceRules(content, {
+        filename: path.replace(/\\/gu, "/"),
     });
-
-    return mathPatch?.code ?? content;
 };
 
 const getSvelteNoteRuntime = () => {

@@ -62,6 +62,8 @@ describe("Svelte note preview rendering", () => {
 
         const html = await renderSvelteNotePreview(
             [
+                "Inline $E = mc^2$ and ==marked== and _underlined_.",
+                "",
                 "$$",
                 "f(x) = e^{-\\frac12\\left(\\frac{x - \\bar x}\\sigma\\right)^2}",
                 "$$",
@@ -70,6 +72,9 @@ describe("Svelte note preview rendering", () => {
         );
 
         expect(html).toContain('class="math-display"');
+        expect(html).toContain('class="math-inline"');
+        expect(html).toContain("<mark>marked</mark>");
+        expect(html).toContain("<u>underlined</u>");
         expect(html).toContain("\\frac");
         expect(html).not.toContain("Svelte Note Preview Failed");
     }, svelteNotePreviewTimeoutMs);

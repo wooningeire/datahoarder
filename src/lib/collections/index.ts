@@ -2,6 +2,11 @@ import type { SimpleYamlValue } from '../shared/simple-yaml.js';
 import { parseSimpleYaml } from '../shared/simple-yaml.js';
 import { getDirectoryPath } from '../vault/paths.js';
 import {
+	formatObsidianBaseAsCollectionYaml,
+	isObsidianBaseFile,
+	parseObsidianBaseCollection
+} from './obsidian-base.js';
+import {
 	formatVaultValue,
 	getVaultRecordValue,
 	type VaultIndex,
@@ -56,6 +61,11 @@ export {
 	getCollectionTimelineItems,
 	sortCollectionRecordsForTimeline
 } from './timeline.js';
+export {
+	formatObsidianBaseAsCollectionYaml,
+	isObsidianBaseFile,
+	parseObsidianBaseCollection
+} from './obsidian-base.js';
 
 export function isDatahoarderCollectionFile(path: string) {
 	return collectionFilePattern.test(path);
@@ -71,6 +81,7 @@ export function parseDatahoarderCollection(content: string, path = ''): Collecti
 		path,
 		schema,
 		source: parseSource(root.source),
+		sourceFormat: 'datahoarder',
 		summaries: parseSummaries(root.summaries ?? root.metrics),
 		views: views.length ? views : [createFallbackCollectionView()]
 	};
@@ -83,6 +94,26 @@ export function resolveDatahoarderCollection(
 	viewIndex = 0
 ): ResolvedCollection {
 	const definition = parseDatahoarderCollection(content, path);
+
+	return resolveCollectionDefinition(definition, vaultIndex, viewIndex);
+}
+
+export function resolveObsidianBaseCollection(
+	content: string,
+	path: string,
+	vaultIndex: VaultIndex,
+	viewIndex = 0
+): ResolvedCollection {
+	const definition = parseObsidianBaseCollection(content, path);
+
+	return resolveCollectionDefinition(definition, vaultIndex, viewIndex);
+}
+
+export function resolveCollectionDefinition(
+	definition: CollectionDefinition,
+	vaultIndex: VaultIndex,
+	viewIndex = 0
+): ResolvedCollection {
 	const resolvedView = getCollectionView(definition, viewIndex);
 	const view = resolvedView.view;
 	const columns = getCollectionColumns(definition, view);
@@ -145,6 +176,10 @@ export function groupCollectionRecordsForKanban(records: VaultRecord[], groupBy:
 }
 
 export function getCollectionRecordCreationError(definition: CollectionDefinition) {
+	if (definition.readOnly) {
+		return 'Converted Obsidian bases are read-only until saved as a Datahoarder collection.';
+	}
+
 	if (!hasExplicitSource(definition.source)) {
 		return 'Add a collection source before creating records.';
 	}
@@ -445,7 +480,22 @@ function getCaseInsensitiveKey(fields: Map<string, VaultPropertyValue>, key: str
 }
 
 function isBuiltinCollectionField(field: string) {
-	return ['basename', 'folder', 'path', 'preview', 'tags', 'title', 'updatedat'].includes(field.toLowerCase());
+	return [
+		'basename',
+		'file.ctime',
+		'file.folder',
+		'file.mtime',
+		'file.name',
+		'file.path',
+		'file.size',
+		'folder',
+		'path',
+		'preview',
+		'size',
+		'tags',
+		'title',
+		'updatedat'
+	].includes(field.toLowerCase());
 }
 
 function isUnsupportedBuiltinMatchField(field: string) {

@@ -173,26 +173,28 @@ function parseVaultQueryToken(rawToken: string): VaultQueryClause | null {
 		};
 	}
 
-	const operatorIndex = getQueryOperatorIndex(token);
+	const operator = getQueryOperator(token);
+	const operatorIndex = operator.index;
 
 	if (operatorIndex > 0) {
-		const field = token.slice(0, operatorIndex);
-		const operator = token[operatorIndex] === '=' ? 'equals' : 'includes';
-		const value = unquoteQueryValue(token.slice(operatorIndex + 1));
+		const field = unquoteQueryValue(token.slice(0, operatorIndex));
+		const value = unquoteQueryValue(token.slice(operatorIndex + operator.text.length));
+		const excludedByOperator = operator.text.startsWith('!');
+		const queryOperator = operator.text.endsWith('=') ? 'equals' : 'includes';
 
 		if (isStructuredQueryField(field) && value) {
 			if (['tag', 'tags'].includes(field.toLowerCase())) {
 				return {
-					excluded,
+					excluded: excluded || excludedByOperator,
 					type: 'tag',
 					value
 				};
 			}
 
 			return {
-				excluded,
+				excluded: excluded || excludedByOperator,
 				field,
-				operator: value === '*' ? 'exists' : operator,
+				operator: value === '*' ? 'exists' : queryOperator,
 				type: 'field',
 				value
 			};
@@ -258,23 +260,17 @@ function tokenizeVaultQuery(query: string) {
 	return tokens;
 }
 
-function getQueryOperatorIndex(token: string) {
-	const colonIndex = token.indexOf(':');
-	const equalsIndex = token.indexOf('=');
+function getQueryOperator(token: string) {
+	const operators = ['!=', '!:', ':', '=']
+		.map((operator) => ({ index: token.indexOf(operator), text: operator }))
+		.filter((operator) => operator.index >= 0)
+		.sort((operatorA, operatorB) => operatorA.index - operatorB.index || operatorB.text.length - operatorA.text.length);
 
-	if (colonIndex === -1) {
-		return equalsIndex;
-	}
-
-	if (equalsIndex === -1) {
-		return colonIndex;
-	}
-
-	return Math.min(colonIndex, equalsIndex);
+	return operators[0] ?? { index: -1, text: '' };
 }
 
 function isStructuredQueryField(field: string) {
-	return /^[A-Za-z_][A-Za-z0-9_-]*$/u.test(field);
+	return /^[A-Za-z_][A-Za-z0-9_ ./-]*$/u.test(field);
 }
 
 function unquoteQueryValue(value: string) {
@@ -317,15 +313,33 @@ function uniqueQueryFields(fields: string[]) {
 }
 
 function normalizeVaultQueryFieldName(field: string) {
-	switch (field.trim().toLowerCase()) {
+	const trimmedField = field.trim();
+	const normalizedField = trimmedField.toLowerCase();
+
+	if (normalizedField.startsWith('note.')) {
+		return trimmedField.slice(5);
+	}
+
+	switch (normalizedField) {
 		case 'file':
 			return 'basename';
 		case 'name':
 			return 'title';
 		case 'tag':
 			return 'tags';
+		case 'file.name':
+			return 'basename';
+		case 'file.path':
+			return 'path';
+		case 'file.folder':
+			return 'folder';
+		case 'file.size':
+			return 'size';
+		case 'file.ctime':
+		case 'file.mtime':
+			return 'updatedAt';
 		default:
-			return field.trim();
+			return trimmedField;
 	}
 }
 

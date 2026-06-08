@@ -79,7 +79,23 @@ export function getCollectionCellOptions(
 
 export function isEditableCollectionColumn(collection: ResolvedCollection | null, column: string) {
 	return (
-		!['basename', 'folder', 'path', 'preview', 'tags', 'title', 'updatedat'].includes(column.toLowerCase()) &&
+		!collection?.definition.readOnly &&
+		![
+			'basename',
+			'file.ctime',
+			'file.folder',
+			'file.mtime',
+			'file.name',
+			'file.path',
+			'file.size',
+			'folder',
+			'path',
+			'preview',
+			'size',
+			'tags',
+			'title',
+			'updatedat'
+		].includes(column.toLowerCase()) &&
 		(!collection || !isComputedCollectionColumn(collection.definition, column))
 	);
 }

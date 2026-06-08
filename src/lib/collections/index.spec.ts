@@ -5,6 +5,7 @@ import {
 	createCollectionRecordDraft,
 	evaluateCollectionFormula,
 	filterCollectionRecords,
+	formatObsidianBaseAsCollectionYaml,
 	getCollectionField,
 	formatCollectionRecordValue,
 	getCollectionTimelineItems,
@@ -14,6 +15,7 @@ import {
 	isComputedCollectionColumn,
 	parseDatahoarderCollection,
 	resolveDatahoarderCollection,
+	resolveObsidianBaseCollection,
 	serializeCollectionRecordsAsCsv,
 	serializeCollectionRecordsAsJson,
 	sortCollectionRecords,
@@ -376,6 +378,125 @@ describe('resolveDatahoarderCollection', () => {
 		]);
 		expect(createCollectionRecordDraft(collection.definition, 'Draft').content).not.toContain('score::');
 		expect(evaluateCollectionFormula(acme, 'missing + 1')).toBe('');
+	});
+
+	it("resolves Obsidian base files as read-only Datahoarder collections", async () => {
+		const index = await buildLocalVaultIndex([
+			createLocalVaultFile(
+				"src/lib/notes/Applications/2026 season/Data/roblox.md",
+				[
+					"---",
+					"Company: Roblox",
+					"Status: Active",
+					"Min pay (annual): 153120",
+					"Min pay (hourly):",
+					"---"
+				].join("\n")
+			),
+			createLocalVaultFile(
+				"src/lib/notes/Applications/2026 season/Data/openai.md",
+				[
+					"---",
+					"Company: OpenAI",
+					"Status: Offered",
+					"Min pay (annual):",
+					"Min pay (hourly): 62",
+					"---"
+				].join("\n")
+			),
+			createLocalVaultFile("src/lib/notes/Applications/2025 season/Data/archive.md", "# Archive\n")
+		]);
+		const content = [
+			"formulas:",
+			"  Min pay: |-",
+			"    if(",
+			"      note[\"Min pay (annual)\"].isEmpty(),",
+			"      note[\"Min pay (hourly)\"],",
+			"      note[\"Min pay (annual)\"] / 2080",
+			"    )",
+			"views:",
+			"  - type: table",
+			"    name: Table",
+			"    filters:",
+			"      and:",
+			"        - file.inFolder(\"Applications/2026 season/Data\")",
+			"    order:",
+			"      - file.name",
+			"      - Company",
+			"      - formula.Min pay",
+			"      - Status",
+			"    sort:",
+			"      - property: formula.Min pay",
+			"        direction: DESC"
+		].join("\n");
+		const collection = resolveObsidianBaseCollection(
+			content,
+			"src/lib/notes/Applications/2026 season/Base.base",
+			index
+		);
+
+		expect(collection.definition).toMatchObject({
+			name: "2026 season",
+			readOnly: true,
+			source: {
+				folders: ["Data"]
+			},
+			sourceFormat: "obsidian-base"
+		});
+		expect(collection.columns).toEqual(["basename", "Company", "formula.Min pay", "Status"]);
+		expect(collection.records.map((record) => record.path)).toEqual([
+			"src/lib/notes/Applications/2026 season/Data/roblox.md",
+			"src/lib/notes/Applications/2026 season/Data/openai.md"
+		]);
+		expect(formatCollectionRecordValue(collection.records[0], "formula.Min pay")).toBe("73.615385");
+		expect(formatCollectionRecordValue(collection.records[1], "formula.Min pay")).toBe("62");
+
+		const generated = formatObsidianBaseAsCollectionYaml(content, "src/lib/notes/Applications/2026 season/Base.base");
+		const generatedCollection = resolveDatahoarderCollection(
+			generated,
+			"src/lib/notes/Applications/2026 season/Base.collection.yaml",
+			index
+		);
+
+		expect(generatedCollection.records.map((record) => record.path)).toEqual(collection.records.map((record) => record.path));
+		expect(formatCollectionRecordValue(generatedCollection.records[0], "formula.Min pay")).toBe("73.615385");
+	});
+
+	it("converts Obsidian base filters for spaced fields and exclusions", async () => {
+		const index = await buildLocalVaultIndex([
+			createLocalVaultFile(
+				"Thoughts/Whiteboard/Data/visible.md",
+				["---", "Manual clear: false", "Completion: Active", "---"].join("\n")
+			),
+			createLocalVaultFile(
+				"Thoughts/Whiteboard/Data/hidden.md",
+				["---", "Manual clear: true", "Completion: Done", "---"].join("\n")
+			)
+		]);
+		const content = [
+			"filters:",
+			"  and:",
+			"    - file.inFolder(\"Thoughts/Whiteboard/Data\")",
+			"views:",
+			"  - type: cards",
+			"    name: Visible",
+			"    filters:",
+			"      and:",
+			"        - note[\"Manual clear\"] == false",
+			"        - Completion != \"Done\"",
+			"    order:",
+			"      - file.name",
+			"      - Manual clear",
+			"      - Completion"
+		].join("\n");
+		const collection = resolveObsidianBaseCollection(content, "Thoughts/Whiteboard/Base.base", index);
+		const records = filterCollectionRecords(collection.records, collection.view.filter, collection.columns);
+
+		expect(collection.view).toMatchObject({
+			filter: "\"Manual clear\"=false -Completion=Done",
+			type: "cards"
+		});
+		expect(records.map((record) => record.path)).toEqual(["Thoughts/Whiteboard/Data/visible.md"]);
 	});
 
 	it('parses field options for typed collection editors', () => {

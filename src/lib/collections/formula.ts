@@ -25,6 +25,18 @@ export function evaluateCollectionFormula(record: VaultRecord, formula: string):
 		return '';
 	}
 
+	const conditionalValue = evaluateConditionalFormula(record, expression);
+
+	if (conditionalValue !== null) {
+		return conditionalValue;
+	}
+
+	const fieldValue = evaluateFieldReferenceFormula(record, expression);
+
+	if (fieldValue !== null) {
+		return fieldValue;
+	}
+
 	if (expression.includes('{')) {
 		return expression.replace(/\{([^{}]+)\}/gu, (_match, field: string) =>
 			formatVaultValue(getVaultRecordValue(record, field.trim()))
@@ -34,6 +46,53 @@ export function evaluateCollectionFormula(record: VaultRecord, formula: string):
 	const numericValue = evaluateArithmeticFormula(record, expression);
 
 	return numericValue === null ? '' : numericValue;
+}
+
+function evaluateConditionalFormula(record: VaultRecord, expression: string): VaultPropertyValue | null {
+	if (!expression.toLowerCase().startsWith('if(') || !expression.endsWith(')')) {
+		return null;
+	}
+
+	const args = splitFormulaArguments(expression.slice(3, -1));
+
+	if (args.length !== 3) {
+		return '';
+	}
+
+	return evaluateFormulaCondition(record, args[0])
+		? evaluateCollectionFormula(record, args[1])
+		: evaluateCollectionFormula(record, args[2]);
+}
+
+function evaluateFormulaCondition(record: VaultRecord, expression: string) {
+	const trimmedExpression = expression.trim();
+	const emptyMatch = trimmedExpression.match(/^(.+?)\.isEmpty\(\)$/iu);
+
+	if (emptyMatch) {
+		return !hasValue(getFormulaFieldValue(record, emptyMatch[1]));
+	}
+
+	const comparison = trimmedExpression.match(/^(.+?)\s*(==|!=)\s*(.+)$/u);
+
+	if (comparison) {
+		const leftValue = formatVaultValue(getFormulaFieldValue(record, comparison[1]));
+		const rightValue = cleanFormulaLiteral(comparison[3]);
+		const equal = leftValue.toLowerCase() === rightValue.toLowerCase();
+
+		return comparison[2] === '!=' ? !equal : equal;
+	}
+
+	return false;
+}
+
+function evaluateFieldReferenceFormula(record: VaultRecord, expression: string): VaultPropertyValue | null {
+	const field = getFormulaReferenceField(expression);
+
+	if (!field) {
+		return null;
+	}
+
+	return getVaultRecordValue(record, field);
 }
 
 function evaluateArithmeticFormula(record: VaultRecord, expression: string) {
@@ -165,7 +224,21 @@ function tokenizeArithmeticFormula(record: VaultRecord, expression: string): For
 			continue;
 		}
 
-		const fieldMatch = expression.slice(cursor).match(/^[\p{L}_][\p{L}\p{N}_]*/u);
+		const referenceMatch = expression.slice(cursor).match(/^note\["([^"]+)"\]/u);
+
+		if (referenceMatch) {
+			const numberValue = getFormulaNumberValue(record, referenceMatch[1]);
+
+			if (numberValue === null) {
+				return [];
+			}
+
+			tokens.push({ type: 'number', value: numberValue });
+			cursor += referenceMatch[0].length;
+			continue;
+		}
+
+		const fieldMatch = expression.slice(cursor).match(/^[\p{L}_][\p{L}\p{N}_.]*/u);
 
 		if (fieldMatch) {
 			const numberValue = getFormulaNumberValue(record, fieldMatch[0]);
@@ -186,7 +259,7 @@ function tokenizeArithmeticFormula(record: VaultRecord, expression: string): For
 }
 
 function getFormulaNumberValue(record: VaultRecord, field: string) {
-	const value = getVaultRecordValue(record, field);
+	const value = getFormulaFieldValue(record, field);
 
 	if (!hasValue(value)) {
 		return null;
@@ -195,6 +268,86 @@ function getFormulaNumberValue(record: VaultRecord, field: string) {
 	const values = getNumericValues(value);
 
 	return values[0] ?? null;
+}
+
+function getFormulaFieldValue(record: VaultRecord, reference: string) {
+	return getVaultRecordValue(record, getFormulaReferenceField(reference) || reference.trim());
+}
+
+function getFormulaReferenceField(reference: string) {
+	const trimmedReference = reference.trim();
+	const noteReference = trimmedReference.match(/^note\["([^"]+)"\]$/u);
+
+	return noteReference?.[1] ?? '';
+}
+
+function splitFormulaArguments(value: string) {
+	const args: string[] = [];
+	let current = '';
+	let quote = '';
+	let depth = 0;
+	let bracketDepth = 0;
+
+	for (let index = 0; index < value.length; index += 1) {
+		const character = value[index] ?? '';
+
+		if (quote) {
+			current += character;
+
+			if (character === '\\') {
+				index += 1;
+				current += value[index] ?? '';
+				continue;
+			}
+
+			if (character === quote) {
+				quote = '';
+			}
+
+			continue;
+		}
+
+		if (character === '"' || character === "'") {
+			quote = character;
+			current += character;
+			continue;
+		}
+
+		if (character === '(') {
+			depth += 1;
+		} else if (character === ')') {
+			depth = Math.max(0, depth - 1);
+		} else if (character === '[') {
+			bracketDepth += 1;
+		} else if (character === ']') {
+			bracketDepth = Math.max(0, bracketDepth - 1);
+		}
+
+		if (character === ',' && depth === 0 && bracketDepth === 0) {
+			args.push(current.trim());
+			current = '';
+			continue;
+		}
+
+		current += character;
+	}
+
+	if (current.trim()) {
+		args.push(current.trim());
+	}
+
+	return args;
+}
+
+function cleanFormulaLiteral(value: string) {
+	const trimmedValue = value.trim();
+	const quote = trimmedValue[0];
+
+	if ((quote === '"' || quote === "'") && trimmedValue.at(-1) === quote) {
+		return trimmedValue.slice(1, -1);
+	}
+
+	return trimmedValue;
 }
 
 function getNumericValues(value: VaultPropertyValue): number[] {

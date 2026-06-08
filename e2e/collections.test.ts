@@ -573,6 +573,65 @@ test('collection cells use typed inline editors from schema metadata', async ({ 
 	expect(editedRecordContent).toContain('applied:: 2026-02-03');
 });
 
+test('large collection views render records in batches', async ({ page }) => {
+	const vaultName = `datahoarder-e2e-large-collection-${Date.now()}`;
+
+	await page.addInitScript((name) => {
+		window.showDirectoryPicker = async () => {
+			const root = await navigator.storage.getDirectory();
+			const directory = await root.getDirectoryHandle(name, { create: true });
+			const collectionFile = await directory.getFileHandle('Large.collection.yaml', { create: true });
+			const writable = await collectionFile.createWritable();
+
+			await writable.write(
+				[
+					'name: Large Collection',
+					'schema:',
+					'  status: text',
+					'source:',
+					'  folders: [records]',
+					'views:',
+					'  - type: table',
+					'    name: Table',
+					'    columns: [title, status]',
+					'  - type: cards',
+					'    name: Cards',
+					'    columns: [title, status]'
+				].join('\n')
+			);
+			await writable.close();
+
+			const recordsDirectory = await directory.getDirectoryHandle('records', { create: true });
+
+			for (let index = 0; index < 130; index += 1) {
+				const title = `Item ${index.toString().padStart(3, '0')}`;
+				const file = await recordsDirectory.getFileHandle(`${title}.md`, { create: true });
+				const noteWritable = await file.createWritable();
+
+				await noteWritable.write(`# ${title}\n\nstatus:: Batch\n`);
+				await noteWritable.close();
+			}
+
+			return directory;
+		};
+	}, vaultName);
+
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open Folder' }).click();
+
+	const preview = page.getByLabel('Preview');
+	await expect(preview.getByText('120 of 130 rows rendered')).toBeVisible();
+	await expect(preview.getByRole('button', { name: 'Item 129', exact: true })).toHaveCount(0);
+	await preview.getByRole('button', { name: 'Show 10 more' }).click();
+	await expect(preview.getByRole('button', { name: 'Item 129', exact: true })).toBeVisible();
+
+	await preview.getByRole('button', { name: /Cards cards/u }).click();
+	await expect(preview.getByText('72 of 130 cards rendered')).toBeVisible();
+	await expect(preview.getByRole('button', { name: 'Item 129', exact: true })).toHaveCount(0);
+	await preview.getByRole('button', { name: 'Show 58 more' }).click();
+	await expect(preview.getByRole('button', { name: 'Item 129', exact: true })).toBeVisible();
+});
+
 test('collection records can be scaffolded from the selected collection', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-collection-record-${Date.now()}`;
 
@@ -663,7 +722,7 @@ test('collection records can be scaffolded from the selected collection', async 
 	expect(noteHtmlContent).toContain('<p>Datahoarder note export</p>');
 	expect(noteHtmlContent).toContain('<title>Acme Labs</title>');
 	expect(noteHtmlContent).toContain('<h1>Acme Labs</h1>');
-	expect(noteHtmlContent).toContain('<article><h1>Acme Labs</h1>');
+	expect(noteHtmlContent).toContain('class="datahoarder-svelte-note"');
 	await expect(page.getByText('Exported applications/Acme Labs.md as HTML.')).toBeVisible();
 
 	await page.locator('.note-columns').getByRole('button', { name: 'Applications.dhbase.yaml' }).click();

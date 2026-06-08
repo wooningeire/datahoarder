@@ -1,8 +1,14 @@
 {
   "version": "5",
   "specifiers": {
+    "npm:@jridgewell/gen-mapping@0.3.13": "0.3.13",
+    "npm:@jridgewell/remapping@2.3.5": "2.3.5",
+    "npm:@jridgewell/resolve-uri@3.1.2": "3.1.2",
+    "npm:@jridgewell/sourcemap-codec@1.5.5": "1.5.5",
+    "npm:@jridgewell/trace-mapping@0.3.31": "0.3.31",
     "npm:@playwright/test@1.57.0": "1.57.0",
     "npm:@playwright/test@^1.57.0": "1.57.0",
+    "npm:@sveltejs/acorn-typescript@1.0.10": "1.0.10_acorn@8.16.0",
     "npm:@sveltejs/adapter-static@3.0.10": "3.0.10_@sveltejs+kit@2.61.1__@sveltejs+vite-plugin-svelte@7.1.2___svelte@5.56.1___vite@8.0.16____@types+node@25.9.1____sass@1.100.0___sass@1.100.0__svelte@5.56.1__typescript@6.0.3__vite@8.0.16___@types+node@25.9.1___sass@1.100.0__sass@1.100.0_sass@1.100.0",
     "npm:@sveltejs/adapter-static@^3.0.10": "3.0.10_@sveltejs+kit@2.61.1__@sveltejs+vite-plugin-svelte@7.1.2___svelte@5.56.1___vite@8.0.16____@types+node@25.9.1____sass@1.100.0___sass@1.100.0__svelte@5.56.1__typescript@6.0.3__vite@8.0.16___@types+node@25.9.1___sass@1.100.0__sass@1.100.0_sass@1.100.0",
     "npm:@sveltejs/kit@*": "2.61.1_@sveltejs+vite-plugin-svelte@7.1.2__svelte@5.56.1__vite@8.0.16___@types+node@25.9.1___sass@1.100.0__sass@1.100.0_svelte@5.56.1_typescript@6.0.3_vite@8.0.16__@types+node@25.9.1__sass@1.100.0_sass@1.100.0",
@@ -19,9 +25,16 @@
     "npm:@types/node@^25.9.1": "25.9.1",
     "npm:@vitest/browser-playwright@4.1.5": "4.1.5_playwright@1.57.0_vitest@4.1.5_sass@1.100.0",
     "npm:@vitest/browser-playwright@^4.0.15": "4.1.5_playwright@1.57.0_vitest@4.1.5_sass@1.100.0",
+    "npm:acorn@8.16.0": "8.16.0",
+    "npm:aria-query@5.3.1": "5.3.1",
+    "npm:axobject-query@4.1.0": "4.1.0",
     "npm:clsx@2.1.1": "2.1.1",
     "npm:cookie@0.6.0": "0.6.0",
     "npm:devalue@5.8.1": "5.8.1",
+    "npm:esrap@2.2.9": "2.2.9",
+    "npm:is-reference@3.0.3": "3.0.3",
+    "npm:locate-character@3.0.0": "3.0.0",
+    "npm:magic-string@0.30.21": "0.30.21",
     "npm:mdsvex@*": "0.12.7_svelte@5.56.1",
     "npm:mdsvex@0.12.7": "0.12.7_svelte@5.56.1",
     "npm:mdsvex@~0.12.6": "0.12.7_svelte@5.56.1",
@@ -45,7 +58,8 @@
     "npm:vitest-browser-svelte@^2.0.1": "2.1.1_svelte@5.56.1_vitest@4.1.5__@types+node@25.9.1__@vitest+browser-playwright@4.1.5__vite@8.0.16___@types+node@25.9.1___sass@1.100.0__playwright@1.57.0__sass@1.100.0_playwright@1.57.0_sass@1.100.0",
     "npm:vitest@*": "4.1.5_@types+node@25.9.1_@vitest+browser-playwright@4.1.5_vite@8.0.16__@types+node@25.9.1__sass@1.100.0_playwright@1.57.0_sass@1.100.0",
     "npm:vitest@4.1.5": "4.1.5_@types+node@25.9.1_@vitest+browser-playwright@4.1.5_vite@8.0.16__@types+node@25.9.1__sass@1.100.0_playwright@1.57.0_sass@1.100.0",
-    "npm:vitest@^4.0.15": "4.1.5_@types+node@25.9.1_@vitest+browser-playwright@4.1.5_vite@8.0.16__@types+node@25.9.1__sass@1.100.0_playwright@1.57.0_sass@1.100.0"
+    "npm:vitest@^4.0.15": "4.1.5_@types+node@25.9.1_@vitest+browser-playwright@4.1.5_vite@8.0.16__@types+node@25.9.1__sass@1.100.0_playwright@1.57.0_sass@1.100.0",
+    "npm:zimmerframe@1.1.4": "1.1.4"
   },
   "npm": {
     "@blazediff/core@1.9.1": {
@@ -1117,20 +1131,34 @@
   },
   "workspace": {
     "dependencies": [
+      "npm:@jridgewell/gen-mapping@0.3.13",
+      "npm:@jridgewell/remapping@2.3.5",
+      "npm:@jridgewell/resolve-uri@3.1.2",
+      "npm:@jridgewell/sourcemap-codec@1.5.5",
+      "npm:@jridgewell/trace-mapping@0.3.31",
       "npm:@playwright/test@1.57.0",
+      "npm:@sveltejs/acorn-typescript@1.0.10",
       "npm:@sveltejs/adapter-static@3.0.10",
       "npm:@sveltejs/kit@2.61.1",
       "npm:@sveltejs/vite-plugin-svelte@7.1.2",
       "npm:@vitest/browser-playwright@4.1.5",
+      "npm:acorn@8.16.0",
+      "npm:aria-query@5.3.1",
+      "npm:axobject-query@4.1.0",
       "npm:clsx@2.1.1",
       "npm:cookie@0.6.0",
       "npm:devalue@5.8.1",
+      "npm:esrap@2.2.9",
+      "npm:is-reference@3.0.3",
+      "npm:locate-character@3.0.0",
+      "npm:magic-string@0.30.21",
       "npm:mdsvex@0.12.7",
       "npm:monaco-editor@0.55.1",
       "npm:set-cookie-parser@3.1.0",
       "npm:svelte@5.56.1",
       "npm:vitest-browser-svelte@2.1.1",
-      "npm:vitest@4.1.5"
+      "npm:vitest@4.1.5",
+      "npm:zimmerframe@1.1.4"
     ],
     "packageJson": {
       "dependencies": [

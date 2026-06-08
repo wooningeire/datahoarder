@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LocalVaultFile } from './local-files.js';
-import { buildLocalVaultIndex, getVaultBacklinks, getVaultRecordValue } from './index.js';
+import { buildLocalVaultIndex, formatVaultValue, getVaultBacklinks, getVaultRecordValue } from "./index.js";
 
 describe('buildLocalVaultIndex', () => {
 	it('extracts inline body properties and lets frontmatter win', async () => {
@@ -34,6 +34,26 @@ describe('buildLocalVaultIndex', () => {
 		expect(getVaultRecordValue(record, 'tags')).toEqual(['ai', 'jobs']);
 		expect(getVaultRecordValue(record, 'url')).toBe('https://example.test/a::b');
 		expect(getVaultRecordValue(record, 'empty')).toBe('');
+	});
+
+	it("formats blank frontmatter fields as empty display values", async () => {
+		const index = await buildLocalVaultIndex([
+			createLocalVaultFile(
+				"applications/acme.md",
+				[
+					"---",
+					"Min Pay (Hourly):",
+					"Max Pay (Hourly):",
+					"---",
+					"# Acme Application"
+				].join("\n")
+			)
+		]);
+		const record = index.records[0];
+
+		expect(getVaultRecordValue(record, "Min Pay (Hourly)")).toEqual({});
+		expect(formatVaultValue(getVaultRecordValue(record, "Min Pay (Hourly)"))).toBe("");
+		expect(formatVaultValue({ currency: "USD" })).toBe('{"currency":"USD"}');
 	});
 
 	it('ignores inline fields inside fenced code blocks', async () => {

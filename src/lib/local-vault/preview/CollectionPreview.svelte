@@ -7,6 +7,7 @@ import type {
 } from '../../collections/index.js';
 import type { VaultRecord } from '../../vault/index.js';
 import type { CollectionCellEdit } from '../shared/types.js';
+import CollectionCardsView from './collection/CollectionCardsView.svelte';
 import CollectionKanbanView from './collection/CollectionKanbanView.svelte';
 import CollectionSource from './collection/CollectionSource.svelte';
 import CollectionSummaryGrid from './collection/CollectionSummaryGrid.svelte';
@@ -109,7 +110,22 @@ let {
 	<CollectionSummaryGrid summaries={collectionSummaries} />
 
 	{#if collectionRecords.length}
-		{#if selectedCollection.view.type.toLowerCase() === 'kanban'}
+		{#if selectedCollection.view.type.toLowerCase() === 'cards'}
+			<CollectionCardsView
+				{collectionCellEdit}
+				{collectionRecords}
+				{loading}
+				{saving}
+				{selectedCollection}
+				{cancelCollectionCellEdit}
+				{editCollectionRecordField}
+				{formatCollectionRecordValue}
+				{isEditingCollectionCell}
+				{openCollectionRecord}
+				{saveCollectionCellEdit}
+				{updateCollectionCellEditValue}
+			/>
+		{:else if selectedCollection.view.type.toLowerCase() === 'kanban'}
 			<CollectionKanbanView
 				{collectionCellEdit}
 				{collectionKanbanGroupBy}

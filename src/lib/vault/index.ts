@@ -101,20 +101,34 @@ export function isIndexedNoteFile(path: string) {
 }
 
 export function getVaultRecordValue(record: VaultRecord, key: string): VaultPropertyValue {
-	switch (key.toLowerCase()) {
+	const normalizedKey = key.trim().toLowerCase();
+
+	if (normalizedKey.startsWith('note.')) {
+		return getPropertyValue(record.properties, key.trim().slice(5));
+	}
+
+	switch (normalizedKey) {
 		case 'basename':
+		case 'file.name':
 			return record.basename;
 		case 'folder':
+		case 'file.folder':
 			return record.folder;
 		case 'path':
+		case 'file.path':
 			return record.path;
 		case 'preview':
 			return record.preview;
+		case 'size':
+		case 'file.size':
+			return record.size;
 		case 'tags':
 			return record.tags;
 		case 'title':
 			return record.title;
 		case 'updatedat':
+		case 'file.ctime':
+		case 'file.mtime':
 			return record.updatedAt;
 		default:
 			return getPropertyValue(record.properties, key);
@@ -166,6 +180,10 @@ export function formatVaultValue(value: VaultPropertyValue): string {
 	}
 
 	if (typeof value === 'object') {
+		if (Object.keys(value).length === 0) {
+			return '';
+		}
+
 		return JSON.stringify(value);
 	}
 

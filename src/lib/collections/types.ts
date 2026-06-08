@@ -47,8 +47,10 @@ export type CollectionSummaryDefinition = {
 export type CollectionDefinition = {
 	name: string;
 	path: string;
+	readOnly?: boolean;
 	schema: CollectionField[];
 	source: CollectionSource;
+	sourceFormat?: string;
 	summaries: CollectionSummaryDefinition[];
 	views: CollectionView[];
 };

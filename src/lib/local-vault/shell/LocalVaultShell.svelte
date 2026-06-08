@@ -17,7 +17,9 @@ import {
 	getCollectionViewGroupBy,
 	groupCollectionRecordsForKanban,
 	isDatahoarderCollectionFile,
+	isObsidianBaseFile,
 	resolveDatahoarderCollection,
+	resolveObsidianBaseCollection,
 	sortCollectionRecords,
 	sortCollectionRecordsForTimeline,
 	summarizeCollectionRecords,
@@ -151,11 +153,19 @@ let recentNotes = $derived(
 );
 let baseViews = $derived(selectedFile?.extension === '.base' ? getBaseViews(selectedContent) : []);
 let selectedCollection = $derived.by<ResolvedCollection | null>(() => {
-	if (!selectedFile || !isDatahoarderCollectionFile(selectedFile.path)) {
+	if (!selectedFile) {
 		return null;
 	}
 
-	return resolveDatahoarderCollection(selectedContent, selectedFile.path, vaultIndex, selectedCollectionViewIndex);
+	if (isDatahoarderCollectionFile(selectedFile.path)) {
+		return resolveDatahoarderCollection(selectedContent, selectedFile.path, vaultIndex, selectedCollectionViewIndex);
+	}
+
+	if (isObsidianBaseFile(selectedFile.path)) {
+		return resolveObsidianBaseCollection(selectedContent, selectedFile.path, vaultIndex, selectedCollectionViewIndex);
+	}
+
+	return null;
 });
 let collectionRecordCreationError = $derived(
 	selectedCollection ? getCollectionRecordCreationError(selectedCollection.definition) : ''
@@ -426,7 +436,10 @@ let filteredCommandPaletteItems = $derived.by(() =>
 );
 
 $effect(() => {
-	const collectionFilePath = selectedFile && isDatahoarderCollectionFile(selectedFile.path) ? selectedFile.path : '';
+	const collectionFilePath =
+		selectedFile && (isDatahoarderCollectionFile(selectedFile.path) || isObsidianBaseFile(selectedFile.path))
+			? selectedFile.path
+			: '';
 
 	if (collectionFilePath !== lastCollectionFilePath) {
 		lastCollectionFilePath = collectionFilePath;

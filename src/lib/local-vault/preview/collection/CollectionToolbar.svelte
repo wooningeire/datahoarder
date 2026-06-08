@@ -31,6 +31,8 @@ let {
 	setCollectionFilter
 }: Props = $props();
 
+let readOnly = $derived(Boolean(selectedCollection.definition.readOnly));
+
 function handleFilterInput(event: Event) {
 	setCollectionFilter((event.currentTarget as HTMLInputElement).value);
 }
@@ -43,18 +45,18 @@ function handleFilterInput(event: Event) {
 	<button
 		type="button"
 		onclick={createCollectionRecord}
-		disabled={!hasVault || loading || Boolean(collectionRecordCreationError)}
+		disabled={readOnly || !hasVault || loading || Boolean(collectionRecordCreationError)}
 		title={collectionRecordCreationError || 'Create collection record'}
 	>
 		New Record
 	</button>
-	<button type="button" onclick={addFieldToSelectedCollection} disabled={!hasVault || loading || saving}>
+	<button type="button" onclick={addFieldToSelectedCollection} disabled={readOnly || !hasVault || loading || saving}>
 		Add Field
 	</button>
 	<button
 		type="button"
 		onclick={bulkSetCollectionField}
-		disabled={!hasVault || loading || saving || !recordsCount}
+		disabled={readOnly || !hasVault || loading || saving || !recordsCount}
 	>
 		Bulk Set Field
 	</button>

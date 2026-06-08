@@ -1,13 +1,11 @@
 import { resolve } from "node:path";
-
 export const DEFAULT_TAURI_DEV_HOST = "127.0.0.1";
-export const DEFAULT_TAURI_DEV_PORT = 5173;
+export const DEFAULT_TAURI_DEV_PORT = 5191;
 export const DEFAULT_TAURI_DEV_PORT_SEARCH_LIMIT = 25;
 
 type Env = Record<string, string | undefined>;
 
 type ExpectedVaultMetadata = {
-  previewOrigin: string;
   previewRouteBase: string;
   root: string;
 };
@@ -379,11 +377,11 @@ export function logTauriDevResolution(
   );
 }
 
-export function runViteDevServer(options: BeforeDevOptions) {
+export async function runViteDevServer(options: BeforeDevOptions) {
   const host = normalizeHost(options.host ?? DEFAULT_TAURI_DEV_HOST);
   const port = normalizePort(options.port ?? DEFAULT_TAURI_DEV_PORT, "port");
 
-  return spawnAndWait(Deno.execPath(), [
+  return await spawnAndWait(Deno.execPath(), [
     "run",
     "-A",
     "npm:vite",
@@ -548,7 +546,6 @@ function getExpectedVaultMetadataFromEnv(env: Env): ExpectedVaultMetadata {
     "";
 
   return {
-    previewOrigin: env.DATAHOARDER_PREVIEW_ORIGIN ?? "",
     previewRouteBase: normalizeRouteBase(
       env.DATAHOARDER_PREVIEW_ROUTE_BASE ?? "/notes",
     ),
@@ -564,14 +561,6 @@ function getVaultMetadataMismatch(
 
   if (!pathsEqual(metadata.root, expected.root)) {
     mismatches.push(`root ${formatMismatch(metadata.root, expected.root)}`);
-  }
-
-  if (metadata.previewOrigin !== expected.previewOrigin) {
-    mismatches.push(
-      `preview origin ${
-        formatMismatch(metadata.previewOrigin, expected.previewOrigin)
-      }`,
-    );
   }
 
   if (metadata.previewRouteBase !== expected.previewRouteBase) {

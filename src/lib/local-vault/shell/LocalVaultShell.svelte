@@ -27,6 +27,7 @@ import {
 	buildLocalVaultTree,
 	canUseServerVault,
 	canUseFileSystemAccess,
+	canUseTauriNativeFileAccess,
 	type LocalDirectoryHandle,
 	type LocalVaultFile
 } from '../../vault/local-files.js';
@@ -468,11 +469,12 @@ onMount(() => {
 
 async function initializeVaultAccess() {
 	const serverVaultSupported = await canUseServerVault();
+	const tauriNativeSupported = canUseTauriNativeFileAccess();
 
-	supported = serverVaultSupported || canUseFileSystemAccess();
+	supported = tauriNativeSupported || serverVaultSupported || canUseFileSystemAccess();
 
 	if (!supported) {
-		status = 'Set DATAHOARDER_OPEN_FOLDER for process-backed access, or use Chrome or Edge over HTTPS.';
+		status = 'Set DATAHOARDER_OPEN_FOLDER, use Tauri native access, or use Chrome or Edge over HTTPS.';
 		return;
 	}
 
@@ -718,7 +720,19 @@ function pruneSelectedPublicPublishProfile() {
 }
 
 function getErrorMessage(error: unknown) {
-	return error instanceof Error ? error.message : 'Unknown error';
+	if (error instanceof Error) {
+		return error.message;
+	}
+
+	if (typeof error === 'string') {
+		return error;
+	}
+
+	if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+		return error.message;
+	}
+
+	return 'Unknown error';
 }
 
 function escapeHtml(text: string) {

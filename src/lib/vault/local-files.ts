@@ -25,7 +25,19 @@ export type ServerLocalFileHandle = {
 	getFile: () => Promise<File>;
 };
 
-export type LocalFileHandle = BrowserLocalFileHandle | ServerLocalFileHandle;
+export type TauriLocalFileHandle = {
+	kind: 'file';
+	name: string;
+	path: string;
+	previewOrigin: string;
+	previewRouteBase: string;
+	root: string;
+	source: 'tauri';
+	targetProjectRoot: string | null;
+	getFile: () => Promise<File>;
+};
+
+export type LocalFileHandle = BrowserLocalFileHandle | ServerLocalFileHandle | TauriLocalFileHandle;
 
 export type BrowserLocalDirectoryHandle = {
 	kind: 'directory';
@@ -48,7 +60,17 @@ export type ServerLocalDirectoryHandle = {
 	source: 'server';
 };
 
-export type LocalDirectoryHandle = BrowserLocalDirectoryHandle | ServerLocalDirectoryHandle;
+export type TauriLocalDirectoryHandle = {
+	kind: 'tauri-directory';
+	name: string;
+	previewOrigin: string;
+	previewRouteBase: string;
+	root: string;
+	source: 'tauri';
+	targetProjectRoot: string | null;
+};
+
+export type LocalDirectoryHandle = BrowserLocalDirectoryHandle | ServerLocalDirectoryHandle | TauriLocalDirectoryHandle;
 
 export type FileSystemWritableFileStreamLike = {
 	write: (data: string) => Promise<void>;
@@ -66,8 +88,22 @@ export type LocalVaultFile = {
 
 const databaseName = 'datahoarder-local-vault';
 const objectStoreName = 'handles';
+const tauriVaultRootStorageKey = 'datahoarder-tauri-vault-root';
 const vaultHandleKey = 'vault-directory-handle';
 const textExtensionPattern = /\.(base|css|csv|html|js|json|md|scss|svelte|svx|ts|txt|yaml|yml)$/iu;
+
+type TauriInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
+
+type TauriHostWindow = Window & {
+	__TAURI__?: {
+		core?: {
+			invoke?: TauriInvoke;
+		};
+	};
+	__TAURI_INTERNALS__?: {
+		invoke?: TauriInvoke;
+	};
+};
 
 type ServerVaultMetadata = {
 	enabled: boolean;
@@ -83,8 +119,79 @@ type ServerVaultFileResponse = {
 	updatedAt: number;
 };
 
+type TauriVaultMetadataResponse = {
+	name: string;
+	previewOrigin?: string;
+	previewRouteBase?: string;
+	root: string;
+	targetProjectRoot?: string | null;
+};
+
+type TauriVaultFileResponse = {
+	path: string;
+	size: number;
+	updatedAt: number;
+};
+
+export function canUseTauriNativeFileAccess() {
+	return Boolean(getTauriInvoke());
+}
+
 export function canUseFileSystemAccess() {
-	return typeof window !== 'undefined' && 'showDirectoryPicker' in window && 'indexedDB' in window;
+	return (
+		!canUseTauriNativeFileAccess() &&
+		typeof window !== 'undefined' &&
+		'showDirectoryPicker' in window &&
+		'indexedDB' in window
+	);
+}
+
+export async function getTauriVaultHandle(root?: string) {
+	if (!canUseTauriNativeFileAccess()) {
+		return null;
+	}
+
+	if (root?.trim()) {
+		return createTauriVaultHandle(root);
+	}
+
+	const defaultMetadata = await tauriCommand<TauriVaultMetadataResponse | null>(
+		'datahoarder_default_vault_root'
+	);
+
+	if (defaultMetadata) {
+		return createTauriDirectoryHandle(defaultMetadata);
+	}
+
+	const storedRoot = getStoredTauriVaultRoot();
+
+	if (!storedRoot) {
+		return null;
+	}
+
+	try {
+		return await createTauriVaultHandle(storedRoot);
+	} catch {
+		clearStoredTauriVaultRoot();
+		return null;
+	}
+}
+
+export async function createTauriVaultHandle(root: string) {
+	const metadata = await tauriCommand<TauriVaultMetadataResponse>(
+		'datahoarder_validate_vault_root',
+		{ root }
+	);
+
+	return createTauriDirectoryHandle(metadata);
+}
+
+export async function pickTauriVaultHandle() {
+	const metadata = await tauriCommand<TauriVaultMetadataResponse | null>(
+		'datahoarder_pick_vault_root'
+	);
+
+	return metadata ? createTauriDirectoryHandle(metadata) : null;
 }
 
 export async function getServerVaultHandle() {
@@ -110,13 +217,53 @@ export function isServerDirectoryHandle(handle: LocalDirectoryHandle | null): ha
 	return handle?.kind === 'server-directory';
 }
 
+export function isTauriDirectoryHandle(handle: LocalDirectoryHandle | null): handle is TauriLocalDirectoryHandle {
+	return handle?.kind === 'tauri-directory';
+}
+
 export function isServerVaultFile(file: LocalVaultFile | null | undefined) {
 	return Boolean(file && 'source' in file.handle && file.handle.source === 'server');
+}
+
+export function isTauriVaultFile(
+	file: LocalVaultFile | null | undefined
+): file is LocalVaultFile & { handle: TauriLocalFileHandle } {
+	return Boolean(file && isTauriFileHandle(file.handle));
+}
+
+export async function ensureTauriVaultPreviewOrigin(file: LocalVaultFile | null | undefined) {
+	if (!isTauriVaultFile(file)) {
+		return '';
+	}
+
+	if (file.handle.previewOrigin) {
+		return file.handle.previewOrigin;
+	}
+
+	const metadata = await tauriCommand<TauriVaultMetadataResponse>(
+		'datahoarder_ensure_vault_preview_origin',
+		{ root: file.handle.root }
+	);
+	const previewOrigin = metadata.previewOrigin ?? '';
+
+	if (!previewOrigin) {
+		return '';
+	}
+
+	file.handle.previewOrigin = previewOrigin;
+	file.handle.previewRouteBase = metadata.previewRouteBase ?? '/notes';
+	file.handle.targetProjectRoot = metadata.targetProjectRoot ?? null;
+
+	return previewOrigin;
 }
 
 export async function readLocalVault(handle: LocalDirectoryHandle) {
 	if (isServerDirectoryHandle(handle)) {
 		return readServerVault();
+	}
+
+	if (isTauriDirectoryHandle(handle)) {
+		return readTauriVault(handle);
 	}
 
 	const files: LocalVaultFile[] = [];
@@ -216,6 +363,10 @@ export async function createLocalFile(
 		return createServerFile(normalizedPath, content);
 	}
 
+	if (isTauriDirectoryHandle(root)) {
+		return createTauriFile(root.root, normalizedPath, content);
+	}
+
 	const { directory, fileName } = await getLocalParentDirectory(root, normalizedPath, true);
 
 	if (!directory.getFileHandle) {
@@ -237,6 +388,11 @@ export async function deleteLocalFile(root: LocalDirectoryHandle, path: string) 
 
 	if (isServerDirectoryHandle(root)) {
 		await deleteServerFile(normalizedPath);
+		return;
+	}
+
+	if (isTauriDirectoryHandle(root)) {
+		await deleteTauriFile(root.root, normalizedPath);
 		return;
 	}
 
@@ -271,6 +427,10 @@ export async function moveLocalFile(
 
 	if (isServerDirectoryHandle(root)) {
 		return moveServerFile(normalizedCurrentPath, normalizedNextPath, content);
+	}
+
+	if (isTauriDirectoryHandle(root)) {
+		return moveTauriFile(root.root, normalizedCurrentPath, normalizedNextPath, content);
 	}
 
 	await createLocalFile(root, normalizedNextPath, content, '');
@@ -324,6 +484,11 @@ export function normalizeLocalTextPath(path: string, defaultExtension = '.md') {
 async function writeLocalFileHandle(handle: LocalFileHandle, content: string) {
 	if (isServerFileHandle(handle)) {
 		await writeServerFile(handle.path, content);
+		return;
+	}
+
+	if (isTauriFileHandle(handle)) {
+		await writeTauriFile(handle.root, handle.path, content);
 		return;
 	}
 
@@ -406,6 +571,10 @@ export async function verifyPermission(
 		return true;
 	}
 
+	if (isTauriDirectoryHandle(handle)) {
+		return true;
+	}
+
 	if (!handle.queryPermission || !handle.requestPermission) {
 		return true;
 	}
@@ -424,6 +593,10 @@ export async function verifyPermission(
 }
 
 export async function getStoredVaultHandle() {
+	if (canUseTauriNativeFileAccess()) {
+		return undefined;
+	}
+
 	if (typeof indexedDB === 'undefined') {
 		return undefined;
 	}
@@ -437,6 +610,11 @@ export async function getStoredVaultHandle() {
 
 export async function storeVaultHandle(handle: LocalDirectoryHandle) {
 	if (isServerDirectoryHandle(handle)) {
+		return;
+	}
+
+	if (isTauriDirectoryHandle(handle)) {
+		storeTauriVaultRoot(handle.root);
 		return;
 	}
 
@@ -505,6 +683,15 @@ async function readServerVault() {
 	return response.map(createServerVaultFile);
 }
 
+async function readTauriVault(handle: TauriLocalDirectoryHandle) {
+	const response = await tauriCommand<TauriVaultFileResponse[]>(
+		'datahoarder_list_vault_files',
+		{ root: handle.root }
+	);
+
+	return response.map((file) => createTauriVaultFile(handle, file));
+}
+
 function createServerVaultFile(file: ServerVaultFileResponse): LocalVaultFile {
 	return {
 		...file,
@@ -524,8 +711,53 @@ function createServerVaultFile(file: ServerVaultFileResponse): LocalVaultFile {
 	};
 }
 
+function createTauriDirectoryHandle(metadata: TauriVaultMetadataResponse): TauriLocalDirectoryHandle {
+	return {
+		kind: 'tauri-directory',
+		name: metadata.name,
+		previewOrigin: metadata.previewOrigin ?? '',
+		previewRouteBase: metadata.previewRouteBase ?? '/notes',
+		root: metadata.root,
+		source: 'tauri',
+		targetProjectRoot: metadata.targetProjectRoot ?? null
+	};
+}
+
+function createTauriVaultFile(handle: TauriLocalDirectoryHandle, file: TauriVaultFileResponse): LocalVaultFile {
+	const extension = getPathExtension(file.path);
+
+	return {
+		extension,
+		handle: {
+			kind: 'file',
+			name: file.path.split('/').at(-1) ?? file.path,
+			path: file.path,
+			previewOrigin: handle.previewOrigin,
+			previewRouteBase: handle.previewRouteBase,
+			root: handle.root,
+			source: 'tauri',
+			targetProjectRoot: handle.targetProjectRoot,
+			getFile: async () => {
+				const content = await readTauriFile(handle.root, file.path);
+				return new File([content], file.path.split('/').at(-1) ?? file.path, {
+					lastModified: file.updatedAt,
+					type: 'text/plain'
+				});
+			}
+		},
+		path: file.path,
+		routePath: getLocalRoutePath(file.path),
+		size: file.size,
+		updatedAt: file.updatedAt
+	};
+}
+
 function isServerFileHandle(handle: LocalFileHandle): handle is ServerLocalFileHandle {
 	return 'source' in handle && handle.source === 'server';
+}
+
+function isTauriFileHandle(handle: LocalFileHandle): handle is TauriLocalFileHandle {
+	return 'source' in handle && handle.source === 'tauri';
 }
 
 async function readServerFile(path: string) {
@@ -576,6 +808,31 @@ async function moveServerFile(currentPath: string, nextPath: string, content: st
 	return result.path;
 }
 
+async function readTauriFile(root: string, path: string) {
+	return tauriCommand<string>('datahoarder_read_vault_file', { path, root });
+}
+
+async function writeTauriFile(root: string, path: string, content: string) {
+	await tauriCommand('datahoarder_write_vault_file', { content, path, root });
+}
+
+async function createTauriFile(root: string, path: string, content: string) {
+	return tauriCommand<string>('datahoarder_create_vault_file', { content, path, root });
+}
+
+async function deleteTauriFile(root: string, path: string) {
+	await tauriCommand('datahoarder_delete_vault_file', { path, root });
+}
+
+async function moveTauriFile(root: string, currentPath: string, nextPath: string, content: string) {
+	return tauriCommand<string>('datahoarder_move_vault_file', {
+		content,
+		currentPath,
+		nextPath,
+		root
+	});
+}
+
 async function serverRequest<T = unknown>(url: string, init?: RequestInit) {
 	const response = await fetch(url, {
 		cache: 'no-store',
@@ -598,7 +855,71 @@ async function getServerResponseError(response: Response) {
 		const payload = (await response.json()) as { message?: string };
 		return payload.message || response.statusText;
 	} catch {
-		return response.statusText;
+	return response.statusText;
+	}
+}
+
+async function tauriCommand<T>(command: string, args?: Record<string, unknown>) {
+	const invoke = getTauriInvoke();
+
+	if (!invoke) {
+		throw new Error('Tauri native file access is not available.');
+	}
+
+	try {
+		return await invoke<T>(command, args);
+	} catch (error) {
+		throw normalizeTauriCommandError(error);
+	}
+}
+
+function getTauriInvoke() {
+	if (typeof window === 'undefined') {
+		return null;
+	}
+
+	const host = window as unknown as TauriHostWindow;
+
+	return host.__TAURI__?.core?.invoke ?? host.__TAURI_INTERNALS__?.invoke ?? null;
+}
+
+function normalizeTauriCommandError(error: unknown) {
+	if (error instanceof Error) {
+		return error;
+	}
+
+	if (typeof error === 'string') {
+		return new Error(error);
+	}
+
+	if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+		return new Error(error.message);
+	}
+
+	return new Error('Unknown Tauri error');
+}
+
+function getStoredTauriVaultRoot() {
+	try {
+		return localStorage.getItem(tauriVaultRootStorageKey) ?? '';
+	} catch {
+		return '';
+	}
+}
+
+function storeTauriVaultRoot(root: string) {
+	try {
+		localStorage.setItem(tauriVaultRootStorageKey, root);
+	} catch {
+		// Native access still works without persisted folder history.
+	}
+}
+
+function clearStoredTauriVaultRoot() {
+	try {
+		localStorage.removeItem(tauriVaultRootStorageKey);
+	} catch {
+		// Native access still works without persisted folder history.
 	}
 }
 

@@ -19,18 +19,28 @@ For process-backed folder access, pass the open folder to the dev launcher:
 deno task dev:folder C:\Users\V\_\obsidian\obsidian\src\lib\notes
 ```
 
-The launcher sets `DATAHOARDER_OPEN_FOLDER` and starts `vite dev` with Node. Use `deno task dev:folder:deno` to run the Vite process through Deno instead, or use `npm run dev -- C:\path\to\notes` from the Node command surface. Vite flags can be passed after `--`, for example:
+The launcher sets `DATAHOARDER_OPEN_FOLDER` and starts Datahoarder through Deno. If an explicit SvelteKit route file is previewed and the opened folder or one of its ancestors contains `deno.json` or `deno.jsonc`, Datahoarder starts `deno task dev` in that Deno project root on demand, waits for it to answer on `http://127.0.0.1:5174` or the next free target port, and embeds that route. Vite flags for Datahoarder can be passed after `--`, for example:
 
 ```powershell
-deno task dev:folder C:\path\to\notes -- --port 5191
+deno task dev:folder C:\path\to\target-app -- --port 5191
 ```
 
-When `DATAHOARDER_OPEN_FOLDER` is set, the shell loads that folder through SvelteKit server routes. The preview pane shows `/preview/<path>` in an iframe. If `DATAHOARDER_PREVIEW_ORIGIN` is set, that route embeds the actual page from the running Vite/Deno server; otherwise it falls back to the portable server-rendered preview. Without a process-backed folder, the browser File System Access picker remains available in Chrome or Edge.
+Use `--target-root`, `--target-port`, `--target-host`, `--target-task`, or the matching `DATAHOARDER_TARGET_DEV_*` environment variables when the target app needs a different launch surface. Use `--no-target-server` for markdown-only folders or when route previews should stay disabled.
 
-Point previews at another Vite/SvelteKit app by setting `DATAHOARDER_PREVIEW_ORIGIN` and, when needed, `DATAHOARDER_PREVIEW_ROUTE_BASE`:
+When `DATAHOARDER_OPEN_FOLDER` is set, the shell loads that folder through SvelteKit server routes. The preview pane shows `/preview/<path>` in an iframe. Markdown, SVX, collection, board, and trusted non-route `.svelte` notes render through Datahoarder itself. Explicit SvelteKit route files such as `src/routes/+page.svelte` use the opened folder's target Deno server on demand; if no target origin can be resolved, route files show the preview-server-required message instead of embedding Datahoarder itself. Without a process-backed folder, the browser File System Access picker remains available in Chrome or Edge.
+
+Svelte notes execute local code during server rendering, so they require explicit trust:
 
 ```powershell
-$env:DATAHOARDER_PREVIEW_ORIGIN = "http://127.0.0.1:5174"
+$env:DATAHOARDER_TRUST_SVELTE_NOTES = "true"
+deno task dev:folder C:\path\to\notes
+```
+
+This v1 renderer supports single-file `.svelte` notes. Relative imports and full SvelteKit route semantics stay in explicit route previews.
+
+Point markdown-style note previews at another route base by setting `DATAHOARDER_PREVIEW_ROUTE_BASE`:
+
+```powershell
 $env:DATAHOARDER_PREVIEW_ROUTE_BASE = "/notes"
 deno task dev:folder C:\path\to\notes
 ```
@@ -39,14 +49,18 @@ Primary project commands live in `deno.json`; `package.json` carries npm aliases
 
 ## Run the Native Shell
 
-Tauri v2 is initialized under `src-tauri/` and uses the existing SvelteKit app as its frontend. In development, Tauri starts the local Vite dev server through Node so WebView2 can load the app with HMR:
+Tauri v2 is initialized under `src-tauri/` and uses the existing SvelteKit app as its frontend. In development, Tauri starts the local Vite dev server through Deno so WebView2 can load the app with HMR:
 
 ```powershell
 cd C:\Users\V\_\dev\datahoarder
 deno task tauri dev
 ```
 
-The Deno/TypeScript Tauri dev wrapper prefers `http://127.0.0.1:5173`. If that port already hosts a Datahoarder Vite server, it reuses it. If another process owns the port, the wrapper starts Vite on the next free port and passes Tauri a temporary `devUrl` override. Set `DATAHOARDER_TAURI_DEV_PORT` to choose a different starting port. Direct Tauri CLI invocations still use the fixed config URL at `http://127.0.0.1:5173`, but the `beforeDevCommand` now reports the process occupying that port instead of surfacing a raw Vite stack. Production builds use the SvelteKit static output in `build/`.
+The Deno/TypeScript Tauri dev wrapper prefers `http://127.0.0.1:5191` so normal target Vite/SvelteKit apps can keep using `5173`. If that port already hosts a Datahoarder Vite server, it reuses it. If another process owns the port, the wrapper starts Vite on the next free port and passes Tauri a temporary `devUrl` override. Set `DATAHOARDER_TAURI_DEV_PORT` to choose a different starting port. Direct Tauri CLI invocations use the fixed config URL at `http://127.0.0.1:5191`, and the `beforeDevCommand` reports the process occupying that port instead of surfacing a raw Vite stack. Production builds use the SvelteKit static output in `build/`.
+
+When `DATAHOARDER_OPEN_FOLDER` points at a Deno target app, route previews start the target app with `deno task dev` on demand. If Tauri reuses an existing Datahoarder dev server without an active target origin, the server preview route still starts the target app when an explicit route preview is opened.
+
+Inside Tauri, the shell opens local folders through native Tauri commands instead of the browser File System Access API. The native path reads and writes files directly from Rust, uses `DATAHOARDER_OPEN_FOLDER` as the default vault when it is set, opens a native OS folder picker when choosing a folder manually, and remembers picked folder paths in local storage for later Tauri launches. `~` is expanded against the current user's home directory for environment-provided vault roots. Browser FSA remains the fallback for Chrome or Edge outside Tauri.
 
 The local shell can search the full opened vault, use a `Ctrl`/`Cmd` + `K` command palette to jump to notes or run common actions, save reusable global searches as vault files, create notes, create notes from local templates, create starter SVX whiteboard drawing notes, append simple whiteboard or legacy Excalidraw canvas elements, update inline note fields, add collection fields, edit inline-backed collection cells, rename or move files, delete files, preview common Excalidraw scenes and whiteboards as static SVG, export notes/views as standalone HTML, publish a static public subset, export collection views as CSV/JSON, and keep browser-local pinned/recent note lists for quick retrieval.
 

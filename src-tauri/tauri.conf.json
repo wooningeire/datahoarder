@@ -5,11 +5,12 @@
   "identifier": "art.vaie.datahoarder",
   "build": {
     "frontendDist": "../build",
-    "devUrl": "http://127.0.0.1:5173",
-    "beforeDevCommand": "deno run -A ./scripts/tauri-before-dev.ts --host 127.0.0.1 --port 5173",
+    "devUrl": "http://127.0.0.1:5191",
+    "beforeDevCommand": "deno run -A ./scripts/tauri-before-dev.ts --host 127.0.0.1 --port 5191",
     "beforeBuildCommand": "deno task build:app"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Datahoarder",

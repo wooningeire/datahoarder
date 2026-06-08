@@ -1,5 +1,9 @@
 import { json } from '@sveltejs/kit';
-import { renderOpenFolderPreviewFragment } from '$lib/server/open-folder.js';
+import {
+	renderOpenFolderPreviewFragment,
+	renderPostedNotePreviewFragment
+} from '$lib/server/open-folder.js';
+import { isSvelteMarkupNotePreviewFile } from '$lib/server/svelte-note.js';
 
 export const prerender = false;
 
@@ -10,10 +14,15 @@ export async function POST({ request }) {
 			interactiveTaskLists?: unknown;
 			path?: unknown;
 		};
-		const html = await renderOpenFolderPreviewFragment({
-			content: typeof payload.content === 'string' ? payload.content : undefined,
+		const path = assertString(payload.path, 'path');
+		const content = typeof payload.content === 'string' ? payload.content : undefined;
+		const renderPreview = content !== undefined && isSvelteMarkupNotePreviewFile(path)
+			? renderPostedNotePreviewFragment
+			: renderOpenFolderPreviewFragment;
+		const html = await renderPreview({
+			content,
 			interactiveTaskLists: Boolean(payload.interactiveTaskLists),
-			path: assertString(payload.path, 'path')
+			path
 		});
 
 		return new Response(html, {

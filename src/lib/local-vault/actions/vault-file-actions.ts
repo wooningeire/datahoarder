@@ -1,11 +1,14 @@
 import { tick } from 'svelte';
 import {
+	canUseTauriNativeFileAccess,
 	deleteLocalFile,
 	getServerVaultHandle,
+	getTauriVaultHandle,
 	getStoredVaultHandle,
 	isEditableTextFile,
 	moveLocalFile,
 	normalizeLocalTextPath,
+	pickTauriVaultHandle,
 	readLocalFile,
 	readLocalVault,
 	storeVaultHandle,
@@ -66,8 +69,10 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		canLeaveSelectedFile,
 		canMutateVault,
 		chooseFolder,
+		chooseTauriFolder,
 		deleteSelectedFile,
 		loadServerVault,
+		loadTauriVault,
 		loadVault,
 		openFile,
 		refreshVault,
@@ -82,6 +87,10 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 
 	async function restoreVaultHandle() {
 		try {
+			if (await actions.loadTauriVault('Loaded native folder.')) {
+				return;
+			}
+
 			if (await actions.loadServerVault('Loaded dev-process folder.')) {
 				return;
 			}
@@ -105,6 +114,11 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 	}
 
 	async function chooseFolder() {
+		if (canUseTauriNativeFileAccess()) {
+			await actions.chooseTauriFolder();
+			return;
+		}
+
 		if (await actions.loadServerVault('Loaded dev-process folder.')) {
 			return;
 		}
@@ -158,6 +172,38 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		await actions.loadVault(serverHandle, nextStatus, true);
 
 		return true;
+	}
+
+	async function loadTauriVault(nextStatus: string) {
+		const tauriHandle = await getTauriVaultHandle();
+
+		if (!tauriHandle) {
+			return false;
+		}
+
+		context.vaultHandle = tauriHandle;
+		await storeVaultHandle(tauriHandle);
+		await actions.loadVault(tauriHandle, nextStatus, true);
+
+		return true;
+	}
+
+	async function chooseTauriFolder() {
+		try {
+			context.errorMessage = '';
+			const handle = await pickTauriVaultHandle();
+
+			if (!handle) {
+				context.status = 'Folder selection cancelled.';
+				return;
+			}
+
+			context.vaultHandle = handle;
+			await storeVaultHandle(handle);
+			await actions.loadVault(handle, 'Loaded native folder.', true);
+		} catch (error) {
+			context.errorMessage = context.getErrorMessage(error);
+		}
 	}
 
 	async function refreshVault() {

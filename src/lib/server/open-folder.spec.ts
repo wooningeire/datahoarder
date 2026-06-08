@@ -6,7 +6,8 @@ import {
 	listOpenFolderFiles,
 	readOpenFolderTextFile,
 	renderOpenFolderPreviewDocument,
-	renderOpenFolderPreviewFragment
+	renderOpenFolderPreviewFragment,
+	setOpenFolderTargetPreviewOriginResolverForTest
 } from './open-folder.js';
 
 type DenoEnvHost = typeof globalThis & {
@@ -21,16 +22,23 @@ type DenoEnvHost = typeof globalThis & {
 
 const root = resolve('test-results/server-open-folder-spec');
 const envName = 'DATAHOARDER_OPEN_FOLDER';
-const previewOriginEnvName = 'DATAHOARDER_PREVIEW_ORIGIN';
 const previewRouteBaseEnvName = 'DATAHOARDER_PREVIEW_ROUTE_BASE';
+const targetDevOriginEnvName = 'DATAHOARDER_TARGET_DEV_ORIGIN';
+const targetDevDisabledEnvName = 'DATAHOARDER_TARGET_DEV_DISABLED';
 const previousRoot = getEnv(envName);
-const previousPreviewOrigin = getEnv(previewOriginEnvName);
 const previousPreviewRouteBase = getEnv(previewRouteBaseEnvName);
+const previousTargetDevOrigin = getEnv(targetDevOriginEnvName);
+const previousTargetDevDisabled = getEnv(targetDevDisabledEnvName);
+const svelteNotePreviewTimeoutMs = 60_000;
+let restoreTargetPreviewOriginResolver = () => {};
 
 afterEach(async () => {
+	restoreTargetPreviewOriginResolver();
+	restoreTargetPreviewOriginResolver = () => {};
 	restoreEnv(envName, previousRoot);
-	restoreEnv(previewOriginEnvName, previousPreviewOrigin);
 	restoreEnv(previewRouteBaseEnvName, previousPreviewRouteBase);
+	restoreEnv(targetDevOriginEnvName, previousTargetDevOrigin);
+	restoreEnv(targetDevDisabledEnvName, previousTargetDevDisabled);
 
 	await rm(root, { force: true, recursive: true });
 });
@@ -53,49 +61,142 @@ describe('open folder server vault', () => {
 		expect(files[0]?.routePath).toBe('Index');
 	});
 
-	it('renders markdown preview fragments through the server route renderer', async () => {
+	it('renders markdown preview fragments through mdsvex and Svelte SSR', async () => {
 		await seedOpenFolder({
-			'Index.md': '# Index\n\n- [ ] Routed task'
+			'Index.md': '# Index'
 		});
 
 		const html = await renderOpenFolderPreviewFragment({
-			content: '# Draft\n\n- [x] Routed task',
-			interactiveTaskLists: true,
+			content: [
+				'<script lang="ts">',
+				'let x = $state(2);',
+				'</script>',
+				'',
+				'# Draft {x}'
+			].join('\n'),
 			path: 'Index.md'
 		});
 
-		expect(html).toContain('<h1>Draft</h1>');
-		expect(html).toContain('data-task-index="0"');
-		expect(html).toContain('checked');
-	});
+		expect(html).toContain('<h1>Draft 2</h1>');
+		expect(html).not.toContain('{x}');
+		expect(html).not.toContain('&lt;script');
+	}, svelteNotePreviewTimeoutMs);
 
-	it('embeds the configured Vite server page in preview documents', async () => {
+	it('embeds explicit route files in target server preview documents', async () => {
 		await seedOpenFolder({
 			'Nested/Card.md': '# Card',
+			'+page.svelte': '<h1>Home</h1>',
 			'src/routes/notes/+page.svelte': '<h1>Notes</h1>'
-		});
-		setEnv(previewOriginEnvName, 'http://127.0.0.1:5174');
+		}, { targetDevDisabled: false });
+		setEnv(targetDevOriginEnvName, 'http://127.0.0.1:5174');
 		setEnv(previewRouteBaseEnvName, '/notes');
+		restoreTargetPreviewOriginResolver = setOpenFolderTargetPreviewOriginResolverForTest(async () => {
+			return 'http://127.0.0.1:5174';
+		});
 
 		const markdownHtml = await renderOpenFolderPreviewDocument({ path: 'Nested/Card.md' });
+		const rootRouteHtml = await renderOpenFolderPreviewDocument({ path: '+page.svelte' });
+		const slashRootRouteHtml = await renderOpenFolderPreviewDocument({ path: '/+page.svelte' });
 		const routeHtml = await renderOpenFolderPreviewDocument({ path: 'src/routes/notes/+page.svelte' });
 
-		expect(markdownHtml).toContain('class="server-vite-preview-frame"');
-		expect(markdownHtml).toContain('src="http://127.0.0.1:5174/notes/Nested/Card"');
+		expect(markdownHtml).toContain('<h1>Card</h1>');
+		expect(markdownHtml).not.toContain('class="server-vite-preview-frame"');
+		expect(rootRouteHtml).toContain('class="server-vite-preview-frame"');
+		expect(rootRouteHtml).toContain('src="http://127.0.0.1:5174/"');
+		expect(slashRootRouteHtml).toContain('src="http://127.0.0.1:5174/"');
 		expect(routeHtml).toContain('class="server-vite-preview-frame"');
 		expect(routeHtml).toContain('src="http://127.0.0.1:5174/notes"');
 		expect(routeHtml).not.toContain('/notes/src/routes/notes/');
+	}, svelteNotePreviewTimeoutMs);
+
+	it('renders Svelte notes in the open-folder preview document', async () => {
+		await seedOpenFolder({
+			'Notes/Dashboard.svelte': [
+				'<script>const title = "Local Svelte Dashboard";</script>',
+				'<style>h1 { color: oklch(0.42 0.18 245); }</style>',
+				'<h1>{title}</h1>'
+			].join('\n')
+		});
+
+		const html = await renderOpenFolderPreviewDocument({ path: 'Notes/Dashboard.svelte' });
+
+		expect(html).toContain('Local Svelte Dashboard');
+		expect(html).toContain('oklch(0.42 0.18 245)');
+		expect(html).toContain('datahoarder-svelte-note');
+		expect(html).not.toContain('<iframe class="server-vite-preview-frame"');
+		expect(html).not.toContain('Preview Server Required');
+	}, svelteNotePreviewTimeoutMs);
+
+	it('renders mdsvex notes in the open-folder preview document', async () => {
+		await seedOpenFolder({
+			'Notes/Counter.svx': [
+				'<script lang="ts">',
+				'let x = $state(1);',
+				'</script>',
+				'',
+				'hello {x}'
+			].join('\n')
+		});
+
+		const html = await renderOpenFolderPreviewDocument({ path: 'Notes/Counter.svx' });
+
+		expect(html).toContain('<p>hello 1</p>');
+		expect(html).not.toContain('&lt;script');
+		expect(html).not.toContain('{x}');
+		expect(html).not.toContain('<iframe class="server-vite-preview-frame"');
+	}, svelteNotePreviewTimeoutMs);
+
+	it('starts a target preview origin before requiring route-preview env', async () => {
+		await seedOpenFolder({
+			'deno.json': '{"tasks":{"dev":"deno run -A target.ts"}}',
+			'src/routes/+page.svelte': '<h1>Target app root</h1>'
+		}, { targetDevDisabled: false });
+		let resolvedRoot = '';
+		restoreTargetPreviewOriginResolver = setOpenFolderTargetPreviewOriginResolverForTest(async (root) => {
+			resolvedRoot = root;
+			return 'http://127.0.0.1:5175';
+		});
+
+		const routeHtml = await renderOpenFolderPreviewDocument({ path: 'src/routes/+page.svelte' });
+
+		expect(resolvedRoot).toBe(root);
+		expect(routeHtml).toContain('class="server-vite-preview-frame"');
+		expect(routeHtml).toContain('src="http://127.0.0.1:5175/"');
+		expect(routeHtml).not.toContain('Preview Server Required');
 	});
 
-	it('embeds same-origin SvelteKit route previews without an opened process folder', async () => {
-		deleteEnv(envName);
-		deleteEnv(previewOriginEnvName);
+	it('replaces a stale launched target origin before embedding route files', async () => {
+		await seedOpenFolder({
+			'deno.json': '{"tasks":{"dev":"deno run -A target.ts"}}',
+			'src/routes/+page.svelte': '<h1>Target app root</h1>'
+		}, { targetDevDisabled: false });
+		setEnv(targetDevOriginEnvName, 'http://127.0.0.1:9');
+		let resolvedRoot = '';
+		restoreTargetPreviewOriginResolver = setOpenFolderTargetPreviewOriginResolverForTest(async (root) => {
+			resolvedRoot = root;
+			return 'http://127.0.0.1:5176';
+		});
+
+		const routeHtml = await renderOpenFolderPreviewDocument({ path: 'src/routes/+page.svelte' });
+
+		expect(resolvedRoot).toBe(root);
+		expect(routeHtml).toContain('class="server-vite-preview-frame"');
+		expect(routeHtml).toContain('src="http://127.0.0.1:5176/"');
+		expect(routeHtml).not.toContain('src="http://127.0.0.1:9/"');
+	});
+
+	it('does not embed Datahoarder itself when route previews have no configured origin', async () => {
+		await seedOpenFolder({
+			'src/routes/+page.svelte': '<h1>Target app root</h1>'
+		});
 		deleteEnv(previewRouteBaseEnvName);
 
 		const routeHtml = await renderOpenFolderPreviewDocument({ path: 'src/routes/+page.svelte' });
 
-		expect(routeHtml).toContain('class="server-vite-preview-frame"');
-		expect(routeHtml).toContain('src="/"');
+		expect(routeHtml).toContain('Preview Server Required');
+		expect(routeHtml).toContain('could not start or find');
+		expect(routeHtml).not.toContain('class="server-vite-preview-frame"');
+		expect(routeHtml).not.toContain('src="/"');
 	});
 
 	it('rejects paths outside the open folder', async () => {
@@ -107,7 +208,10 @@ describe('open folder server vault', () => {
 	});
 });
 
-async function seedOpenFolder(files: Record<string, string>) {
+async function seedOpenFolder(
+	files: Record<string, string>,
+	options: { targetDevDisabled?: boolean } = {}
+) {
 	await rm(root, { force: true, recursive: true });
 
 	for (const [path, content] of Object.entries(files)) {
@@ -118,6 +222,12 @@ async function seedOpenFolder(files: Record<string, string>) {
 	}
 
 	setEnv(envName, root);
+
+	if (options.targetDevDisabled ?? true) {
+		setEnv(targetDevDisabledEnvName, 'true');
+	} else {
+		deleteEnv(targetDevDisabledEnvName);
+	}
 }
 
 function getEnv(name: string) {

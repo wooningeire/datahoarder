@@ -7,28 +7,29 @@ import type {
 	CollectionTimelineItem,
 	ResolvedCollection
 } from '../../collections/index.js';
-import {
-	parseWhiteboardNoteState,
-	renderExcalidrawNotePreview,
-	updateWhiteboardNoteState,
-	type WhiteboardDrawingNoteItem
-} from '../../drawings/preview.js';
-import { isDatahoarderBoardFile } from '../../boards/local-board.js';
 import type { LocalVaultFile } from '../../vault/local-files.js';
 import { getNoteTitle } from '../../vault/paths.js';
-import { isExcalidrawNote, isWhiteboardNote } from '../../note-model/raw.js';
 import type { VaultBacklink, VaultIndex, VaultRecord } from '../../vault/index.js';
 import Backlinks from './Backlinks.svelte';
 import BasePreview from './BasePreview.svelte';
 import CollectionPreview from './CollectionPreview.svelte';
-import InfiniteWhiteboard from '../../whiteboard/InfiniteWhiteboard.svelte';
 import MarkdownPreview from './MarkdownPreview.svelte';
 import PreviewEmpty from './PreviewEmpty.svelte';
 import { hasMath as containsMath, loadMathJax as loadMathJaxApi } from './mathjax.js';
-import { renderLocalBoard, renderLocalMarkdown } from './rendering.js';
-import { getServerPreviewRoute, shouldFrameServerPreview } from './server-preview.js';
+import { renderPreviewPaneHtml } from './rendering.js';
+import {
+	getMissingTargetPreviewMessage,
+	getSelectedServerPreviewRoute,
+	getTargetPreviewNotice,
+	getTargetPreviewErrorMessage,
+	getTargetPreviewRoute,
+	isSvelteKitRoutePreviewFile,
+} from './server-preview.js';
+import {
+	ensureTauriVaultPreviewOrigin,
+	isTauriVaultFile
+} from '../../vault/local-files.js';
 import type { CollectionCellEdit } from '../shared/types.js';
-import type { WhiteboardItem, WhiteboardViewport } from '../../whiteboard/whiteboard.js';
 
 type Props = {
 	baseViews: BaseView[];
@@ -110,118 +111,136 @@ let {
 	saveCollectionCellEdit,
 	selectCollectionView,
 	setPreviewHtml,
-	setSelectedContent,
 	setCollectionFilter,
 	sortCollectionBy,
 	updateCollectionCellEditValue
 }: Props = $props();
 let markdownPreviewHost: HTMLElement | undefined = $state();
-let previewRenderContent = $state('');
-let previewRenderPath = $state('');
-let whiteboardItems = $state<WhiteboardItem[]>([]);
-let whiteboardSourceContent = $state('');
-let whiteboardSourcePath = $state('');
-let whiteboardViewport = $state<WhiteboardViewport>({ x: 0, y: 0, scale: 1 });
 let mathTypesetToken = 0;
-let previewRenderToken = 0;
+let previewFrameReloadToken = $state(0);
+let previewFrameReloadPath = $state('');
+let ensuredTauriPreviewOrigin = $state('');
+let ensuredTauriPreviewPath = $state('');
+let targetPreviewError = $state('');
+let markupPreviewHtml = $state('');
+let markupPreviewError = $state('');
+let markupPreviewRequestToken = 0;
 
-let previewRenderFile = $derived(
-	files.find((file) => file.path === previewRenderPath && file.path === selectedFile?.path) ?? null
-);
-let serverPreviewRoute = $derived.by(() =>
-	shouldFrameServerPreview(previewRenderFile, previewRenderContent)
-		? getServerPreviewRoute(previewRenderFile)
-		: ''
-);
-let previewHtml = $derived.by(() => {
-	if (!previewRenderFile) {
+let targetPreviewRoute = $derived.by(() => getTargetPreviewRoute(selectedFile, ensuredTauriPreviewOrigin));
+let targetPreviewNotice = $derived.by(() => getTargetPreviewNotice(selectedFile, targetPreviewRoute, targetPreviewError));
+let serverPreviewRoute = $derived.by(() => {
+	if (targetPreviewRoute) {
 		return '';
 	}
 
-	if (previewRenderFile.extension === '.svelte') {
-		return '';
-	}
-
-	if (isDatahoarderBoardFile(previewRenderFile.path)) {
-		return renderLocalBoard(previewRenderContent, previewRenderFile.path, { files, vaultIndex });
-	}
-
-	if (previewRenderFile.extension === '.md' && isExcalidrawNote(previewRenderContent)) {
-		return renderExcalidrawNotePreview(previewRenderContent);
-	}
-
-	if (previewRenderFile.extension === '.svx' && isWhiteboardNote(previewRenderContent)) {
-		return '';
-	}
-
-	if (previewRenderFile.extension === '.md' || previewRenderFile.extension === '.svx') {
-		return renderLocalMarkdown(previewRenderContent, previewRenderFile, { files, vaultIndex }, {
-			interactiveTaskLists: true
-		});
-	}
-
-	return '';
+	return getSelectedServerPreviewRoute(selectedFile, selectedContent, {
+		reloadToken: previewFrameReloadToken
+	});
 });
-let whiteboardState = $derived.by(() => {
-	if (previewRenderFile?.extension !== '.svx' || !isWhiteboardNote(previewRenderContent)) {
-		return null;
+let previewFrameRoute = $derived(targetPreviewRoute || serverPreviewRoute);
+let shouldRenderMarkupPreview = $derived(!previewFrameRoute && isMarkupPreviewFile(selectedFile));
+let previewHtml = $derived.by(() => {
+	if (previewFrameRoute) {
+		return '';
 	}
 
-	return parseWhiteboardNoteState(previewRenderContent);
+	if (shouldRenderMarkupPreview) {
+		return markupPreviewHtml;
+	}
+
+	return renderPreviewPaneHtml(selectedContent, selectedFile, { files, vaultIndex });
+});
+$effect(() => {
+	const file = selectedFile;
+	const path = file?.path ?? '';
+
+	if (ensuredTauriPreviewPath !== path) {
+		ensuredTauriPreviewPath = path;
+		ensuredTauriPreviewOrigin = '';
+		targetPreviewError = '';
+	}
+
+	if (file && isTauriVaultFile(file) && isSvelteKitRoutePreviewFile(file.path) && !file.handle.previewOrigin) {
+		const previewPath = file.path;
+
+		targetPreviewError = '';
+
+		void ensureTauriVaultPreviewOrigin(file)
+			.then((previewOrigin) => {
+				if (selectedFile?.path !== previewPath) {
+					return;
+				}
+
+				if (previewOrigin) {
+					ensuredTauriPreviewOrigin = previewOrigin;
+					return;
+				}
+
+				targetPreviewError = getMissingTargetPreviewMessage(previewPath);
+			})
+			.catch((error) => {
+				if (selectedFile?.path === previewPath) {
+					ensuredTauriPreviewOrigin = '';
+					targetPreviewError = getTargetPreviewErrorMessage(error);
+				}
+			});
+	} else if (file && isTauriVaultFile(file) && isSvelteKitRoutePreviewFile(file.path)) {
+		targetPreviewError = '';
+	}
+
+	if (previewFrameReloadPath !== path) {
+		previewFrameReloadPath = path;
+		previewFrameReloadToken += 1;
+	}
 });
 
 $effect(() => {
 	const file = selectedFile;
 	const content = selectedContent;
-	const path = file?.path ?? '';
+	const shouldRender = shouldRenderMarkupPreview;
+	const token = markupPreviewRequestToken + 1;
 
-	if (shouldPatchActiveWhiteboardPreview(file, content, path)) {
-		previewRenderContent = content;
+	markupPreviewRequestToken = token;
+	markupPreviewHtml = '';
+	markupPreviewError = '';
+
+	if (!file || !shouldRender) {
 		return;
 	}
 
-	const token = previewRenderToken + 1;
+	const controller = new AbortController();
 
-	previewRenderToken = token;
-	previewRenderPath = '';
-	previewRenderContent = '';
+	void fetch('/api/vault/preview', {
+		body: JSON.stringify({
+			content,
+			path: file.path
+		}),
+		headers: {
+			'content-type': 'application/json'
+		},
+		method: 'POST',
+		signal: controller.signal
+	})
+		.then(async (response) => {
+			const text = await response.text();
 
-	if (!file) {
-		return;
-	}
+			if (!response.ok) {
+				throw new Error(text || `Preview request failed with ${response.status}.`);
+			}
 
-	const timeout = window.setTimeout(() => {
-		if (previewRenderToken !== token || selectedFile?.path !== path) {
-			return;
-		}
+			if (markupPreviewRequestToken === token) {
+				markupPreviewHtml = text;
+			}
+		})
+		.catch((error) => {
+			if (controller.signal.aborted || markupPreviewRequestToken !== token) {
+				return;
+			}
 
-		previewRenderPath = path;
-		previewRenderContent = content;
-	}, 0);
+			markupPreviewError = getMarkupPreviewErrorMessage(error);
+		});
 
-	return () => window.clearTimeout(timeout);
-});
-
-$effect(() => {
-	const state = whiteboardState;
-	const path = previewRenderFile?.path ?? '';
-
-	if (!state || !path) {
-		return;
-	}
-
-	if (selectedFile?.path === path && selectedContent !== previewRenderContent && whiteboardSourcePath === path) {
-		return;
-	}
-
-	if (whiteboardSourcePath === path && whiteboardSourceContent === previewRenderContent) {
-		return;
-	}
-
-	whiteboardSourcePath = path;
-	whiteboardSourceContent = previewRenderContent;
-	whiteboardItems = state.items;
-	whiteboardViewport = state.viewport;
+	return () => controller.abort();
 });
 
 $effect(() => {
@@ -265,42 +284,24 @@ function queuePreviewMathTypeset() {
 	});
 }
 
-function handleWhiteboardItemsChange(nextItems: WhiteboardItem[]) {
-	if (!selectedFile || selectedFile.path !== whiteboardSourcePath) {
-		return;
-	}
-
-	const currentState = parseWhiteboardNoteState(selectedContent);
-
-	if (!currentState) {
-		return;
-	}
-
-	const nextContent = updateWhiteboardNoteState(selectedContent, {
-		items: toPersistableWhiteboardItems(nextItems),
-		viewport: whiteboardViewport
-	});
-
-	if (nextContent === selectedContent) {
-		return;
-	}
-
-	whiteboardSourceContent = nextContent;
-	setSelectedContent(nextContent);
-}
-
-function toPersistableWhiteboardItems(items: WhiteboardItem[]): WhiteboardDrawingNoteItem[] {
-	return items.filter((item): item is WhiteboardDrawingNoteItem => item.kind !== 'component');
-}
-
-function shouldPatchActiveWhiteboardPreview(file: LocalVaultFile | null, content: string, path: string) {
+function isMarkupPreviewFile(file: LocalVaultFile | null) {
 	return Boolean(
 		file &&
-		path &&
-		previewRenderPath === path &&
-		file.extension === '.svx' &&
-		isWhiteboardNote(content)
+		(file.extension === '.md' || file.extension === '.svx' || file.extension === '.svelte') &&
+		!isSvelteKitRoutePreviewFile(file.path)
 	);
+}
+
+function getMarkupPreviewErrorMessage(error: unknown) {
+	if (error instanceof Error && error.message.trim()) {
+		return error.message;
+	}
+
+	if (typeof error === 'string' && error.trim()) {
+		return error;
+	}
+
+	return 'Datahoarder could not render this note.';
 }
 
 </script>
@@ -341,22 +342,18 @@ function shouldPatchActiveWhiteboardPreview(file: LocalVaultFile | null, content
 	/>
 	{:else if selectedFile?.extension === '.base'}
 		<BasePreview content={selectedContent} title={getNoteTitle(selectedFile.path)} views={baseViews} />
-	{:else if whiteboardState && selectedFile}
-		<article class="whiteboard-note-preview" aria-label="Whiteboard Preview">
-			<InfiniteWhiteboard
-				bind:items={whiteboardItems}
-				bind:viewport={whiteboardViewport}
-				ariaLabel={`${getNoteTitle(selectedFile.path)} whiteboard`}
-				onchange={handleWhiteboardItemsChange}
-			/>
-		</article>
-	{:else if serverPreviewRoute && selectedFile}
+	{:else if previewFrameRoute && selectedFile}
 		<iframe
 			class="server-preview-frame"
-			src={serverPreviewRoute}
+			src={previewFrameRoute}
 			title={`${getNoteTitle(selectedFile.path)} server preview`}
 		></iframe>
 		<Backlinks backlinks={selectedBacklinks} {openBacklink} />
+	{:else if targetPreviewNotice}
+		<PreviewEmpty
+			title={targetPreviewNotice.title}
+			description={targetPreviewNotice.description}
+		/>
 	{:else if previewHtml}
 		<MarkdownPreview
 			html={previewHtml}
@@ -364,10 +361,20 @@ function shouldPatchActiveWhiteboardPreview(file: LocalVaultFile | null, content
 			{previewLinkNavigation}
 		/>
 		<Backlinks backlinks={selectedBacklinks} {openBacklink} />
+	{:else if markupPreviewError}
+		<PreviewEmpty
+			title="Preview Failed"
+			description={markupPreviewError}
+		/>
+	{:else if shouldRenderMarkupPreview}
+		<PreviewEmpty
+			title="Preview"
+			description="Rendering note."
+		/>
 	{:else if selectedFile}
 		<PreviewEmpty
 			title="Source Only"
-			description="Hosted preview renders portable markdown, base files, and Datahoarder board files. Custom Svelte execution stays in the notes project."
+			description="Preview renders Markdown, SVX, Svelte, base files, and Datahoarder board files."
 		/>
 	{:else}
 		<PreviewEmpty title="Preview" description="Markdown and base previews appear here." />
@@ -386,14 +393,6 @@ function shouldPatchActiveWhiteboardPreview(file: LocalVaultFile | null, content
 
 	background: oklch(0.99 0.01 95);
 	border-right: none;
-}
-
-.whiteboard-note-preview {
-	min-height: min(72vh, 44rem);
-	overflow: hidden;
-
-	border: 1px solid oklch(0.78 0.04 100);
-	border-radius: 0.35rem;
 }
 
 .server-preview-frame {

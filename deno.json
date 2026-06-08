@@ -9,6 +9,7 @@
 		"clsx": "npm:clsx@2.1.1",
 		"cookie": "npm:cookie@0.6.0",
 		"devalue": "npm:devalue@5.8.1",
+		"mdsvex": "npm:mdsvex@0.12.7",
 		"monaco-editor": "npm:monaco-editor@0.55.1",
 		"set-cookie-parser": "npm:set-cookie-parser@3.1.0",
 		"svelte": "npm:svelte@5.56.1",
@@ -19,8 +20,8 @@
 	},
 	"tasks": {
 		"dev": "deno run -A npm:vite dev",
-		"dev:folder": "node scripts/open-folder-dev.mjs",
-		"dev:folder:deno": "node scripts/open-folder-dev.mjs --runtime deno",
+		"dev:folder": "deno run -A scripts/open-folder-dev.ts",
+		"dev:folder:deno": "deno task dev:folder",
 		"sync": "deno run -A npm:@sveltejs/kit sync",
 		"build:app": "deno run -A npm:vite build",
 		"preview": "deno run -A npm:vite preview",

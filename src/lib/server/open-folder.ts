@@ -1,10 +1,9 @@
+import { spawn } from 'node:child_process';
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { connect, createServer } from 'node:net';
 import { basename, dirname, resolve, sep } from 'node:path';
+import process from 'node:process';
 import { renderDatahoarderBoard } from '../boards/local-board.js';
-import { renderExcalidrawNotePreview, renderWhiteboardNotePreview } from '../drawings/preview.js';
-import { renderPortableMarkdown } from '../markdown/render.js';
-import { isExcalidrawNote, isWhiteboardNote } from '../note-model/raw.js';
-import { buildLocalVaultIndex } from '../vault/index.js';
 import {
 	getLocalRoutePath,
 	isEditableTextFile,
@@ -12,12 +11,18 @@ import {
 	type LocalFileHandle,
 	type LocalVaultFile
 } from '../vault/local-files.js';
-import { stripCompiledNoteExtension } from '../vault/paths.js';
+import { getSvelteKitRoutePath } from '../shared/sveltekit-routes.js';
+import {
+	isSvelteMarkupNotePreviewFile,
+	renderSvelteNotePreview
+} from './svelte-note.js';
 
 type EnvGlobal = typeof globalThis & {
 	Deno?: {
+		execPath?: () => string;
 		env?: {
 			get: (name: string) => string | undefined;
+			toObject?: () => Record<string, string>;
 		};
 	};
 	process?: {
@@ -47,15 +52,50 @@ export type OpenFolderPreviewRequest = {
 	path: string;
 };
 
+type TargetPreviewServer = {
+	child: ReturnType<typeof spawn>;
+	origin: string;
+	projectRoot: string;
+	root: string;
+};
+
+type TargetPreviewOriginResolver = (root: string) => Promise<string>;
+
+const defaultTargetDevHost = '127.0.0.1';
+const defaultTargetDevPort = 5174;
+const defaultTargetDevPortSearchLimit = 25;
+const defaultTargetDevTask = 'dev';
+const defaultTargetDevWaitTimeoutMs = 60_000;
+const previewOriginHealthTimeoutMs = 500;
 const ignoredDirectories = new Set(['.git', '.svelte-kit', 'build', 'dist', 'node_modules']);
+let targetPreviewServer: TargetPreviewServer | null = null;
+let targetPreviewServerPromise: Promise<TargetPreviewServer | null> | null = null;
+let targetPreviewOriginResolver: TargetPreviewOriginResolver = startOpenFolderTargetPreviewServer;
+let targetPreviewCleanupRegistered = false;
+
+export function setOpenFolderTargetPreviewOriginResolverForTest(
+	resolver: TargetPreviewOriginResolver
+) {
+	const previousResolver = targetPreviewOriginResolver;
+
+	targetPreviewOriginResolver = resolver;
+
+	return () => {
+		targetPreviewOriginResolver = previousResolver;
+	};
+}
 
 export async function getOpenFolderMetadata(): Promise<OpenFolderMetadata> {
 	const root = await getOpenFolderRoot();
+	const previewOrigin = await getWorkspacePreviewOrigin({
+		startIfMissing: false,
+		verify: true
+	});
 
 	return {
 		enabled: Boolean(root),
 		name: root ? basename(root) : '',
-		previewOrigin: getEnv('DATAHOARDER_PREVIEW_ORIGIN') ?? '',
+		previewOrigin,
 		previewRouteBase: normalizeRouteBase(getEnv('DATAHOARDER_PREVIEW_ROUTE_BASE') ?? '/notes'),
 		root: root ?? ''
 	};
@@ -149,30 +189,18 @@ export async function renderOpenFolderPreviewFragment(request: OpenFolderPreview
 	}
 
 	const content = request.content ?? await readOpenFolderTextFile(file.path);
-	const previewHref = getWorkspacePreviewHref(file.path);
+	const previewHref = await getSvelteKitRoutePreviewHref(file.path);
 
 	if (previewHref) {
 		return renderPreviewFrame(file.routePath, previewHref);
 	}
 
-	if (file.extension === '.md' && isExcalidrawNote(content)) {
-		return renderExcalidrawNotePreview(content);
+	if (getSvelteKitRoutePath(file.path) !== null) {
+		return renderPreviewServerRequired(file.routePath);
 	}
 
-	if (file.extension === '.svx' && isWhiteboardNote(content)) {
-		return renderWhiteboardNotePreview(content);
-	}
-
-	if (file.extension === '.md' || file.extension === '.svx') {
-		const vaultIndex = await buildLocalVaultIndex(files);
-
-		return renderPortableMarkdown(content, {
-			currentPath: file.routePath,
-			interactiveTaskLists: request.interactiveTaskLists ?? false,
-			notePaths: getOpenFolderNotePaths(files),
-			resolveEmbedContent: (notePath) => getOpenFolderEmbedContent(notePath, vaultIndex),
-			resolveNoteHref: getOpenFolderNoteHref
-		});
+	if (isSvelteMarkupNotePreviewFile(file.path)) {
+		return renderSvelteNotePreview(content, file);
 	}
 
 	if (isOpenFolderBoardFile(file.path)) {
@@ -185,11 +213,32 @@ export async function renderOpenFolderPreviewFragment(request: OpenFolderPreview
 	return `<pre><code>${escapeHtml(content)}</code></pre>`;
 }
 
+export async function renderPostedNotePreviewFragment(request: OpenFolderPreviewRequest) {
+	const normalizedPath = normalizeLocalTextPath(request.path, '');
+	const content = request.content ?? '';
+	const file = {
+		extension: getPathExtension(normalizedPath),
+		path: normalizedPath,
+		routePath: normalizedPath,
+		size: content.length,
+		updatedAt: content.length
+	};
+
+	if (isSvelteMarkupNotePreviewFile(file.path)) {
+		return renderSvelteNotePreview(content, file);
+	}
+
+	return `<pre><code>${escapeHtml(content)}</code></pre>`;
+}
+
 export async function renderOpenFolderPreviewDocument(request: OpenFolderPreviewRequest) {
 	const title = basename(request.path);
-	const previewHref = getWorkspacePreviewHref(request.path);
-	const body = previewHref
-		? renderPreviewFrame(request.path, previewHref)
+	const routePath = getSvelteKitRoutePath(request.path);
+	const previewHref = await getSvelteKitRoutePreviewHref(request.path);
+	const body = routePath !== null
+		? previewHref
+			? renderPreviewFrame(request.path, previewHref)
+			: renderPreviewServerRequired(request.path)
 		: await renderOpenFolderPreviewFragment(request);
 
 	return [
@@ -330,22 +379,6 @@ function getEnv(name: string) {
 	return host.Deno?.env?.get(name) ?? host.process?.env?.[name];
 }
 
-function getOpenFolderNotePaths(files: LocalVaultFile[]) {
-	return files
-		.filter((file) => file.extension === '.md' || file.extension === '.svx' || file.extension === '.svelte')
-		.map((file) => file.routePath);
-}
-
-function getOpenFolderEmbedContent(notePath: string, vaultIndex: Awaited<ReturnType<typeof buildLocalVaultIndex>>) {
-	const normalizedNotePath = notePath.trim().replace(/\\/gu, '/').replace(/^\/+|\/+$/gu, '');
-
-	return (
-		vaultIndex.recordsByRoutePath.get(normalizedNotePath)?.content ??
-		vaultIndex.recordsByPath.get(normalizedNotePath)?.content ??
-		null
-	);
-}
-
 function getOpenFolderNoteHref(notePath: string, heading: string) {
 	const params = new URLSearchParams({ note: notePath });
 
@@ -356,82 +389,427 @@ function getOpenFolderNoteHref(notePath: string, heading: string) {
 	return `#${params.toString()}`;
 }
 
+function getPathExtension(path: string) {
+	const fileName = path.split('/').at(-1) ?? '';
+	const index = fileName.lastIndexOf('.');
+
+	return index > 0 ? fileName.slice(index).toLowerCase() : '';
+}
+
 function renderPreviewFrame(routePath: string, href: string) {
 	return `<iframe class="server-vite-preview-frame" src="${escapeHtml(href)}" title="${escapeHtml(routePath)} preview"></iframe>`;
 }
 
-function getWorkspacePreviewHref(routePath: string) {
-	const previewOrigin = getEnv('DATAHOARDER_PREVIEW_ORIGIN');
+function renderPreviewServerRequired(routePath: string) {
+	return [
+		'<section class="server-preview-required">',
+		'<h1>Preview Server Required</h1>',
+		`<p>${escapeHtml(routePath)} is a SvelteKit route file, but Datahoarder could not start or find that app's target Deno server.</p>`,
+		'</section>'
+	].join('');
+}
+
+async function getSvelteKitRoutePreviewHref(routePath: string) {
 	const svelteKitRoutePath = getSvelteKitRoutePath(routePath);
 
-	if (svelteKitRoutePath !== null) {
-		if (!previewOrigin) {
-			return svelteKitRoutePath || '/';
+	if (svelteKitRoutePath === null) {
+		return '';
+	}
+
+	const previewOrigin = await getWorkspacePreviewOrigin({
+		startIfMissing: true,
+		verify: true
+	});
+
+	return previewOrigin ? new URL(svelteKitRoutePath || '/', previewOrigin).href : '';
+}
+
+async function getWorkspacePreviewOrigin(options: { startIfMissing: boolean; verify: boolean }) {
+	if (targetPreviewServer) {
+		if (!options.verify || await isPreviewOriginResponsive(targetPreviewServer.origin)) {
+			return targetPreviewServer.origin;
 		}
 
-		return new URL(svelteKitRoutePath || '/', previewOrigin).href;
+		stopTargetPreviewServer();
 	}
 
-	if (!previewOrigin) {
+	const launchedOrigin = getEnv('DATAHOARDER_TARGET_DEV_ORIGIN') ?? '';
+
+	if (launchedOrigin && (!options.verify || await isPreviewOriginResponsive(launchedOrigin))) {
+		return launchedOrigin;
+	}
+
+	if (!options.startIfMissing) {
 		return '';
 	}
 
-	const routeBase = normalizeRouteBase(getEnv('DATAHOARDER_PREVIEW_ROUTE_BASE') ?? '/notes');
-	const previewPath = joinPreviewRouteBase(routeBase, stripCompiledNoteExtension(routePath));
-	const url = new URL(previewPath || '/', previewOrigin);
+	const root = await getOpenFolderRoot();
 
-	return url.href;
+	if (!root) {
+		return '';
+	}
+
+	return targetPreviewOriginResolver(root);
 }
 
-function getSvelteKitRoutePath(path: string) {
-	const normalizedPath = path.replace(/\\/gu, '/');
-	const routePrefix = 'src/routes/';
-	const routePrefixIndex = normalizedPath.indexOf(routePrefix);
+async function startOpenFolderTargetPreviewServer(root: string) {
+	if (isTargetDevServerDisabled()) {
+		return '';
+	}
 
-	if (routePrefixIndex < 0) {
+	if (targetPreviewServer?.root === root) {
+		if (await isPreviewOriginResponsive(targetPreviewServer.origin)) {
+			return targetPreviewServer.origin;
+		}
+
+		stopTargetPreviewServer();
+	}
+
+	if (targetPreviewServerPromise) {
+		return (await targetPreviewServerPromise)?.origin ?? '';
+	}
+
+	targetPreviewServerPromise = startTargetPreviewServer(root);
+
+	try {
+		return (await targetPreviewServerPromise)?.origin ?? '';
+	} finally {
+		targetPreviewServerPromise = null;
+	}
+}
+
+async function startTargetPreviewServer(root: string) {
+	stopTargetPreviewServer();
+
+	const projectRoot = await resolveTargetProjectRoot(root);
+
+	if (!projectRoot) {
 		return null;
 	}
 
-	const relativeRouteFilePath = normalizedPath.slice(routePrefixIndex + routePrefix.length);
-	const segments = relativeRouteFilePath.split('/').filter(Boolean);
-	const fileName = segments.pop() ?? '';
+	const host = normalizeHost(getEnv('DATAHOARDER_TARGET_DEV_HOST') ?? defaultTargetDevHost);
+	const preferredPort = normalizePort(
+		getEnv('DATAHOARDER_TARGET_DEV_PORT') ?? String(defaultTargetDevPort),
+		'preferred target dev port'
+	);
+	const searchLimit = normalizeSearchLimit(
+		getEnv('DATAHOARDER_TARGET_DEV_PORT_SEARCH_LIMIT') ?? String(defaultTargetDevPortSearchLimit)
+	);
+	const task = normalizeTaskName(getEnv('DATAHOARDER_TARGET_DEV_TASK') ?? defaultTargetDevTask);
+	const port = await findAvailablePort(host, preferredPort, searchLimit);
+	const origin = getDevUrl(host, port);
+	const child = spawn(getDenoExecutable(), [
+		'task',
+		task,
+		'--host',
+		host,
+		'--port',
+		String(port),
+		'--strictPort'
+	], {
+		cwd: projectRoot,
+		env: {
+			...getCommandEnv(),
+			DATAHOARDER_TARGET_DEV_ORIGIN: origin,
+			DATAHOARDER_TARGET_DEV_ROOT: projectRoot,
+			HOST: host,
+			PORT: String(port),
+			VITE_HOST: host,
+			VITE_PORT: String(port)
+		},
+		stdio: 'inherit'
+	});
 
-	if (!/^\+(?:page|layout)(?:@[^.]+)?(?:\.server)?\.(?:svelte|ts|js)$/u.test(fileName)) {
-		return null;
+	try {
+		await waitForHttpResponse(origin, child);
+	} catch (error) {
+		stopChild(child);
+		throw error;
 	}
 
-	const routeSegments = segments
-		.map(getSvelteKitPreviewRouteSegment)
-		.filter((segment) => segment !== '');
+	targetPreviewServer = {
+		child,
+		origin,
+		projectRoot,
+		root
+	};
+	registerTargetPreviewCleanup();
 
-	return `/${routeSegments.map(encodeURIComponent).join('/')}`;
+	return targetPreviewServer;
 }
 
-function getSvelteKitPreviewRouteSegment(segment: string) {
-	if (/^\(.+\)$/u.test(segment) || segment.startsWith('@')) {
-		return '';
+async function isPreviewOriginResponsive(origin: string) {
+	try {
+		await connectPreviewOrigin(origin);
+		return true;
+	} catch {
+		return false;
 	}
-
-	if (/^\[\[?\.{3}.+\]?\]$/u.test(segment) || /^\[.+\]$/u.test(segment)) {
-		return '';
-	}
-
-	return segment;
 }
 
-function joinPreviewRouteBase(routeBase: string, path: string) {
-	const encodedPath = path
-		.replace(/^\/+|\/+$/gu, '')
-		.split('/')
-		.filter(Boolean)
-		.map(encodeURIComponent)
-		.join('/');
+function connectPreviewOrigin(origin: string) {
+	const url = new URL(origin);
+	const host = url.hostname;
+	const port = normalizeOriginPort(url);
 
-	if (!encodedPath) {
-		return routeBase || '/';
+	return new Promise<void>((resolveConnection, rejectConnection) => {
+		const socket = connect({ host, port });
+		const timeout = setTimeout(() => {
+			socket.destroy();
+			rejectConnection(new Error(`Timed out connecting to ${origin}.`));
+		}, previewOriginHealthTimeoutMs);
+
+		socket.once('connect', () => {
+			clearTimeout(timeout);
+			socket.end();
+			resolveConnection();
+		});
+		socket.once('error', (error) => {
+			clearTimeout(timeout);
+			rejectConnection(error);
+		});
+	});
+}
+
+function normalizeOriginPort(url: URL) {
+	if (url.port) {
+		return normalizePort(url.port, 'preview origin port');
 	}
 
-	return `${routeBase}/${encodedPath}`.replace(/\/{2,}/gu, '/');
+	return url.protocol === 'https:' ? 443 : 80;
+}
+
+async function resolveTargetProjectRoot(root: string) {
+	const configuredRoot = getEnv('DATAHOARDER_TARGET_DEV_ROOT')?.trim();
+
+	if (configuredRoot) {
+		const projectRoot = resolve(configuredRoot);
+		const metadata = await stat(projectRoot);
+
+		if (!metadata.isDirectory()) {
+			throw new Error(`Target Deno project root is not a directory: ${projectRoot}`);
+		}
+
+		if (await hasDenoConfig(projectRoot)) {
+			return projectRoot;
+		}
+
+		throw new Error(`Target Deno project root must contain deno.json or deno.jsonc: ${projectRoot}`);
+	}
+
+	let current = root;
+
+	while (true) {
+		if (await hasDenoConfig(current)) {
+			return current;
+		}
+
+		const parent = dirname(current);
+
+		if (parent === current) {
+			return null;
+		}
+
+		current = parent;
+	}
+}
+
+async function hasDenoConfig(root: string) {
+	for (const name of ['deno.json', 'deno.jsonc']) {
+		try {
+			const metadata = await stat(resolve(root, name));
+
+			if (metadata.isFile()) {
+				return true;
+			}
+		} catch {
+			// Try the alternate Deno config file name.
+		}
+	}
+
+	return false;
+}
+
+async function findAvailablePort(host: string, preferredPort: number, searchLimit: number) {
+	const maxPort = Math.min(65535, preferredPort + searchLimit);
+
+	for (let port = preferredPort; port <= maxPort; port += 1) {
+		if (await canBindPort(host, port)) {
+			return port;
+		}
+	}
+
+	throw new Error(`Could not find an available target dev port from ${preferredPort} through ${maxPort}.`);
+}
+
+function canBindPort(host: string, port: number) {
+	return new Promise<boolean>((resolvePort) => {
+		const server = createServer();
+
+		server.once('error', () => resolvePort(false));
+		server.listen(port, host, () => {
+			server.close(() => resolvePort(true));
+		});
+	});
+}
+
+async function waitForHttpResponse(
+	origin: string,
+	child: ReturnType<typeof spawn>
+) {
+	const deadline = Date.now() + normalizeWaitTimeoutMs();
+	const childExit: { value: { code: number | null; signal: NodeJS.Signals | null } | null } = {
+		value: null
+	};
+	let lastError = '';
+
+	child.once('exit', (code, signal) => {
+		childExit.value = { code, signal };
+	});
+
+	while (Date.now() < deadline) {
+		if (childExit.value) {
+			throw new Error(
+				`Target Deno server exited before responding at ${origin}: code ${childExit.value.code}, signal ${childExit.value.signal}.`
+			);
+		}
+
+		try {
+			await connectPreviewOrigin(origin);
+			return;
+		} catch (error) {
+			lastError = error instanceof Error ? error.message : String(error);
+		}
+
+		await delay(200);
+	}
+
+	throw new Error(`Timed out waiting for target Deno server at ${origin}: ${lastError}`);
+}
+
+function stopTargetPreviewServer() {
+	if (!targetPreviewServer) {
+		return;
+	}
+
+	const server = targetPreviewServer;
+
+	targetPreviewServer = null;
+
+	stopChild(server.child);
+}
+
+function stopChild(child: ReturnType<typeof spawn>) {
+	if (child.exitCode !== null || child.killed) {
+		return;
+	}
+
+	child.kill();
+}
+
+function registerTargetPreviewCleanup() {
+	if (targetPreviewCleanupRegistered) {
+		return;
+	}
+
+	targetPreviewCleanupRegistered = true;
+	process.once('exit', stopTargetPreviewServer);
+	process.once('SIGINT', () => {
+		stopTargetPreviewServer();
+		process.exit(130);
+	});
+	process.once('SIGTERM', () => {
+		stopTargetPreviewServer();
+		process.exit(143);
+	});
+}
+
+function getCommandEnv() {
+	const host = globalThis as EnvGlobal;
+
+	return host.Deno?.env?.toObject?.() ?? process.env;
+}
+
+function getDenoExecutable() {
+	const host = globalThis as EnvGlobal;
+
+	return getEnv('DENO') ?? host.Deno?.execPath?.() ?? 'deno';
+}
+
+function isTargetDevServerDisabled() {
+	const value = (getEnv('DATAHOARDER_TARGET_DEV_DISABLED') ?? '').trim().toLowerCase();
+
+	return value === '1' || value === 'true';
+}
+
+function getDevUrl(host: string, port: number) {
+	const normalizedHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+
+	return `http://${normalizedHost}:${port}`;
+}
+
+function normalizeHost(value: string) {
+	const host = value.trim();
+
+	if (!host) {
+		throw new Error('A target dev host is required.');
+	}
+
+	if (!/^[\w.:-]+$/u.test(host)) {
+		throw new Error(`Invalid target dev host: ${host}`);
+	}
+
+	return host;
+}
+
+function normalizePort(value: string, label: string) {
+	const port = Number(value);
+
+	if (!Number.isInteger(port) || port < 1 || port > 65535) {
+		throw new Error(`Invalid ${label}: ${value}`);
+	}
+
+	return port;
+}
+
+function normalizeSearchLimit(value: string) {
+	const limit = Number(value);
+
+	if (!Number.isInteger(limit) || limit < 0 || limit > 200) {
+		throw new Error(`Invalid target dev port search limit: ${value}`);
+	}
+
+	return limit;
+}
+
+function normalizeTaskName(value: string) {
+	const task = value.trim();
+
+	if (!task || /[\s"'`]/u.test(task)) {
+		throw new Error(`Invalid target Deno task name: ${value}`);
+	}
+
+	return task;
+}
+
+function normalizeWaitTimeoutMs() {
+	const value = getEnv('DATAHOARDER_TARGET_DEV_WAIT_TIMEOUT_MS');
+
+	if (!value) {
+		return defaultTargetDevWaitTimeoutMs;
+	}
+
+	const timeoutMs = Number(value);
+
+	if (!Number.isInteger(timeoutMs) || timeoutMs < 1) {
+		throw new Error(`Invalid target dev wait timeout: ${value}`);
+	}
+
+	return timeoutMs;
+}
+
+function delay(ms: number) {
+	return new Promise<void>((resolveDelay) => setTimeout(resolveDelay, ms));
 }
 
 function normalizeRouteBase(routeBase: string) {

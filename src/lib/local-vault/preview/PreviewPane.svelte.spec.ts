@@ -1,95 +1,103 @@
-import { tick } from 'svelte';
 import type { ComponentProps } from 'svelte';
 import { page } from 'vitest/browser';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import { updateWhiteboardNoteState } from '../../drawings/preview.js';
 import { createEmptyVaultIndex } from '../../vault/index.js';
 import type { LocalVaultFile } from '../../vault/local-files.js';
 import PreviewPane from './PreviewPane.svelte';
 
 type PreviewPaneProps = ComponentProps<typeof PreviewPane>;
 
-const whiteboardPath = 'Line.svx';
-const whiteboardContent = [
-	'---',
-	'tags: [drawing, whiteboard]',
-	'---',
-	'<script lang="ts">',
-	"import { InfiniteWhiteboard, type WhiteboardItem, type WhiteboardViewport } from '@vaie/datahoarder';",
-	'',
-	'let items = $state<WhiteboardItem[]>([',
-	'  {',
-	'    "kind": "drawing",',
-	'    "id": "line-stroke",',
-	'    "x": 140,',
-	'    "y": 140,',
-	'    "width": 220,',
-	'    "height": 120,',
-	'    "points": [',
-	'      { "x": 12, "y": 92 },',
-	'      { "x": 70, "y": 18 },',
-	'      { "x": 132, "y": 60 },',
-	'      { "x": 208, "y": 26 }',
-	'    ],',
-	'    "stroke": "oklch(0.45 0.16 248)",',
-	'    "strokeWidth": 5',
-	'  }',
-	']);',
-	'let viewport = $state<WhiteboardViewport>({ "x": 120, "y": 96, "scale": 1 });',
-	'</script>',
-	'',
-	'# Line Handle Smoke',
-	'',
-	'<div class="drawing-whiteboard">',
-	'  <InfiniteWhiteboard bind:items bind:viewport ariaLabel="Line handle smoke whiteboard" />',
-	'</div>'
-].join('\n');
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
 
-describe('PreviewPane whiteboard preview', () => {
-	it('keeps the active whiteboard mounted when same-file edits update selectedContent', async () => {
-		const file = createFile(whiteboardPath, whiteboardContent);
-		const props = createPreviewPaneProps({
+describe('PreviewPane note preview', () => {
+	it('frames process-backed markdown without reporting it as source-only', async () => {
+		const file = createFile('Index.md', '# Server Markdown');
+
+		await render(PreviewPane, createPreviewPaneProps({
 			files: [file],
-			selectedContent: whiteboardContent,
+			selectedContent: '# Server Markdown',
 			selectedFile: file
+		}));
+
+		expect(document.body.textContent).not.toContain('Source Only');
+		expect(document.querySelector('.server-preview-frame')?.getAttribute('src')).toBe(
+			'/preview/Index.md?v=0&r=1'
+		);
+	});
+
+	it('renders browser markdown without reporting it as source-only', async () => {
+		const file = createBrowserFile('Index.md', '# Browser Markdown');
+		const fetchMock = mockPreviewResponse('<h1>Browser Markdown</h1>');
+
+		await render(PreviewPane, createPreviewPaneProps({
+			files: [file],
+			selectedContent: '# Browser Markdown',
+			selectedFile: file
+		}));
+
+		expect(document.body.textContent).not.toContain('Source Only');
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+		expect(getPreviewRequest(fetchMock)).toEqual({
+			content: '# Browser Markdown',
+			path: 'Index.md'
 		});
-		const screen = await render(PreviewPane, props);
+		await expect.element(page.getByRole('heading', { name: 'Browser Markdown' })).toBeInTheDocument();
+	});
 
-		await expect.element(page.getByLabelText('Whiteboard Preview')).toBeInTheDocument();
+	it('renders browser svx notes without reporting them as source-only', async () => {
+		const file = createBrowserFile('Notes.svx', '# Browser SVX');
+		const fetchMock = mockPreviewResponse('<h1>Browser SVX</h1>');
 
-		const preview = document.querySelector('.whiteboard-note-preview');
-		expect(preview).toBeInstanceOf(HTMLElement);
+		await render(PreviewPane, createPreviewPaneProps({
+			files: [file],
+			selectedContent: '# Browser SVX',
+			selectedFile: file
+		}));
 
-		const editedContent = updateWhiteboardNoteState(whiteboardContent, {
-			items: [
-				{
-					kind: 'drawing',
-					id: 'line-stroke',
-					x: 140,
-					y: 140,
-					width: 260,
-					height: 140,
-					points: [
-						{ x: 12, y: 92 },
-						{ x: 70, y: 18 },
-						{ x: 132, y: 60 },
-						{ x: 208, y: 26 }
-					],
-					stroke: 'oklch(0.45 0.16 248)',
-					strokeWidth: 5
-				}
-			],
-			viewport: { x: 120, y: 96, scale: 1 }
+		expect(document.body.textContent).not.toContain('Source Only');
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+		expect(getPreviewRequest(fetchMock)).toEqual({
+			content: '# Browser SVX',
+			path: 'Notes.svx'
 		});
+		await expect.element(page.getByRole('heading', { name: 'Browser SVX' })).toBeInTheDocument();
+	});
 
-		await screen.rerender({
-			...props,
-			selectedContent: editedContent
+	it('renders browser svelte notes without reporting them as source-only', async () => {
+		const file = createBrowserFile('Widget.svelte', '<h1>Browser Svelte</h1>');
+		const fetchMock = mockPreviewResponse('<h1>Browser Svelte</h1>');
+
+		await render(PreviewPane, createPreviewPaneProps({
+			files: [file],
+			selectedContent: '<h1>Browser Svelte</h1>',
+			selectedFile: file
+		}));
+
+		expect(document.body.textContent).not.toContain('Source Only');
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+		expect(getPreviewRequest(fetchMock)).toEqual({
+			content: '<h1>Browser Svelte</h1>',
+			path: 'Widget.svelte'
 		});
-		await tick();
+		await expect.element(page.getByRole('heading', { name: 'Browser Svelte' })).toBeInTheDocument();
+	});
 
-		expect(document.querySelector('.whiteboard-note-preview')).toBe(preview);
+	it('frames process-backed svelte notes without reporting them as source-only', async () => {
+		const file = createFile('Dashboard.svelte', '<h1>Svelte note</h1>');
+
+		await render(PreviewPane, createPreviewPaneProps({
+			files: [file],
+			selectedContent: '<h1>Svelte note</h1>',
+			selectedFile: file
+		}));
+
+		expect(document.body.textContent).not.toContain('Source Only');
+		expect(document.querySelector('.server-preview-frame')?.getAttribute('src')).toContain(
+			'/preview/Dashboard.svelte'
+		);
 	});
 });
 
@@ -107,6 +115,36 @@ function createFile(path: string, content: string): LocalVaultFile {
 		routePath: path,
 		size: content.length,
 		updatedAt: 0
+	};
+}
+
+function mockPreviewResponse(html: string) {
+	const fetchMock = vi.fn<typeof fetch>(async () => new Response(html, {
+		headers: {
+			'content-type': 'text/html'
+		}
+	}));
+
+	vi.stubGlobal('fetch', fetchMock);
+	return fetchMock;
+}
+
+function getPreviewRequest(fetchMock: ReturnType<typeof mockPreviewResponse>) {
+	const body = fetchMock.mock.calls[0]?.[1]?.body;
+
+	return typeof body === 'string' ? JSON.parse(body) : null;
+}
+
+function createBrowserFile(path: string, content: string): LocalVaultFile {
+	const file = createFile(path, content);
+
+	return {
+		...file,
+		handle: {
+			kind: 'file',
+			name: path.split('/').at(-1) ?? path,
+			getFile: async () => new File([content], path)
+		}
 	};
 }
 

@@ -1,5 +1,5 @@
 import type { CollectionSummaryResult, ResolvedCollection } from '../../collections/index.js';
-import { renderExcalidrawNotePreview, renderWhiteboardNotePreview } from '../../drawings/preview.js';
+import { renderExcalidrawNotePreview } from '../../drawings/preview.js';
 import {
 	renderCollectionKanbanHtml,
 	renderCollectionSummariesHtml,
@@ -18,7 +18,7 @@ import {
 	getPublicPublishHref,
 	type PublicPublishEntry
 } from '../../publishing/public-publish.js';
-import { isExcalidrawNote, isWhiteboardNote } from '../../note-model/raw.js';
+import { isExcalidrawNote } from '../../note-model/raw.js';
 import type { VaultIndex, VaultRecord } from '../../vault/index.js';
 
 type LocalRenderContext = {
@@ -63,29 +63,20 @@ export function renderSelectedExportBodyHtml(context: SelectedExportContext) {
 		return withSummaries(renderCollectionTableHtml(context.collectionRecords, context.selectedCollection.columns));
 	}
 
-	if (
-		context.selectedFile &&
-		(context.selectedFile.extension === '.md' || context.selectedFile.extension === '.svx') &&
-		!(context.selectedFile.extension === '.md' && isExcalidrawNote(context.selectedContent)) &&
-		!(context.selectedFile.extension === '.svx' && isWhiteboardNote(context.selectedContent))
-	) {
-		return renderLocalMarkdown(context.selectedContent, context.selectedFile, context);
-	}
-
-	if (context.selectedFile?.extension === '.md' && isExcalidrawNote(context.selectedContent)) {
-		return renderExcalidrawNotePreview(context.selectedContent);
-	}
-
-	if (context.selectedFile?.extension === '.svx' && isWhiteboardNote(context.selectedContent)) {
-		return renderWhiteboardNotePreview(context.selectedContent);
+	if (context.previewHtml) {
+		return context.previewHtml;
 	}
 
 	if (context.selectedFile && isDatahoarderBoardFile(context.selectedFile.path)) {
 		return renderLocalBoard(context.selectedContent, context.selectedFile.path, context);
 	}
 
-	if (context.previewHtml) {
-		return context.previewHtml;
+	if (context.selectedFile?.extension === '.md' && isExcalidrawNote(context.selectedContent)) {
+		return renderExcalidrawNotePreview(context.selectedContent);
+	}
+
+	if (context.selectedFile?.extension === '.md') {
+		return renderLocalMarkdown(context.selectedContent, context.selectedFile, context);
 	}
 
 	return renderSourceHtml(context.selectedContent);
@@ -99,10 +90,6 @@ export function renderPublicRecordBodyHtml(
 ) {
 	if (record.extension === '.md' && isExcalidrawNote(record.content)) {
 		return renderExcalidrawNotePreview(record.content);
-	}
-
-	if (record.extension === '.svx' && isWhiteboardNote(record.content)) {
-		return renderWhiteboardNotePreview(record.content);
 	}
 
 	if (record.extension === '.md' || record.extension === '.svx') {
@@ -156,6 +143,27 @@ export function renderLocalBoard(content: string, path: string, context: LocalRe
 		path,
 		resolveNoteHref: getLocalNoteHref
 	});
+}
+
+export function renderPreviewPaneHtml(
+	content: string,
+	file: LocalVaultFile | null,
+	context: LocalRenderContext
+) {
+	if (
+		!file ||
+		file.extension === '.md' ||
+		file.extension === '.svx' ||
+		file.extension === '.svelte'
+	) {
+		return '';
+	}
+
+	if (isDatahoarderBoardFile(file.path)) {
+		return renderLocalBoard(content, file.path, context);
+	}
+
+	return '';
 }
 
 function getPublicPublishEntry(entries: PublicPublishEntry[], routePath: string) {

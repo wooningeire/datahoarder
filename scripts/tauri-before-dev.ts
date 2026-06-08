@@ -7,7 +7,7 @@ import {
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
   console.log(
-    "Usage: deno run -A scripts/tauri-before-dev.ts [--host 127.0.0.1] [--port 5173] [-- <vite args>]",
+    "Usage: deno run -A scripts/tauri-before-dev.ts [--host 127.0.0.1] [--port 5191] [-- <vite args>]",
   );
   Deno.exit(0);
 }

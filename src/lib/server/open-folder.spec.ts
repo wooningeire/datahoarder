@@ -1,12 +1,14 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createWhiteboardNoteDraft } from '../drawings/preview.js';
 import {
 	getOpenFolderMetadata,
 	listOpenFolderFiles,
 	readOpenFolderTextFile,
 	renderOpenFolderPreviewDocument,
 	renderOpenFolderPreviewFragment,
+	renderPostedNotePreviewFragment,
 	setOpenFolderTargetPreviewOriginResolverForTest
 } from './open-folder.js';
 
@@ -144,6 +146,28 @@ describe('open folder server vault', () => {
 		expect(html).not.toContain('&lt;script');
 		expect(html).not.toContain('{x}');
 		expect(html).not.toContain('<iframe class="server-vite-preview-frame"');
+	}, svelteNotePreviewTimeoutMs);
+
+	it('renders generated whiteboard SVX notes through the drawing preview path', async () => {
+		const draft = createWhiteboardNoteDraft('Launch Map');
+
+		await seedOpenFolder({
+			'Drawings/Launch Map.svx': draft.content
+		});
+
+		const documentHtml = await renderOpenFolderPreviewDocument({ path: 'Drawings/Launch Map.svx' });
+		const postedHtml = await renderPostedNotePreviewFragment({
+			content: draft.content,
+			path: 'Drawings/Launch Map.svx'
+		});
+
+		for (const html of [documentHtml, postedHtml]) {
+			expect(html).toContain('class="whiteboard-preview-svg"');
+			expect(html).toContain('aria-label="Launch Map whiteboard"');
+			expect(html).toContain('Launch Map');
+			expect(html).not.toContain('Svelte Note Preview Failed');
+			expect(html).not.toContain('Unsupported imports');
+		}
 	}, svelteNotePreviewTimeoutMs);
 
 	it('starts a target preview origin before requiring route-preview env', async () => {

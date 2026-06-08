@@ -22,6 +22,7 @@ describe('Drawing previews', () => {
 		expect(state?.items).toHaveLength(3);
 		expect(state?.viewport).toEqual({ x: 120, y: 96, scale: 1 });
 		expect(preview).toContain('class="whiteboard-preview-svg"');
+		expect(preview).toContain('aria-label="Launch Map whiteboard"');
 		expect(preview).toContain('Launch Map');
 	});
 

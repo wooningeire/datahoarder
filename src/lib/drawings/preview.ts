@@ -176,9 +176,10 @@ export function renderWhiteboardSvg(state: WhiteboardNoteState) {
 		round(bounds.maxY - bounds.minY + padding * 2)
 	].join(' ');
 	const body = items.map(renderWhiteboardItem).filter(Boolean).join('\n');
+	const ariaLabel = getWhiteboardAriaLabel(state);
 
 	return [
-		`<svg class="whiteboard-preview-svg" viewBox="${viewBox}" role="img" aria-label="Whiteboard preview" xmlns="http://www.w3.org/2000/svg">`,
+		`<svg class="whiteboard-preview-svg" viewBox="${viewBox}" role="img" aria-label="${escapeAttribute(ariaLabel)}" xmlns="http://www.w3.org/2000/svg">`,
 		body,
 		'</svg>'
 	].join('\n');
@@ -579,6 +580,16 @@ function renderWhiteboardText(item: Extract<WhiteboardDrawingNoteItem, { kind: '
 
 function renderWhiteboardLabel(label: string, x: number, y: number, transform: string) {
 	return `<text x="${round(x)}" y="${round(y)}" fill="${escapeAttribute(defaultStrokeColor)}" font-size="18" font-weight="700" font-family="Inter, Segoe UI, sans-serif" text-anchor="middle" dominant-baseline="middle" ${transform}>${escapeHtml(label)}</text>`;
+}
+
+function getWhiteboardAriaLabel(state: WhiteboardNoteState) {
+	const titleItem = state.items.find(
+		(item): item is Extract<WhiteboardDrawingNoteItem, { kind: 'text' }> =>
+			item.kind === 'text' && item.text.trim().length > 0
+	);
+	const title = titleItem?.text.trim().replace(/\s+/gu, ' ');
+
+	return title ? `${title} whiteboard` : 'Whiteboard preview';
 }
 
 function getWhiteboardBounds(items: WhiteboardDrawingNoteItem[]): Bounds {

@@ -5,6 +5,10 @@ import { basename, dirname, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { renderDatahoarderBoard } from '../boards/local-board.js';
 import {
+	isWhiteboardNoteContent,
+	renderWhiteboardNotePreview
+} from '../drawings/preview.js';
+import {
 	getLocalRoutePath,
 	isEditableTextFile,
 	normalizeLocalTextPath,
@@ -199,6 +203,10 @@ export async function renderOpenFolderPreviewFragment(request: OpenFolderPreview
 		return renderPreviewServerRequired(file.routePath);
 	}
 
+	if (isWhiteboardNoteContent(content)) {
+		return renderWhiteboardNotePreview(content);
+	}
+
 	if (isSvelteMarkupNotePreviewFile(file.path)) {
 		return renderSvelteNotePreview(content, file);
 	}
@@ -223,6 +231,10 @@ export async function renderPostedNotePreviewFragment(request: OpenFolderPreview
 		size: content.length,
 		updatedAt: content.length
 	};
+
+	if (isWhiteboardNoteContent(content)) {
+		return renderWhiteboardNotePreview(content);
+	}
 
 	if (isSvelteMarkupNotePreviewFile(file.path)) {
 		return renderSvelteNotePreview(content, file);

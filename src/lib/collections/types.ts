@@ -3,10 +3,22 @@ import type {
 	VaultRecord
 } from '../vault/index.js';
 
+export type CollectionFieldValues = Record<string, VaultPropertyValue>;
+
+export type CollectionFieldDeriveContext = {
+	record: VaultRecord;
+	value: (path: string) => VaultPropertyValue;
+	values: CollectionFieldValues;
+};
+
+export type CollectionFieldDerive = (context: CollectionFieldDeriveContext) => VaultPropertyValue;
+
 export type CollectionField = {
+	derive?: CollectionFieldDerive;
 	formula: string;
 	name: string;
 	options: string[];
+	readOnly?: boolean;
 	type: string;
 };
 
@@ -95,4 +107,4 @@ export type CollectionSummaryResult = {
 	value: string;
 };
 
-export const collectionFilePattern = /\.(?:dhbase|collection)\.ya?ml$/iu;
+export const collectionFilePattern = /(?:\.(?:dhbase|collection)\.ya?ml|\.collection\.ts)$/iu;

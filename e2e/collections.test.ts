@@ -399,6 +399,128 @@ test('collection formula fields derive filter summarize and export values', asyn
 	expect(csvContent).not.toContain('Nimbus');
 });
 
+test('TypeScript collection files derive typed object columns', async ({ page }) => {
+	const vaultName = `datahoarder-e2e-typescript-collection-${Date.now()}`;
+
+	await page.addInitScript((name) => {
+		window.showDirectoryPicker = async () => {
+			const root = await navigator.storage.getDirectory();
+			const directory = await root.getDirectoryHandle(name, { create: true });
+			const collectionFile = await directory.getFileHandle('Applications.collection.ts', { create: true });
+			const writable = await collectionFile.createWritable();
+
+			await writable.write(
+				[
+					'import { collection, derived, enumField, numberField } from "datahoarder/collection";',
+					'',
+					'type PayStructure = "Hourly" | "Salary";',
+					'',
+					'type Pay = {',
+					'    structure: PayStructure;',
+					'    min: number;',
+					'    max: number;',
+					'};',
+					'',
+					'const round = (value: number) => Number(value.toFixed(6));',
+					'',
+					'const hourly = (pay: Pay) => ({',
+					'    min: pay.structure === "Hourly" ? pay.min : round(pay.min / 2080),',
+					'    max: pay.structure === "Hourly" ? pay.max : round(pay.max / 2080),',
+					'});',
+					'',
+					'export default collection({',
+					'    name: "Applications",',
+					'    source: {',
+					'        folders: ["applications"],',
+					'    },',
+					'    schema: {',
+					'        pay: {',
+					'            structure: enumField(["Hourly", "Salary"]),',
+					'            min: numberField(),',
+					'            max: numberField(),',
+					'        },',
+					'        hourlyPay: derived(({ value }) => hourly(value("pay") as Pay)),',
+					'    },',
+					'    views: [',
+					'        {',
+					'            type: "table",',
+					'            name: "Table",',
+					'            columns: ["Company", "pay.structure", "pay.min", "pay.max", "hourlyPay.min", "hourlyPay.max"],',
+					'        },',
+					'    ],',
+					'});'
+				].join('\n')
+			);
+			await writable.close();
+
+			const applicationsDirectory = await directory.getDirectoryHandle('applications', { create: true });
+			const writeApplication = async (fileName: string, content: string) => {
+				const file = await applicationsDirectory.getFileHandle(fileName, { create: true });
+				const applicationWritable = await file.createWritable();
+
+				await applicationWritable.write(content);
+				await applicationWritable.close();
+			};
+
+			await writeApplication(
+				'acme.md',
+				[
+					'---',
+					'Company: Acme Labs',
+					'pay:',
+					'  structure: Salary',
+					'  min: 200000',
+					'  max: 220000',
+					'---',
+					'# Acme'
+				].join('\n')
+			);
+			await writeApplication(
+				'hourly.md',
+				[
+					'---',
+					'Company: Hourly Co',
+					'pay:',
+					'  structure: Hourly',
+					'  min: 70',
+					'  max: 95',
+					'---',
+					'# Hourly'
+				].join('\n')
+			);
+
+			return directory;
+		};
+	}, vaultName);
+
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open Folder' }).click();
+	await page.locator('.note-columns').getByRole('button', { name: 'Applications.collection.ts' }).click();
+
+	const preview = page.getByLabel('Preview');
+	await expect(preview.getByRole('cell', { name: 'Salary', exact: true })).toBeVisible();
+	await expect(preview.getByRole('cell', { name: '96.153846', exact: true })).toBeVisible();
+	await expect(preview.getByRole('cell', { name: '105.769231', exact: true })).toBeVisible();
+	await expect(preview.getByRole('cell', { name: 'Hourly', exact: true })).toBeVisible();
+	await expect(preview.getByRole('cell', { name: '70', exact: true })).toHaveCount(2);
+	await expect(preview.getByRole('cell', { name: '95', exact: true })).toHaveCount(2);
+	await expect(page.getByRole('button', { name: 'New Record' })).toBeDisabled();
+	await expect(page.getByRole('button', { name: 'Add Field' })).toBeDisabled();
+	await expect(page.getByRole('button', { name: 'Bulk Set Field' })).toBeDisabled();
+
+	const csvDownloadPromise = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Export CSV' }).click();
+	const csvDownload = await csvDownloadPromise;
+	const csvPath = await csvDownload.path();
+	expect(csvPath).toBeTruthy();
+	const csvContent = await readFile(csvPath ?? '', 'utf8');
+
+	expect(csvDownload.suggestedFilename()).toBe('applications-table.csv');
+	expect(csvContent).toContain('Company,pay.structure,pay.min,pay.max,hourlyPay.min,hourlyPay.max');
+	expect(csvContent).toContain('Acme Labs,Salary,200000,220000,96.153846,105.769231');
+	expect(csvContent).toContain('Hourly Co,Hourly,70,95,70,95');
+});
+
 test('collection fields can be bulk updated across visible filtered records', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-bulk-field-${Date.now()}`;
 

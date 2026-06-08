@@ -56,6 +56,28 @@ describe('buildLocalVaultIndex', () => {
 		expect(formatVaultValue({ currency: "USD" })).toBe('{"currency":"USD"}');
 	});
 
+	it("reads nested frontmatter values through dotted paths", async () => {
+		const index = await buildLocalVaultIndex([
+			createLocalVaultFile(
+				"applications/acme.md",
+				[
+					"---",
+					"pay:",
+					"  structure: Salary",
+					"  min: 200000",
+					"---",
+					"# Acme Application"
+				].join("\n")
+			)
+		]);
+		const record = index.records[0];
+
+		expect(getVaultRecordValue(record, "pay.structure")).toBe("Salary");
+		expect(getVaultRecordValue(record, "pay.min")).toBe(200000);
+		expect(getVaultRecordValue(record, "Pay.Min")).toBe(200000);
+		expect(getVaultRecordValue(record, "pay.missing")).toBe("");
+	});
+
 	it('ignores inline fields inside fenced code blocks', async () => {
 		const index = await buildLocalVaultIndex([
 			createLocalVaultFile(

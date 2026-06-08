@@ -131,7 +131,7 @@ export function getVaultRecordValue(record: VaultRecord, key: string): VaultProp
 		case 'file.mtime':
 			return record.updatedAt;
 		default:
-			return getPropertyValue(record.properties, key);
+			return getPropertyPathValue(record.properties, key);
 	}
 }
 
@@ -362,10 +362,40 @@ function getPropertyValue(properties: Record<string, VaultPropertyValue>, key: s
 	return matchingKey ? properties[matchingKey] : '';
 }
 
+function getPropertyPathValue(properties: Record<string, VaultPropertyValue>, key: string): VaultPropertyValue {
+	const directValue = getPropertyValue(properties, key);
+
+	if (directValue !== '') {
+		return directValue;
+	}
+
+	const path = key.split('.').map((part) => part.trim()).filter(Boolean);
+
+	if (path.length < 2) {
+		return directValue;
+	}
+
+	let value: VaultPropertyValue | undefined = getPropertyValue(properties, path[0]);
+
+	for (const segment of path.slice(1)) {
+		if (!isPropertyRecord(value)) {
+			return '';
+		}
+
+		value = getPropertyValue(value, segment);
+	}
+
+	return value ?? '';
+}
+
 function findPropertyKey(properties: Record<string, VaultPropertyValue>, key: string) {
 	const normalizedKey = normalizePropertyKey(key);
 
 	return Object.keys(properties).find((propertyKey) => normalizePropertyKey(propertyKey) === normalizedKey);
+}
+
+function isPropertyRecord(value: VaultPropertyValue | undefined): value is Record<string, VaultPropertyValue> {
+	return Boolean(value) && !Array.isArray(value) && typeof value === 'object';
 }
 
 function normalizePropertyKey(key: string) {

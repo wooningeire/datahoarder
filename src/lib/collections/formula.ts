@@ -15,7 +15,7 @@ type FormulaOperator = '+' | '-' | '*' | '/' | '(' | ')';
 export function isComputedCollectionField(field: CollectionField) {
 	const type = field.type.toLowerCase();
 
-	return Boolean(field.formula || type === 'formula' || type === 'computed');
+	return Boolean(field.derive || field.formula || type === 'formula' || type === 'computed');
 }
 
 export function evaluateCollectionFormula(record: VaultRecord, formula: string): VaultPropertyValue {

@@ -380,6 +380,93 @@ describe('resolveDatahoarderCollection', () => {
 		expect(evaluateCollectionFormula(acme, 'missing + 1')).toBe('');
 	});
 
+	it("resolves TypeScript collections with typed object derived columns", async () => {
+		const index = await buildLocalVaultIndex([
+			createLocalVaultFile(
+				"applications/acme.md",
+				[
+					"---",
+					"Company: Acme Labs",
+					"pay:",
+					"  structure: Salary",
+					"  min: 200000",
+					"  max: 220000",
+					"---",
+					"# Acme"
+				].join("\n")
+			),
+			createLocalVaultFile(
+				"applications/hourly.md",
+				[
+					"---",
+					"Company: Hourly Co",
+					"pay:",
+					"  structure: Hourly",
+					"  min: 70",
+					"  max: 95",
+					"---",
+					"# Hourly"
+				].join("\n")
+			)
+		]);
+		const content = [
+			'import { collection, derived, enumField, numberField } from "datahoarder/collection";',
+			'',
+			'type PayStructure = "Hourly" | "Salary";',
+			'',
+			'type Pay = {',
+			'    structure: PayStructure;',
+			'    min: number;',
+			'    max: number;',
+			'};',
+			'',
+			'const round = (value: number) => Number(value.toFixed(6));',
+			'',
+			'const hourly = (pay: Pay) => ({',
+			'    min: pay.structure === "Hourly" ? pay.min : round(pay.min / 2080),',
+			'    max: pay.structure === "Hourly" ? pay.max : round(pay.max / 2080),',
+			'});',
+			'',
+			'export default collection({',
+			'    name: "Applications",',
+			'    source: {',
+			'        folders: ["applications"],',
+			'    },',
+			'    schema: {',
+			'        pay: {',
+			'            structure: enumField(["Hourly", "Salary"]),',
+			'            min: numberField(),',
+			'            max: numberField(),',
+			'        },',
+			'        hourlyPay: derived(({ value }) => hourly(value("pay") as Pay)),',
+			'    },',
+			'    views: [',
+			'        {',
+			'            type: "table",',
+			'            columns: ["Company", "pay.structure", "pay.min", "pay.max", "hourlyPay.min", "hourlyPay.max"],',
+			'        },',
+			'    ],',
+			'});'
+		].join("\n");
+		const collection = resolveDatahoarderCollection(content, "Applications.collection.ts", index);
+		const [acme, hourly] = collection.records;
+
+		expect(collection.definition).toMatchObject({
+			name: "Applications",
+			readOnly: true,
+			sourceFormat: "typescript"
+		});
+		expect(collection.columns).toEqual(["Company", "pay.structure", "pay.min", "pay.max", "hourlyPay.min", "hourlyPay.max"]);
+		expect(getCollectionField(collection.definition, "pay.min")).toMatchObject({ name: "pay.min", type: "number" });
+		expect(isComputedCollectionColumn(collection.definition, "pay.min")).toBe(false);
+		expect(isComputedCollectionColumn(collection.definition, "hourlyPay.min")).toBe(true);
+		expect(formatCollectionRecordValue(acme, "pay.structure")).toBe("Salary");
+		expect(formatCollectionRecordValue(acme, "hourlyPay.min")).toBe("96.153846");
+		expect(formatCollectionRecordValue(acme, "hourlyPay.max")).toBe("105.769231");
+		expect(formatCollectionRecordValue(hourly, "hourlyPay.min")).toBe("70");
+		expect(formatCollectionRecordValue(hourly, "hourlyPay.max")).toBe("95");
+	});
+
 	it("resolves Obsidian base files as read-only Datahoarder collections", async () => {
 		const index = await buildLocalVaultIndex([
 			createLocalVaultFile(

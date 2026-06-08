@@ -51,6 +51,7 @@
     "npm:svelte-check@^4.5.0": "4.5.0_svelte@5.56.1_typescript@6.0.3",
     "npm:svelte@5.56.1": "5.56.1",
     "npm:svelte@^5.56.1": "5.56.1",
+    "npm:typescript@6.0.3": "6.0.3",
     "npm:typescript@^6.0.3": "6.0.3",
     "npm:vite@*": "8.0.16_@types+node@25.9.1_sass@1.100.0",
     "npm:vite@^8.0.16": "8.0.16_@types+node@25.9.1_sass@1.100.0",
@@ -1156,6 +1157,7 @@
       "npm:monaco-editor@0.55.1",
       "npm:set-cookie-parser@3.1.0",
       "npm:svelte@5.56.1",
+      "npm:typescript@6.0.3",
       "npm:vitest-browser-svelte@2.1.1",
       "npm:vitest@4.1.5",
       "npm:zimmerframe@1.1.4"

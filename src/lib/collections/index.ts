@@ -18,6 +18,7 @@ import {
 	isComputedCollectionField
 } from './formula.js';
 import { formatCollectionRecordValue } from './records.js';
+import { parseTypeScriptCollection } from './typescript-collection.js';
 import {
 	collectionFilePattern,
 	type CollectionDefinition,
@@ -48,6 +49,16 @@ export type {
 } from './types.js';
 export { evaluateCollectionFormula } from './formula.js';
 export {
+	booleanField,
+	collection,
+	derived,
+	enumField,
+	numberField,
+	objectField,
+	textField,
+	value
+} from './dsl.js';
+export {
 	filterCollectionRecords,
 	formatCollectionRecordValue,
 	getCollectionExportRows,
@@ -71,7 +82,15 @@ export function isDatahoarderCollectionFile(path: string) {
 	return collectionFilePattern.test(path);
 }
 
+export function isTypeScriptCollectionFile(path: string) {
+	return /\.collection\.ts$/iu.test(path);
+}
+
 export function parseDatahoarderCollection(content: string, path = ''): CollectionDefinition {
+	if (isTypeScriptCollectionFile(path)) {
+		return parseTypeScriptCollection(content, path);
+	}
+
 	const root = asRecord(parseSimpleYaml(content));
 	const schema = parseSchema(root.schema);
 	const views = parseViews(root.views);
@@ -144,8 +163,13 @@ export function getCollectionView(definition: CollectionDefinition, viewIndex = 
 
 export function getCollectionField(definition: CollectionDefinition, column: string) {
 	const normalizedColumn = column.trim().toLowerCase();
+	const exactField = definition.schema.find((field) => field.name.toLowerCase() === normalizedColumn);
 
-	return definition.schema.find((field) => field.name.toLowerCase() === normalizedColumn) ?? null;
+	if (exactField) {
+		return exactField;
+	}
+
+	return definition.schema.find((field) => normalizedColumn.startsWith(`${field.name.toLowerCase()}.`)) ?? null;
 }
 
 export function getCollectionViewGroupBy(view: CollectionView) {
@@ -198,11 +222,9 @@ export function getCollectionRecordCreationError(definition: CollectionDefinitio
 }
 
 export function isComputedCollectionColumn(definition: CollectionDefinition, column: string) {
-	const normalizedColumn = column.trim().toLowerCase();
+	const field = getCollectionField(definition, column);
 
-	return definition.schema.some(
-		(field) => field.name.toLowerCase() === normalizedColumn && isComputedCollectionField(field)
-	);
+	return Boolean(field && isComputedCollectionField(field));
 }
 
 export function createCollectionRecordDraft(definition: CollectionDefinition, title: string): CollectionRecordDraft {
@@ -260,7 +282,9 @@ function resolveCollectionComputedFields(record: VaultRecord, definition: Collec
 	};
 
 	for (const field of computedFields) {
-		properties[field.name] = evaluateCollectionFormula(resolvedRecord, field.formula);
+		properties[field.name] = field.derive
+			? field.derive(createCollectionFieldDeriveContext(resolvedRecord))
+			: evaluateCollectionFormula(resolvedRecord, field.formula);
 		resolvedRecord = {
 			...resolvedRecord,
 			properties
@@ -268,6 +292,26 @@ function resolveCollectionComputedFields(record: VaultRecord, definition: Collec
 	}
 
 	return resolvedRecord;
+}
+
+function createCollectionFieldDeriveContext(record: VaultRecord) {
+	return {
+		record,
+		value: (path: string) => getVaultRecordValue(record, path),
+		values: createCollectionFieldValues(record)
+	};
+}
+
+function createCollectionFieldValues(record: VaultRecord) {
+	return new Proxy({} as Record<string, VaultPropertyValue>, {
+		get(_target, property) {
+			if (typeof property !== 'string') {
+				return undefined;
+			}
+
+			return getVaultRecordValue(record, property);
+		}
+	});
 }
 
 function matchesCollectionSource(record: VaultRecord, source: CollectionSource, collectionPath: string) {

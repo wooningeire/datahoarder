@@ -3,6 +3,10 @@ import { playwright } from '@vitest/browser-playwright';
 import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
+	optimizeDeps: {
+		include: ['typescript']
+	},
+
 	plugins: [sveltekit()],
 
 	test: {

@@ -4,7 +4,6 @@ import { addDrawingElement } from '../../drawings/edit.js';
 import { createWhiteboardNoteDraft } from '../../drawings/preview.js';
 import {
 	createLocalFile,
-	normalizeLocalTextPath,
 	readLocalFile,
 	writeLocalFile,
 	type LocalDirectoryHandle,
@@ -29,6 +28,11 @@ import type {
 	RequestDialogConfig,
 	RequestDialogValues
 } from '../shared/types.js';
+import {
+	getInlineCreatePath,
+	getSuggestedCreatePath,
+	splitCreatePath
+} from './note-create-paths.js';
 
 type NoteActionContext = {
 	collectionRecordCreationError: string;
@@ -488,53 +492,4 @@ export function createNoteActions(context: NoteActionContext) {
 			null
 		);
 	}
-}
-
-function getSuggestedCreatePath(directoryPath: string | undefined, globalPath: string, localFileName: string) {
-	if (directoryPath === undefined) {
-		return globalPath;
-	}
-
-	const normalizedDirectoryPath = directoryPath.trim().replace(/\\/gu, '/').replace(/^\/+|\/+$/gu, '');
-
-	return normalizedDirectoryPath ? `${normalizedDirectoryPath}/${localFileName}` : localFileName;
-}
-
-function splitCreatePath(path: string) {
-	const segments = path.split('/').filter(Boolean);
-	const fileName = segments.pop() ?? 'Untitled.md';
-
-	return {
-		directoryPath: segments.join('/'),
-		fileName
-	};
-}
-
-function getInlineCreatePath(directoryPath: string, fileName: string, defaultExtension: string) {
-	const fileNameStem = stripMatchingExtension(fileName, defaultExtension);
-
-	if (!fileNameStem) {
-		throw new Error('File name is required.');
-	}
-
-	const nextFileName = normalizeLocalTextPath(
-		fileNameStem + defaultExtension,
-		''
-	);
-
-	if (nextFileName.includes('/')) {
-		throw new Error('Use a file name, not a path. Choose the folder in the sidebar first.');
-	}
-
-	return directoryPath ? `${directoryPath}/${nextFileName}` : nextFileName;
-}
-
-function stripMatchingExtension(fileName: string, extension: string) {
-	const trimmedFileName = fileName.trim();
-
-	if (!extension || !trimmedFileName.toLowerCase().endsWith(extension.toLowerCase())) {
-		return trimmedFileName;
-	}
-
-	return trimmedFileName.slice(0, -extension.length);
 }

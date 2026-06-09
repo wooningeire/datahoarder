@@ -124,6 +124,7 @@ let ensuredTauriPreviewPath = $state('');
 let targetPreviewError = $state('');
 let markupPreviewHtml = $state('');
 let markupPreviewError = $state('');
+let markupPreviewKey = '';
 let markupPreviewRequestToken = 0;
 
 let targetPreviewRoute = $derived.by(() => getTargetPreviewRoute(selectedFile, ensuredTauriPreviewOrigin));
@@ -198,18 +199,25 @@ $effect(() => {
 	const file = selectedFile;
 	const content = selectedContent;
 	const shouldRender = shouldRenderMarkupPreview;
+	const previewRoot = file && shouldRender ? getMarkupPreviewRoot(file) : '';
+	const nextMarkupPreviewKey = file && shouldRender ? `${previewRoot}\0${file.path}` : '';
+	const shouldClearMarkupPreview = nextMarkupPreviewKey !== markupPreviewKey;
 	const token = markupPreviewRequestToken + 1;
 
 	markupPreviewRequestToken = token;
-	markupPreviewHtml = '';
+	markupPreviewKey = nextMarkupPreviewKey;
 	markupPreviewError = '';
 
 	if (!file || !shouldRender) {
+		markupPreviewHtml = '';
 		return;
 	}
 
+	if (shouldClearMarkupPreview) {
+		markupPreviewHtml = '';
+	}
+
 	const controller = new AbortController();
-	const previewRoot = getMarkupPreviewRoot(file);
 
 	void fetch('/api/vault/preview', {
 		body: JSON.stringify({
@@ -232,6 +240,7 @@ $effect(() => {
 
 			if (markupPreviewRequestToken === token) {
 				markupPreviewHtml = text;
+				markupPreviewError = '';
 			}
 		})
 		.catch((error) => {
@@ -239,6 +248,7 @@ $effect(() => {
 				return;
 			}
 
+			markupPreviewHtml = '';
 			markupPreviewError = getMarkupPreviewErrorMessage(error);
 		});
 

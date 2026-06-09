@@ -1,45 +1,55 @@
-import { defineConfig } from 'vitest/config';
-import { playwright } from '@vitest/browser-playwright';
-import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from "vitest/config";
+import { playwright } from "@vitest/browser-playwright";
+import { sveltekit } from "@sveltejs/kit/vite";
 
 export default defineConfig({
-	optimizeDeps: {
-		include: ['typescript']
-	},
+    optimizeDeps: {
+        include: ["typescript"],
+    },
 
-	plugins: [sveltekit()],
+    plugins: [sveltekit()],
 
-	test: {
-		expect: { requireAssertions: true },
+    server: {
+        watch: {
+            // Deno creates and removes timestamped Vite config bundles on Windows.
+            ignored: [
+                "**/vite.config.*.timestamp-*.mjs",
+                "**/vite.config.*.timestamp-*",
+            ],
+        },
+    },
 
-		projects: [
-			{
-				extends: './vite.config.ts',
+    test: {
+        expect: { requireAssertions: true },
 
-				test: {
-					name: 'client',
+        projects: [
+            {
+                extends: "./vite.config.ts",
 
-					browser: {
-						enabled: true,
-						provider: playwright(),
-						instances: [{ browser: 'chromium', headless: true }]
-					},
+                test: {
+                    name: "client",
 
-					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
-					exclude: ['src/lib/server/**']
-				}
-			},
+                    browser: {
+                        enabled: true,
+                        provider: playwright(),
+                        instances: [{ browser: "chromium", headless: true }],
+                    },
 
-			{
-				extends: './vite.config.ts',
+                    include: ["src/**/*.svelte.{test,spec}.{js,ts}"],
+                    exclude: ["src/lib/server/**"],
+                },
+            },
 
-				test: {
-					name: 'server',
-					environment: 'node',
-					include: ['src/**/*.{test,spec}.{js,ts}'],
-					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
-				}
-			}
-		]
-	}
+            {
+                extends: "./vite.config.ts",
+
+                test: {
+                    name: "server",
+                    environment: "node",
+                    include: ["src/**/*.{test,spec}.{js,ts}"],
+                    exclude: ["src/**/*.svelte.{test,spec}.{js,ts}"],
+                },
+            },
+        ],
+    },
 });

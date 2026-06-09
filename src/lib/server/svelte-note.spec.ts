@@ -129,6 +129,28 @@ describe("Svelte note preview rendering", () => {
         expect(html).not.toContain("Svelte Note Preview Failed");
     }, svelteNotePreviewTimeoutMs);
 
+    it("keeps line-leading markdown marks inside paragraphs", async () => {
+        resetSvelteNotePreviewCacheForTest();
+
+        const html = await renderSvelteNotePreview(
+            [
+                "A moment later, ==trees exploded behind Hakon.== As wooden shrapnel embedded in his back.",
+                "",
+                "==As the dragon lost momentum, it toppled trees behind him,== and Hakon did not dare risk a glance back.",
+            ].join("\n"),
+            createFile("Notes/Good passages.md"),
+        );
+
+        expect(html).toContain(
+            "<p>A moment later, <mark>trees exploded behind Hakon.</mark> As wooden shrapnel embedded in his back.</p>",
+        );
+        expect(html).toContain(
+            "<p><mark>As the dragon lost momentum, it toppled trees behind him,</mark> and Hakon did not dare risk a glance back.</p>",
+        );
+        expect(html).not.toContain("</mark> and Hakon did not dare risk a glance back.\n");
+        expect(html).not.toContain("Svelte Note Preview Failed");
+    }, svelteNotePreviewTimeoutMs);
+
     it("server-renders an mdsvex svx note with Svelte expressions", async () => {
         resetSvelteNotePreviewCacheForTest();
 

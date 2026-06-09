@@ -85,6 +85,33 @@ describe('PreviewPane note preview', () => {
 		await expect.element(page.getByRole('heading', { name: 'Browser Svelte' })).toBeInTheDocument();
 	});
 
+	it('keeps the current browser markup preview visible while an edit is rendering', async () => {
+		const file = createBrowserFile('Index.md', '# First');
+		const { fetchMock, resolveNext } = mockQueuedPreviewResponses();
+		const rendered = await render(PreviewPane, createPreviewPaneProps({
+			files: [file],
+			selectedContent: '# First',
+			selectedFile: file
+		}));
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+		resolveNext('<h1>First</h1>');
+		await expect.element(page.getByRole('heading', { name: 'First' })).toBeInTheDocument();
+
+		await rendered.rerender(createPreviewPaneProps({
+			files: [file],
+			selectedContent: '# Second',
+			selectedFile: file
+		}));
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+		expect(document.body.textContent).not.toContain('Rendering note.');
+		await expect.element(page.getByRole('heading', { name: 'First' })).toBeInTheDocument();
+
+		resolveNext('<h1>Second</h1>');
+		await expect.element(page.getByRole('heading', { name: 'Second' })).toBeInTheDocument();
+	});
+
 	it('posts the Tauri vault root for live Svelte markup previews', async () => {
 		const file = createTauriFile('Widget.svelte', '<h1>Tauri Svelte</h1>', 'C:\\vault');
 		const fetchMock = mockPreviewResponse('<h1>Tauri Svelte</h1>');
@@ -146,6 +173,34 @@ function mockPreviewResponse(html: string) {
 
 	vi.stubGlobal('fetch', fetchMock);
 	return fetchMock;
+}
+
+function mockQueuedPreviewResponses() {
+	const resolvers: ((response: Response) => void)[] = [];
+	const fetchMock = vi.fn<typeof fetch>(
+		async () => new Promise<Response>((resolve) => {
+			resolvers.push(resolve);
+		})
+	);
+
+	vi.stubGlobal('fetch', fetchMock);
+
+	return {
+		fetchMock,
+		resolveNext(html: string) {
+			const resolve = resolvers.shift();
+
+			if (!resolve) {
+				throw new Error('No queued preview request was available.');
+			}
+
+			resolve(new Response(html, {
+				headers: {
+					'content-type': 'text/html'
+				}
+			}));
+		}
+	};
 }
 
 function getPreviewRequest(fetchMock: ReturnType<typeof mockPreviewResponse>) {

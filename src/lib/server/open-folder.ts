@@ -54,6 +54,7 @@ export type OpenFolderPreviewRequest = {
 	content?: string;
 	interactiveTaskLists?: boolean;
 	path: string;
+	root?: string;
 };
 
 type TargetPreviewServer = {
@@ -61,6 +62,11 @@ type TargetPreviewServer = {
 	origin: string;
 	projectRoot: string;
 	root: string;
+};
+
+type PreviewSourceContext = {
+	sourcePath?: string;
+	sourceRoot?: string;
 };
 
 type TargetPreviewOriginResolver = (root: string) => Promise<string>;
@@ -208,7 +214,13 @@ export async function renderOpenFolderPreviewFragment(request: OpenFolderPreview
 	}
 
 	if (isSvelteMarkupNotePreviewFile(file.path)) {
-		return renderSvelteNotePreview(content, file);
+		const sourceRoot = await requireOpenFolderRoot();
+
+		return renderSvelteNotePreview(content, {
+			...file,
+			sourcePath: await resolveOpenFolderTextPath(file.path),
+			sourceRoot
+		});
 	}
 
 	if (isOpenFolderBoardFile(file.path)) {
@@ -224,11 +236,14 @@ export async function renderOpenFolderPreviewFragment(request: OpenFolderPreview
 export async function renderPostedNotePreviewFragment(request: OpenFolderPreviewRequest) {
 	const normalizedPath = normalizeLocalTextPath(request.path, '');
 	const content = request.content ?? '';
+	const sourceContext = await resolvePostedPreviewSourceContext(normalizedPath, request.root);
 	const file = {
 		extension: getPathExtension(normalizedPath),
 		path: normalizedPath,
 		routePath: normalizedPath,
 		size: content.length,
+		sourcePath: sourceContext.sourcePath,
+		sourceRoot: sourceContext.sourceRoot,
 		updatedAt: content.length
 	};
 
@@ -262,6 +277,7 @@ export async function renderOpenFolderPreviewDocument(request: OpenFolderPreview
 		`<title>${escapeHtml(title)} preview</title>`,
 		'<style>',
 		'body{margin:0;padding:1rem;color:oklch(0.22 0.035 245);background:oklch(0.99 0.01 95);font-family:Inter,ui-sans-serif,system-ui,sans-serif;line-height:1.55}',
+		'.datahoarder-markdown-note{display:grid;gap:.75rem}.datahoarder-markdown-note :is(h1,h2,h3,p,ul,ol,blockquote,pre,.markdown-table-wrapper){margin:0}.datahoarder-markdown-note p{white-space:pre-wrap}.markdown-blank-line{min-height:0}',
 		'.server-vite-preview-frame{display:block;width:100%;min-height:calc(100vh - 2rem);border:1px solid oklch(0.78 0.04 235);border-radius:.35rem;background:white}',
 		'.math-display,.math-inline{max-width:100%;overflow-x:auto;overflow-y:hidden}.math-display{display:block;margin:1rem 0;text-align:center}.math-inline{display:inline-block;vertical-align:middle}',
 		'</style>',
@@ -367,11 +383,7 @@ async function requireOpenFolderRoot() {
 async function resolveOpenFolderTextPath(path: string, options: { mustExist?: boolean } = {}) {
 	const normalizedPath = normalizeLocalTextPath(path, '');
 	const root = await requireOpenFolderRoot();
-	const filesystemPath = resolve(root, ...normalizedPath.split('/'));
-
-	if (filesystemPath !== root && !filesystemPath.startsWith(`${root}${sep}`)) {
-		throw new Error('Path escapes the opened folder.');
-	}
+	const filesystemPath = resolvePathWithinRoot(root, normalizedPath);
 
 	if (options.mustExist === false) {
 		return filesystemPath;
@@ -381,6 +393,36 @@ async function resolveOpenFolderTextPath(path: string, options: { mustExist?: bo
 
 	if (!fileStats.isFile()) {
 		throw new Error(`${normalizedPath} is not a file.`);
+	}
+
+	return filesystemPath;
+}
+
+async function resolvePostedPreviewSourceContext(
+	path: string,
+	requestRoot?: string
+): Promise<PreviewSourceContext> {
+	const root = requestRoot?.trim()
+		? resolve(requestRoot)
+		: await getOpenFolderRoot();
+
+	if (!root) {
+		return {};
+	}
+
+	return {
+		sourcePath: resolvePathWithinRoot(root, path),
+		sourceRoot: root
+	};
+}
+
+function resolvePathWithinRoot(root: string, path: string) {
+	const normalizedPath = normalizeLocalTextPath(path, "");
+	const resolvedRoot = resolve(root);
+	const filesystemPath = resolve(resolvedRoot, ...normalizedPath.split("/"));
+
+	if (filesystemPath !== resolvedRoot && !filesystemPath.startsWith(`${resolvedRoot}${sep}`)) {
+		throw new Error("Path escapes the opened folder.");
 	}
 
 	return filesystemPath;

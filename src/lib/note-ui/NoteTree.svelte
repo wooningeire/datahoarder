@@ -448,6 +448,18 @@ function getHorizontalScrollTarget(columns: HTMLElement, node: HTMLElement, alig
 	return columns.scrollLeft;
 }
 
+function getVerticalScrollTarget(scrollport: HTMLElement, node: HTMLElement) {
+	const scrollportRect = scrollport.getBoundingClientRect();
+	const nodeRect = node.getBoundingClientRect();
+
+	return (
+		scrollport.scrollTop +
+		nodeRect.top +
+		nodeRect.height / 2 -
+		(scrollportRect.top + scrollport.clientHeight / 2)
+	);
+}
+
 function scrollColumnIntoView(node: HTMLElement, active: boolean) {
 	function scroll() {
 		if (!active) {
@@ -486,21 +498,29 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 
 		requestAnimationFrame(() => {
 			const columns = node.closest<HTMLElement>('.note-columns');
+			const scrollport = node.closest<HTMLElement>('.note-column-items') ?? columns;
 
-			if (!columns) {
+			if (!columns || !scrollport) {
 				return;
 			}
 
-			const columnsRect = columns.getBoundingClientRect();
-			const nodeRect = node.getBoundingClientRect();
-			const nextScrollTop =
-				columns.scrollTop +
-				nodeRect.top +
-				nodeRect.height / 2 -
-				(columnsRect.top + columns.clientHeight / 2);
+			const nextScrollTop = Math.max(0, getVerticalScrollTarget(scrollport, node));
+
+			if (scrollport === columns) {
+				columns.scrollTo({
+					top: nextScrollTop,
+					left: getHorizontalScrollTarget(columns, node),
+					behavior: 'smooth'
+				});
+				return;
+			}
+
+			scrollport.scrollTo({
+				top: nextScrollTop,
+				behavior: 'smooth'
+			});
 
 			columns.scrollTo({
-				top: Math.max(0, nextScrollTop),
 				left: getHorizontalScrollTarget(columns, node),
 				behavior: 'smooth'
 			});
@@ -533,7 +553,7 @@ function scrollCurrentNote(node: HTMLElement, active: boolean) {
 			use:scrollColumnIntoView={column.level === columns.length - 1}
 		>
 			<h2 id={`note-column-${column.level}`}>{column.label}</h2>
-			<ul>
+			<ul class="note-column-items">
 				{#each column.items as item (item.path)}
 					{#if item.kind === 'directory'}
 						<li>
@@ -715,14 +735,19 @@ h2 {
 	white-space: nowrap;
 }
 
-ul {
+.note-column-items {
 	display: grid;
-	flex: 1 0 auto;
+	flex: 1 1 auto;
 	align-content: start;
 	gap: 0.125rem;
+	min-height: 0;
 	margin: 0;
 	padding: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
 	list-style: none;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
 }
 
 li {

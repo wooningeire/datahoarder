@@ -209,11 +209,13 @@ $effect(() => {
 	}
 
 	const controller = new AbortController();
+	const previewRoot = getMarkupPreviewRoot(file);
 
 	void fetch('/api/vault/preview', {
 		body: JSON.stringify({
 			content,
-			path: file.path
+			path: file.path,
+			...(previewRoot ? { root: previewRoot } : {})
 		}),
 		headers: {
 			'content-type': 'application/json'
@@ -290,6 +292,10 @@ function isMarkupPreviewFile(file: LocalVaultFile | null) {
 		(file.extension === '.md' || file.extension === '.svx' || file.extension === '.svelte') &&
 		!isSvelteKitRoutePreviewFile(file.path)
 	);
+}
+
+function getMarkupPreviewRoot(file: LocalVaultFile | null) {
+	return file && isTauriVaultFile(file) ? file.handle.root : '';
 }
 
 function getMarkupPreviewErrorMessage(error: unknown) {

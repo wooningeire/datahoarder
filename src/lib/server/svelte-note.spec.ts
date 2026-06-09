@@ -38,6 +38,34 @@ describe("Svelte note preview rendering", () => {
         expect(html).toContain("datahoarder-svelte-note");
     }, svelteNotePreviewTimeoutMs);
 
+    it("server-renders a single-file Svelte note with SCSS styles", async () => {
+        resetSvelteNotePreviewCacheForTest();
+
+        const html = await renderSvelteNotePreview(
+            [
+                '<style lang="scss">',
+                ".kanban-board {",
+                "    display: flex;",
+                "    align-items: flex-start; // Keeps columns from stretching",
+                "",
+                "    .kanban-column {",
+                "        color: oklch(0.42 0.12 160);",
+                "    }",
+                "}",
+                "</style>",
+                '<section class="kanban-board">',
+                '    <article class="kanban-column">Kanban SCSS</article>',
+                "</section>",
+            ].join("\n"),
+            createFile("Notes/Kanban.svelte"),
+        );
+
+        expect(html).toContain("Kanban SCSS");
+        expect(html).toContain("oklch(42% 0.12 160deg)");
+        expect(html).not.toContain("Svelte Note Preview Failed");
+        expect(html).not.toContain("css_expected_identifier");
+    }, svelteNotePreviewTimeoutMs);
+
     it("server-renders an mdsvex markdown note with Svelte expressions", async () => {
         resetSvelteNotePreviewCacheForTest();
 
@@ -55,6 +83,28 @@ describe("Svelte note preview rendering", () => {
         expect(html).toContain("<h1>Markdown 1</h1>");
         expect(html).not.toContain("{x}");
         expect(html).not.toContain("&lt;script");
+    }, svelteNotePreviewTimeoutMs);
+
+    it("server-renders markdown notes with soft newlines and extra blank-line markers", async () => {
+        resetSvelteNotePreviewCacheForTest();
+
+        const html = await renderSvelteNotePreview(
+            [
+                "First line",
+                "second line",
+                "",
+                "Next paragraph",
+                "",
+                "",
+                "Final paragraph",
+            ].join("\n"),
+            createFile("Notes/Line Spacing.md"),
+        );
+
+        expect(html).toContain('class="datahoarder-svelte-note datahoarder-markdown-note"');
+        expect(html).toContain("<p>First line\nsecond line</p>");
+        expect(html).toContain('class="markdown-blank-line"');
+        expect(html.match(/markdown-blank-line/gu)).toHaveLength(1);
     }, svelteNotePreviewTimeoutMs);
 
     it("server-renders markdown display math before Svelte parses TeX escapes", async () => {

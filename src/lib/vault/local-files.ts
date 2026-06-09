@@ -330,7 +330,13 @@ export function getTextAssets(files: LocalVaultFile[]) {
 }
 
 export function isEditableTextFile(path: string) {
-	return textExtensionPattern.test(path);
+	const fileName = path.replace(/\\/gu, '/').split('/').at(-1) ?? '';
+
+	if (!fileName || fileName.startsWith('.')) {
+		return false;
+	}
+
+	return !fileName.includes('.') || textExtensionPattern.test(fileName);
 }
 
 export function getLocalRoutePath(path: string) {
@@ -412,10 +418,7 @@ export async function moveLocalFile(
 	content: string
 ) {
 	const normalizedCurrentPath = normalizeLocalTextPath(currentPath, '');
-	const normalizedNextPath = normalizeLocalTextPath(
-		nextPath,
-		getPathExtension(normalizedCurrentPath) || '.md'
-	);
+	const normalizedNextPath = normalizeLocalTextPath(nextPath, '');
 
 	if (normalizedCurrentPath === normalizedNextPath) {
 		return normalizedCurrentPath;

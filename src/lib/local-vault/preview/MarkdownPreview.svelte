@@ -34,6 +34,15 @@ let { html, host = $bindable<HTMLElement | undefined>(), previewLinkNavigation }
 
 		line-height: 1.45;
 
+		.datahoarder-markdown-note {
+			display: grid;
+			gap: 0.75rem;
+		}
+
+		.markdown-blank-line {
+			min-height: 0;
+		}
+
 		h1,
 		h2,
 		h3,
@@ -58,6 +67,10 @@ let { html, host = $bindable<HTMLElement | undefined>(), previewLinkNavigation }
 		h2 {
 			font-size: 1.35rem;
 			line-height: 1.1;
+		}
+
+		p {
+			white-space: pre-wrap;
 		}
 
 		blockquote {

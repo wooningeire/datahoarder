@@ -337,10 +337,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 
 		try {
 			context.errorMessage = '';
-			const nextPath = normalizeLocalTextPath(
-				requestedPath,
-				context.selectedFile.extension || '.md'
-			);
+			const nextPath = normalizeLocalTextPath(requestedPath, '');
 			assertNoLocalManagedPathCollision(context.files, nextPath, context.selectedFile.path);
 			const movedPath = await moveLocalFile(
 				context.vaultHandle,

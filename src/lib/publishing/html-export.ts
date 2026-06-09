@@ -221,6 +221,14 @@ article :is(h1, h2, h3, p, ul, ol, blockquote, pre, .note-embed, .markdown-table
 	margin: 0;
 }
 
+article p {
+	white-space: pre-wrap;
+}
+
+.markdown-blank-line {
+	min-height: 0;
+}
+
 pre {
 	max-width: 100%;
 	overflow: auto;

@@ -35,12 +35,14 @@ test('note lifecycle actions create rename and delete notes', async ({ page }) =
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'capture' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Rename' }).click();
-	await fillRequestText(page, 'Rename Or Move File', 'File Path', 'archive/capture-renamed.md', 'Rename File');
-	await expect(page.getByText('Renamed capture.md to archive/capture-renamed.md')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('archive/capture-renamed.md')).toBeVisible();
+	await fillRequestText(page, 'Rename Or Move File', 'File Path', 'archive/capture-renamed', 'Rename File');
+	await expect(page.getByText('Renamed capture.md to archive/capture-renamed')).toBeVisible();
+	await expect(page.getByLabel('Editor').getByText('archive/capture-renamed')).toBeVisible();
+	await expect(page.locator('.sidebar-summary').getByText('1 files', { exact: true })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Delete' }).click();
-	await expect(page.getByText('Deleted archive/capture-renamed.md')).toBeVisible();
+	await expect(page.getByText('Deleted archive/capture-renamed')).toBeVisible();
+	await expect(page.locator('.sidebar-summary').getByText('0 files', { exact: true })).toBeVisible();
 	await expect(page.locator('.sidebar-summary').getByText('0 notes', { exact: true })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'No File Selected' })).toBeVisible();
 });
@@ -59,6 +61,16 @@ test('column new menu creates notes in the selected folder', async ({ page }) =>
 			await writable.write('# Seed\n\nExisting project note.');
 			await writable.close();
 
+			for (let index = 0; index < 56; index++) {
+				const file = await projects.getFileHandle(`Overflow ${String(index + 1).padStart(2, '0')}.md`, {
+					create: true
+				});
+				const overflowWritable = await file.createWritable();
+
+				await overflowWritable.write(`# Overflow ${index + 1}\n\nTall project note.`);
+				await overflowWritable.close();
+			}
+
 			return directory;
 		};
 	}, vaultName);
@@ -71,10 +83,18 @@ test('column new menu creates notes in the selected folder', async ({ page }) =>
 		.locator('.note-column')
 		.filter({ has: page.getByRole('heading', { name: 'Projects', exact: true }) });
 	const projectsNewButton = projectsColumn.getByRole('button', { name: 'New', exact: true });
+	const projectsItems = projectsColumn.locator('.note-column-items');
 	const noteColumns = page.locator('.note-columns');
 	const initialScrollTop = await noteColumns.evaluate((node) => node.scrollTop);
+	const columnsBox = await noteColumns.boundingBox();
 	const newButtonBox = await projectsNewButton.boundingBox();
+	const listHasVerticalOverflow = await projectsItems.evaluate((node) => node.scrollHeight > node.clientHeight);
+
+	expect(columnsBox).not.toBeNull();
 	expect(newButtonBox).not.toBeNull();
+	expect(listHasVerticalOverflow).toBe(true);
+	expect(newButtonBox!.y).toBeGreaterThanOrEqual(columnsBox!.y);
+	expect(newButtonBox!.y + newButtonBox!.height).toBeLessThanOrEqual(columnsBox!.y + columnsBox!.height);
 	const clickPoint = {
 		x: newButtonBox!.x + newButtonBox!.width / 2,
 		y: newButtonBox!.y + newButtonBox!.height / 2

@@ -2,6 +2,7 @@ import { getDirectoryPath, joinRouteBase, stripCompiledNoteExtension } from '../
 import { stripFrontmatter } from '../note-model/raw.js';
 import { renderFenceBlock } from './fences.js';
 import {
+	markdownBlankLineHtml,
 	parseMarkdownDisplayMathBlock,
 	renderConfiguredInlineMarkdownRules,
 	resolveMarkdownRules,
@@ -57,14 +58,28 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 	let fenceInfo = '';
 	let fenceLines: string[] = [];
 	let paragraphLines: string[] = [];
+	let pendingBlankLineCount = 0;
 	let taskListIndex = 0;
+
+	function pushBlock(blockHtml: string) {
+		if (!html.length) {
+			pendingBlankLineCount = 0;
+		}
+
+		for (let index = 1; index < pendingBlankLineCount; index += 1) {
+			html.push(markdownBlankLineHtml);
+		}
+
+		pendingBlankLineCount = 0;
+		html.push(blockHtml);
+	}
 
 	function flushParagraph() {
 		if (!paragraphLines.length) {
 			return;
 		}
 
-		html.push(`<p>${renderInline(paragraphLines.join(' '), options)}</p>`);
+		pushBlock(`<p>${paragraphLines.map((line) => renderInline(line, options)).join('\n')}</p>`);
 		paragraphLines = [];
 	}
 
@@ -74,7 +89,7 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (fenceMatch) {
 			if (inFence) {
-				html.push(renderFenceBlock(fenceInfo, fenceLines.join('\n')));
+				pushBlock(renderFenceBlock(fenceInfo, fenceLines.join('\n')));
 				fenceInfo = '';
 				fenceLines = [];
 				inFence = false;
@@ -94,6 +109,7 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (!line.trim()) {
 			flushParagraph();
+			pendingBlankLineCount += 1;
 			continue;
 		}
 
@@ -101,7 +117,7 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (displayMath) {
 			flushParagraph();
-			html.push(displayMath.html);
+			pushBlock(displayMath.html);
 			lineIndex = displayMath.nextLineIndex;
 			continue;
 		}
@@ -110,7 +126,7 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (table) {
 			flushParagraph();
-			html.push(table.html);
+			pushBlock(table.html);
 			lineIndex = table.nextLineIndex;
 			continue;
 		}
@@ -120,13 +136,13 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 		if (heading) {
 			flushParagraph();
 			const level = heading[1].length;
-			html.push(`<h${level}>${renderInline(heading[2], options)}</h${level}>`);
+			pushBlock(`<h${level}>${renderInline(heading[2], options)}</h${level}>`);
 			continue;
 		}
 
 		if (/^\s*[-*_]{3,}\s*$/u.test(line)) {
 			flushParagraph();
-			html.push('<hr>');
+			pushBlock('<hr>');
 			continue;
 		}
 
@@ -137,7 +153,7 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 			const parsedList = parseMarkdownList(lines, lineIndex, listItem.indent, listItem.type, options, {
 				value: taskListIndex
 			});
-			html.push(parsedList.html);
+			pushBlock(parsedList.html);
 			taskListIndex = parsedList.nextTaskListIndex;
 			lineIndex = parsedList.nextLineIndex - 1;
 			continue;
@@ -147,7 +163,7 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (quote) {
 			flushParagraph();
-			html.push(`<blockquote>${renderInline(quote[1], options)}</blockquote>`);
+			pushBlock(`<blockquote>${renderInline(quote[1], options)}</blockquote>`);
 			continue;
 		}
 
@@ -155,7 +171,7 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		if (embed) {
 			flushParagraph();
-			html.push(renderEmbedBlock(embed[1], options));
+			pushBlock(renderEmbedBlock(embed[1], options));
 			continue;
 		}
 
@@ -163,7 +179,7 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 	}
 
 	if (inFence) {
-		html.push(renderFenceBlock(fenceInfo, fenceLines.join('\n')));
+		pushBlock(renderFenceBlock(fenceInfo, fenceLines.join('\n')));
 	}
 
 	flushParagraph();

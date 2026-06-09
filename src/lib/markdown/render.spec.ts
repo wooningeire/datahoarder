@@ -2,6 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { renderPortableMarkdown } from './render.js';
 
 describe('renderPortableMarkdown', () => {
+	it('preserves soft paragraph line breaks and extra blank lines', () => {
+		const html = renderPortableMarkdown(
+			[
+				'First line',
+				'second line',
+				'',
+				'Next paragraph',
+				'',
+				'',
+				'Final paragraph'
+			].join('\n')
+		);
+
+		expect(html).toContain('<p>First line\nsecond line</p>');
+		expect(html).toContain('<p>Next paragraph</p>\n<div class="markdown-blank-line" aria-hidden="true"></div>\n<p>Final paragraph</p>');
+		expect(html.match(/markdown-blank-line/gu)).toHaveLength(1);
+	});
+
 	it('escapes raw HTML and keeps safe markdown links', () => {
 		const html = renderPortableMarkdown(
 			[

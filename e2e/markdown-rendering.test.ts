@@ -1,6 +1,68 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 
+test('markdown preview preserves soft line breaks and repeated paragraph gaps', async ({ page }) => {
+	const vaultName = `datahoarder-e2e-markdown-spacing-${Date.now()}`;
+
+	await page.addInitScript((name) => {
+		window.showDirectoryPicker = async () => {
+			const root = await navigator.storage.getDirectory();
+			const directory = await root.getDirectoryHandle(name, { create: true });
+			const file = await directory.getFileHandle('Line Spacing.md', { create: true });
+			const writable = await file.createWritable();
+
+			await writable.write(
+				[
+					'# Line Spacing',
+					'',
+					'First line',
+					'second line',
+					'',
+					'Next paragraph',
+					'',
+					'',
+					'Final paragraph'
+				].join('\n')
+			);
+			await writable.close();
+
+			return directory;
+		};
+	}, vaultName);
+
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open Folder' }).click();
+
+	const preview = page.getByLabel('Preview');
+	await expect(preview.getByRole('heading', { name: 'Line Spacing' })).toBeVisible();
+
+	const paragraphs = preview.locator('.datahoarder-markdown-note p');
+	await expect(paragraphs).toHaveCount(3);
+	await expect(preview.locator('.markdown-blank-line')).toHaveCount(1);
+	await expect(paragraphs.nth(0)).toHaveJSProperty('textContent', 'First line\nsecond line');
+
+	const whiteSpace = await paragraphs.nth(0).evaluate((node) => getComputedStyle(node).whiteSpace);
+	expect(whiteSpace).toBe('pre-wrap');
+
+	const boxes = await paragraphs.evaluateAll((nodes) =>
+		nodes.map((node) => {
+			const rect = node.getBoundingClientRect();
+
+			return {
+				bottom: rect.bottom,
+				top: rect.top
+			};
+		})
+	);
+	expect(boxes).toHaveLength(3);
+	const [firstParagraph, secondParagraph, thirdParagraph] = boxes;
+	const singleBlankGap = secondParagraph!.top - firstParagraph!.bottom;
+	const repeatedBlankGap = thirdParagraph!.top - secondParagraph!.bottom;
+
+	expect(singleBlankGap).toBeGreaterThan(4);
+	expect(repeatedBlankGap).toBeGreaterThan(singleBlankGap + 4);
+});
+
 test('markdown task lists render toggle and export safely', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-task-lists-${Date.now()}`;
 

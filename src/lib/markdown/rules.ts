@@ -24,6 +24,8 @@ const defaultMarkdownRules = {
     underline: true,
 } satisfies ResolvedMarkdownRuleConfig;
 
+export const markdownBlankLineHtml = '<div class="markdown-blank-line" aria-hidden="true"></div>';
+
 export const getDefaultMarkdownRules = () => {
     return { ...defaultMarkdownRules };
 };
@@ -48,7 +50,7 @@ export const applyMarkdownSourceRules = (
         ? applyDisplayMathSourceRule(content)
         : content;
 
-    return transformMarkdownTextOutsideFences(displayPatchedContent, (line) => {
+    const transformedContent = transformMarkdownTextOutsideFences(displayPatchedContent, (line) => {
         let transformed = line;
 
         if (rules.inlineMath) {
@@ -65,6 +67,65 @@ export const applyMarkdownSourceRules = (
 
         return transformed;
     });
+
+    return preserveMarkdownParagraphSpacing(transformedContent);
+};
+
+export const preserveMarkdownParagraphSpacing = (content: string) => {
+    const newline = content.includes("\r\n") ? "\r\n" : "\n";
+    const { body, frontmatter } = splitMarkdownFrontmatter(content);
+    const lines = body.split(/\r?\n/u);
+    const preservedLines: string[] = [];
+    let blankLineCount = 0;
+    let hasSeenContent = false;
+    let inFence = false;
+
+    const flushBlankLines = (nextHasContent: boolean) => {
+        if (!blankLineCount) {
+            return;
+        }
+
+        if (!hasSeenContent || !nextHasContent) {
+            for (let index = 0; index < blankLineCount; index += 1) {
+                preservedLines.push("");
+            }
+
+            blankLineCount = 0;
+            return;
+        }
+
+        preservedLines.push("");
+
+        for (let index = 1; index < blankLineCount; index += 1) {
+            preservedLines.push(markdownBlankLineHtml, "");
+        }
+
+        blankLineCount = 0;
+    };
+
+    for (const line of lines) {
+        const isFenceLine = /^\s*(`{3,}|~{3,})/u.test(line);
+
+        if (!inFence && !isFenceLine && !line.trim()) {
+            blankLineCount += 1;
+            continue;
+        }
+
+        flushBlankLines(true);
+        preservedLines.push(line);
+
+        if (isFenceLine) {
+            inFence = !inFence;
+        }
+
+        if (!inFence && line.trim()) {
+            hasSeenContent = true;
+        }
+    }
+
+    flushBlankLines(false);
+
+    return `${frontmatter}${preservedLines.join(newline)}`;
 };
 
 export const parseMarkdownDisplayMathBlock = (
@@ -163,6 +224,22 @@ const transformMarkdownTextOutsideFences = (
 
         return inFence ? line : transformLine(line);
     }).join(newline);
+};
+
+const splitMarkdownFrontmatter = (content: string) => {
+    const match = content.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u);
+
+    if (!match) {
+        return {
+            body: content,
+            frontmatter: "",
+        };
+    }
+
+    return {
+        body: content.slice(match[0].length),
+        frontmatter: match[0],
+    };
 };
 
 const applyDisplayMathSourceRule = (content: string) => {

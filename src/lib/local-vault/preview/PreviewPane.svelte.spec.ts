@@ -85,6 +85,25 @@ describe('PreviewPane note preview', () => {
 		await expect.element(page.getByRole('heading', { name: 'Browser Svelte' })).toBeInTheDocument();
 	});
 
+	it('posts the Tauri vault root for live Svelte markup previews', async () => {
+		const file = createTauriFile('Widget.svelte', '<h1>Tauri Svelte</h1>', 'C:\\vault');
+		const fetchMock = mockPreviewResponse('<h1>Tauri Svelte</h1>');
+
+		await render(PreviewPane, createPreviewPaneProps({
+			files: [file],
+			selectedContent: '<h1>Tauri Svelte</h1>',
+			selectedFile: file
+		}));
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+		expect(getPreviewRequest(fetchMock)).toEqual({
+			content: '<h1>Tauri Svelte</h1>',
+			path: 'Widget.svelte',
+			root: 'C:\\vault'
+		});
+		await expect.element(page.getByRole('heading', { name: 'Tauri Svelte' })).toBeInTheDocument();
+	});
+
 	it('frames process-backed svelte notes without reporting them as source-only', async () => {
 		const file = createFile('Dashboard.svelte', '<h1>Svelte note</h1>');
 
@@ -143,6 +162,25 @@ function createBrowserFile(path: string, content: string): LocalVaultFile {
 		handle: {
 			kind: 'file',
 			name: path.split('/').at(-1) ?? path,
+			getFile: async () => new File([content], path)
+		}
+	};
+}
+
+function createTauriFile(path: string, content: string, root: string): LocalVaultFile {
+	const file = createFile(path, content);
+
+	return {
+		...file,
+		handle: {
+			kind: 'file',
+			name: path.split('/').at(-1) ?? path,
+			path,
+			previewOrigin: '',
+			previewRouteBase: '/notes',
+			root,
+			source: 'tauri',
+			targetProjectRoot: null,
 			getFile: async () => new File([content], path)
 		}
 	};

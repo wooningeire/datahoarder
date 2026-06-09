@@ -13,16 +13,19 @@ export async function POST({ request }) {
 			content?: unknown;
 			interactiveTaskLists?: unknown;
 			path?: unknown;
+			root?: unknown;
 		};
 		const path = assertString(payload.path, 'path');
 		const content = typeof payload.content === 'string' ? payload.content : undefined;
+		const root = typeof payload.root === 'string' ? payload.root : undefined;
 		const renderPreview = content !== undefined && isSvelteMarkupNotePreviewFile(path)
 			? renderPostedNotePreviewFragment
 			: renderOpenFolderPreviewFragment;
 		const html = await renderPreview({
 			content,
 			interactiveTaskLists: Boolean(payload.interactiveTaskLists),
-			path
+			path,
+			root
 		});
 
 		return new Response(html, {

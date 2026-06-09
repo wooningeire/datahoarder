@@ -50,6 +50,7 @@ describe('open folder server vault', () => {
 		await seedOpenFolder({
 			'Index.md': '# Index\n\nHello.',
 			'Nested/Card.svx': '# Card',
+			'README': 'Plain text project note.',
 			'node_modules/ignored.md': '# Ignored',
 			'image.png': 'not text'
 		});
@@ -59,7 +60,7 @@ describe('open folder server vault', () => {
 
 		expect(metadata.enabled).toBe(true);
 		expect(metadata.root).toBe(root);
-		expect(files.map((file) => file.path)).toEqual(['Index.md', 'Nested/Card.svx']);
+		expect(files.map((file) => file.path)).toEqual(['Index.md', 'Nested/Card.svx', 'README']);
 		expect(files[0]?.routePath).toBe('Index');
 	});
 
@@ -127,6 +128,46 @@ describe('open folder server vault', () => {
 		expect(html).toContain('datahoarder-svelte-note');
 		expect(html).not.toContain('<iframe class="server-vite-preview-frame"');
 		expect(html).not.toContain('Preview Server Required');
+	}, svelteNotePreviewTimeoutMs);
+
+	it('preprocesses posted Svelte note SCSS relative to the request root', async () => {
+		const content = [
+			'<style lang="scss">',
+			'@use "$/styles/mixins";',
+			'',
+			'.kanban-board {',
+			'    @include mixins.card;',
+			'    align-items: flex-start; // Keeps columns from stretching',
+			'',
+			'    .kanban-column {',
+			'        max-height: 100%; // Keeps cards inside the board',
+			'    }',
+			'}',
+			'</style>',
+			'<section class="kanban-board">',
+			'    <article class="kanban-column">Task Kanban</article>',
+			'</section>'
+		].join('\n');
+
+		await seedOpenFolder({
+			'src/lib/datahoard/TaskKanban.svelte': content,
+			'src/lib/styles/_mixins.scss': [
+				'@mixin card {',
+				'    color: oklch(0.42 0.12 160);',
+				'}'
+			].join('\n')
+		});
+
+		const html = await renderPostedNotePreviewFragment({
+			content,
+			path: 'src/lib/datahoard/TaskKanban.svelte',
+			root
+		});
+
+		expect(html).toContain('Task Kanban');
+		expect(html).toContain('oklch(42% 0.12 160deg)');
+		expect(html).not.toContain('Svelte Note Preview Failed');
+		expect(html).not.toContain('css_expected_identifier');
 	}, svelteNotePreviewTimeoutMs);
 
 	it('renders mdsvex notes in the open-folder preview document', async () => {

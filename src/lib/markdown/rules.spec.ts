@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyMarkdownSourceRules } from "./rules.js";
+import { applyMarkdownSourceRules, markdownBlankLineHtml } from "./rules.js";
 
 describe("markdown source rules", () => {
     it("patches markdown-only custom rules before mdsvex parses the source", () => {
@@ -45,5 +45,34 @@ describe("markdown source rules", () => {
         const content = "Inline $x$ and ==marked== and _underlined_.";
 
         expect(applyMarkdownSourceRules(content, { filename: "Notes/Raw.svx" })).toBe(content);
+    });
+
+    it("keeps extra paragraph blank lines outside frontmatter and fences", () => {
+        const html = applyMarkdownSourceRules(
+            [
+                "---",
+                "title: Line Spacing",
+                "",
+                "status: Draft",
+                "---",
+                "First paragraph",
+                "",
+                "",
+                "Second paragraph",
+                "",
+                "```",
+                "Fence one",
+                "",
+                "",
+                "Fence two",
+                "```",
+            ].join("\n"),
+            { filename: "Notes/Line Spacing.md" },
+        );
+
+        expect(html).toContain(["title: Line Spacing", "", "status: Draft"].join("\n"));
+        expect(html).toContain(["First paragraph", "", markdownBlankLineHtml, "", "Second paragraph"].join("\n"));
+        expect(html).toContain(["Fence one", "", "", "Fence two"].join("\n"));
+        expect(html.match(/markdown-blank-line/gu)).toHaveLength(1);
     });
 });

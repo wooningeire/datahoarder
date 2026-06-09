@@ -3,12 +3,18 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Component } from "svelte";
+import type { InlineConfig } from "vite";
 import { applyMarkdownSourceRules } from "../markdown/rules.js";
 import { isSvelteKitRoutePreviewFile } from "../shared/sveltekit-routes.js";
 import type { LocalVaultFile } from "../vault/local-files.js";
 
 type SvelteServerModule = {
     default?: Component<Record<string, never>>,
+};
+
+type SvelteNotePreviewFile = Pick<LocalVaultFile, "path" | "size" | "updatedAt"> & {
+    sourcePath?: string,
+    sourceRoot?: string,
 };
 
 const allowedCompiledImports = new Set(["svelte/internal/server"]);
@@ -32,7 +38,7 @@ export const isSvelteMarkupNotePreviewFile = (path: string) => {
 
 export const renderSvelteNotePreview = async (
     content: string,
-    file: Pick<LocalVaultFile, "path" | "size" | "updatedAt">,
+    file: SvelteNotePreviewFile,
 ) => {
     try {
         const component = await getCompiledSvelteNoteComponent(content, file);
@@ -41,7 +47,7 @@ export const renderSvelteNotePreview = async (
 
         return [
             rendered.head,
-            '<section class="datahoarder-svelte-note">',
+            `<section class="${getSvelteNotePreviewClassName(file.path)}">`,
             rendered.body,
             "</section>",
         ].filter(Boolean).join("\n");
@@ -54,13 +60,21 @@ export const renderSvelteNotePreview = async (
     }
 };
 
+const getSvelteNotePreviewClassName = (path: string) => {
+    const lowerPath = path.toLowerCase();
+
+    return lowerPath.endsWith(".md") || lowerPath.endsWith(".svx")
+        ? "datahoarder-svelte-note datahoarder-markdown-note"
+        : "datahoarder-svelte-note";
+};
+
 export const resetSvelteNotePreviewCacheForTest = () => {
     compiledNoteCache.clear();
 };
 
 const getCompiledSvelteNoteComponent = (
     content: string,
-    file: Pick<LocalVaultFile, "path" | "size" | "updatedAt">,
+    file: SvelteNotePreviewFile,
 ) => {
     const cacheKey = getSvelteNoteCacheKey(content, file);
     const cached = compiledNoteCache.get(cacheKey);
@@ -77,15 +91,23 @@ const getCompiledSvelteNoteComponent = (
 
 const compileSvelteNoteComponent = async (
     content: string,
-    file: Pick<LocalVaultFile, "path" | "size" | "updatedAt">,
+    file: SvelteNotePreviewFile,
     cacheKey: string,
 ) => {
     const runtime = await getSvelteNoteRuntime();
     const source = await getSvelteNoteSource(content, file, runtime);
-    const compiled = runtime.compile(source, {
+    const filename = getSvelteNoteCompileFilename(file);
+    const preprocessed = await runtime.preprocess(
+        source,
+        runtime.vitePreprocess({
+            style: getSvelteNotePreprocessStyleConfig(file),
+        }),
+        { filename },
+    );
+    const compiled = runtime.compile(preprocessed.code, {
         css: "injected",
         dev: false,
-        filename: file.path.replace(/\\/gu, "/"),
+        filename,
         generate: "server",
     });
     const unsupportedImports = getUnsupportedCompiledImports(compiled.js.code);
@@ -117,7 +139,7 @@ const compileSvelteNoteComponent = async (
 
 const getSvelteNoteSource = async (
     content: string,
-    file: Pick<LocalVaultFile, "path" | "size" | "updatedAt">,
+    file: SvelteNotePreviewFile,
     runtime: Awaited<ReturnType<typeof getSvelteNoteRuntime>>,
 ) => {
     const path = file.path.toLowerCase();
@@ -129,7 +151,7 @@ const getSvelteNoteSource = async (
     const patchedContent = patchMdsvexContent(content, file.path);
     const compiled = await runtime.compileMDSvex(patchedContent, {
         extensions: [".svx", ".md"],
-        filename: file.path.replace(/\\/gu, "/"),
+        filename: getSvelteNoteCompileFilename(file),
     });
 
     if (!compiled?.code) {
@@ -155,10 +177,14 @@ const getSvelteNoteRuntime = () => {
 
 const getSvelteNoteCacheKey = (
     content: string,
-    file: Pick<LocalVaultFile, "path" | "size" | "updatedAt">,
+    file: SvelteNotePreviewFile,
 ) => {
     return createHash("sha256")
         .update(file.path)
+        .update("\0")
+        .update(file.sourcePath ?? "")
+        .update("\0")
+        .update(file.sourceRoot ?? "")
         .update("\0")
         .update(String(file.size))
         .update("\0")
@@ -166,6 +192,31 @@ const getSvelteNoteCacheKey = (
         .update("\0")
         .update(content)
         .digest("hex");
+};
+
+const getSvelteNoteCompileFilename = (file: SvelteNotePreviewFile) => {
+    return (file.sourcePath ?? file.path).replace(/\\/gu, "/");
+};
+
+const getSvelteNotePreprocessStyleConfig = (file: SvelteNotePreviewFile): true | InlineConfig => {
+    if (!file.sourceRoot) {
+        return true;
+    }
+
+    const sourceRoot = resolve(file.sourceRoot);
+    const sourceDirectory = resolve(sourceRoot, "src");
+    const libDirectory = resolve(sourceDirectory, "lib");
+
+    return {
+        configFile: false,
+        resolve: {
+            alias: [
+                { find: "$lib", replacement: libDirectory },
+                { find: "$", replacement: libDirectory },
+                { find: "#", replacement: sourceDirectory },
+            ],
+        },
+    } satisfies InlineConfig;
 };
 
 const getUnsupportedCompiledImports = (code: string) => {

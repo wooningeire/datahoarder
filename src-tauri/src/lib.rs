@@ -817,16 +817,21 @@ fn is_ignored_directory(name: &str) -> bool {
 }
 
 fn is_editable_text_file(path: &str) -> bool {
-    let Some(extension) = Path::new(path)
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .map(str::to_lowercase)
-    else {
+    let path = Path::new(path);
+    let Some(file_name) = path.file_name().and_then(|file_name| file_name.to_str()) else {
         return false;
     };
 
+    if file_name.is_empty() || file_name.starts_with('.') {
+        return false;
+    }
+
+    let Some(extension) = path.extension().and_then(|extension| extension.to_str()) else {
+        return true;
+    };
+
     matches!(
-        extension.as_str(),
+        extension.to_lowercase().as_str(),
         "base"
             | "css"
             | "csv"
@@ -939,6 +944,15 @@ mod tests {
         assert_eq!(resolved_root, None);
 
         fs::remove_dir_all(project_root).expect("project root should be removed");
+    }
+
+    #[test]
+    fn treats_extensionless_vault_files_as_editable_text() {
+        assert!(is_editable_text_file("Notes/Capture"));
+        assert!(is_editable_text_file("README"));
+        assert!(is_editable_text_file("Notes/Capture.md"));
+        assert!(!is_editable_text_file(".env"));
+        assert!(!is_editable_text_file("image.png"));
     }
 
     struct EnvBackup {

@@ -10,7 +10,6 @@ import {
     getItemsBounds,
     gridSize,
     isShapeTool,
-    keyToTool,
     majorGridSize,
     normalizeDrawing,
     resizeBox,
@@ -25,6 +24,7 @@ import {
     type WhiteboardTool,
     type WhiteboardViewport,
 } from "./whiteboard.js";
+import { createWhiteboardKeydownHandler } from "./whiteboard-keyboard.js";
 import { getWorldPoint } from "./whiteboard-viewport.js";
 
 type Props = {
@@ -280,40 +280,11 @@ const handleWheel = (event: WheelEvent): void => {
     };
 };
 
-const handleKeydown = (event: KeyboardEvent): void => {
-    const target = event.target as HTMLElement;
-
-    if (target.closest("[contenteditable=\"true\"]")) {
-        return;
-    }
-
-    if (event.key === "Delete" || event.key === "Backspace") {
-        deleteSelected();
-        event.preventDefault();
-        return;
-    }
-
-    if (event.key === "Escape") {
-        draftDrawing = null;
-        interaction = null;
-        activeTool = "select";
-        setSelected(null);
-        event.preventDefault();
-        return;
-    }
-
-    if (event.key === "0") {
-        fitToItems();
-        event.preventDefault();
-        return;
-    }
-
-    const tool = keyToTool(event.key);
-
-    if (tool) {
-        activeTool = tool;
-        event.preventDefault();
-    }
+const clearInteraction = (): void => {
+    draftDrawing = null;
+    interaction = null;
+    activeTool = "select";
+    setSelected(null);
 };
 
 const zoomAt = (clientX: number, clientY: number, nextScale: number): void => {
@@ -369,6 +340,15 @@ const fitToItems = (): void => {
         y: rect.height / 2 - (bounds.y + bounds.height / 2) * scale,
     };
 };
+
+const handleKeydown = createWhiteboardKeydownHandler({
+    clearInteraction,
+    deleteSelected,
+    fitToItems,
+    selectTool: (tool) => {
+        activeTool = tool;
+    },
+});
 
 const addText = (point: WhiteboardPoint): void => {
     const item = createTextItem(point);

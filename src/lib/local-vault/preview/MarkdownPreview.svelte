@@ -16,7 +16,7 @@ let { html, host = $bindable<HTMLElement | undefined>(), previewLinkNavigation }
 </script>
 
 <article
-	class="markdown-preview"
+	class="markdown-preview datahoarder-markdown-note"
 	bind:this={host}
 	use:previewLinkNavigation
 >

@@ -525,47 +525,45 @@ test('quick notes track recent and pinned local notes', async ({ page }) => {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 
-	const noteColumns = page.locator('.note-columns');
-	const workspace = page.locator('.workspace');
-	const bottomBanners = page.locator('.bottom-banners');
-	const statusRow = page.locator('.status-row');
-	await expect(noteColumns).toBeVisible();
-	await expect(statusRow).toBeVisible();
-	const workspaceBox = await workspace.boundingBox();
-	const bottomBannersBox = await bottomBanners.boundingBox();
-	const viewport = page.viewportSize();
-	expect(workspaceBox).not.toBeNull();
-	expect(bottomBannersBox).not.toBeNull();
-	expect(viewport).not.toBeNull();
-	expect(Math.abs(workspaceBox!.y + workspaceBox!.height - bottomBannersBox!.y)).toBeLessThan(2);
-	expect(Math.abs(bottomBannersBox!.y + bottomBannersBox!.height - viewport!.height)).toBeLessThan(2);
-	const initialNoteColumnsBox = await noteColumns.boundingBox();
-	expect(initialNoteColumnsBox).not.toBeNull();
-	const initialNoteColumnsTop = initialNoteColumnsBox!.y;
-	const expectWorkspaceToUseAvailableGridSpace = async () => {
-		const nextWorkspaceBox = await workspace.boundingBox();
-		const nextBottomBannersBox = await bottomBanners.boundingBox();
-		const nextViewport = page.viewportSize();
+    const noteColumns = page.locator(".note-columns");
+    const workspace = page.locator(".workspace");
+    const statusRow = page.locator(".status-row");
+    await expect(noteColumns).toBeVisible();
+    await expect(statusRow).toBeVisible();
+    const workspaceBox = await workspace.boundingBox();
+    const statusRowBox = await statusRow.boundingBox();
+    const viewport = page.viewportSize();
+    expect(workspaceBox).not.toBeNull();
+    expect(statusRowBox).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    expect(Math.abs(workspaceBox!.y + workspaceBox!.height - statusRowBox!.y)).toBeLessThan(2);
+    expect(Math.abs(statusRowBox!.y + statusRowBox!.height - viewport!.height)).toBeLessThan(2);
+    const initialNoteColumnsBox = await noteColumns.boundingBox();
+    expect(initialNoteColumnsBox).not.toBeNull();
+    const initialNoteColumnsTop = initialNoteColumnsBox!.y;
+    const expectWorkspaceToUseAvailableGridSpace = async () => {
+        const nextWorkspaceBox = await workspace.boundingBox();
+        const nextStatusRowBox = await statusRow.count() ? await statusRow.boundingBox() : null;
+        const nextViewport = page.viewportSize();
 
-		expect(nextWorkspaceBox).not.toBeNull();
-		expect(nextBottomBannersBox).not.toBeNull();
-		expect(nextViewport).not.toBeNull();
-		expect(Math.abs(nextWorkspaceBox!.y - workspaceBox!.y)).toBeLessThan(2);
+        expect(nextWorkspaceBox).not.toBeNull();
+        expect(nextViewport).not.toBeNull();
+        expect(Math.abs(nextWorkspaceBox!.y - workspaceBox!.y)).toBeLessThan(2);
 
-		if (nextBottomBannersBox!.height > 1) {
-			expect(Math.abs(nextWorkspaceBox!.y + nextWorkspaceBox!.height - nextBottomBannersBox!.y)).toBeLessThan(2);
-			expect(Math.abs(nextBottomBannersBox!.y + nextBottomBannersBox!.height - nextViewport!.height)).toBeLessThan(2);
-			return;
-		}
+        if (nextStatusRowBox) {
+            expect(Math.abs(nextWorkspaceBox!.y + nextWorkspaceBox!.height - nextStatusRowBox.y)).toBeLessThan(2);
+            expect(Math.abs(nextStatusRowBox.y + nextStatusRowBox.height - nextViewport!.height)).toBeLessThan(2);
+            return;
+        }
 
-		expect(Math.abs(nextWorkspaceBox!.y + nextWorkspaceBox!.height - nextViewport!.height)).toBeLessThan(2);
-	};
-	const expectNoteColumnsTopToStayPut = async () => {
-		await expectWorkspaceToUseAvailableGridSpace();
-		const noteColumnsBox = await noteColumns.boundingBox();
-		expect(noteColumnsBox).not.toBeNull();
-		expect(Math.abs(noteColumnsBox!.y - initialNoteColumnsTop)).toBeLessThan(2);
-	};
+        expect(Math.abs(nextWorkspaceBox!.y + nextWorkspaceBox!.height - nextViewport!.height)).toBeLessThan(2);
+    };
+    const expectNoteColumnsTopToStayPut = async () => {
+        await expectWorkspaceToUseAvailableGridSpace();
+        const noteColumnsBox = await noteColumns.boundingBox();
+        expect(noteColumnsBox).not.toBeNull();
+        expect(Math.abs(noteColumnsBox!.y - initialNoteColumnsTop)).toBeLessThan(2);
+    };
 
 	await noteColumns.getByRole('button', { name: 'beta.md' }).click();
 	await expectNoteColumnsTopToStayPut();

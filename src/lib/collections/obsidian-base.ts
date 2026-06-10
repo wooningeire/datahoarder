@@ -7,6 +7,8 @@ import type {
 	CollectionSummaryDefinition,
 	CollectionView
 } from "./types.js";
+import { getFormulaBlocks } from "./obsidian-base-formulas.js";
+import { serializeCollectionDefinition } from "./obsidian-base-serialize.js";
 
 type ParsedBaseView = {
 	folders: string[];
@@ -118,75 +120,6 @@ function createObsidianBaseSchema(views: CollectionView[], formulas: Record<stri
 	}
 
 	return [...fields.values()];
-}
-
-function getFormulaBlocks(content: string) {
-	const formulas: Record<string, string> = {};
-	const lines = content.split(/\r?\n/u);
-	const formulasStart = findTopLevelKey(lines, "formulas");
-
-	if (formulasStart < 0) {
-		return formulas;
-	}
-
-	let cursor = formulasStart + 1;
-
-	while (cursor < lines.length) {
-		const line = lines[cursor];
-
-		if (line.trim() && getIndent(line) === 0) {
-			break;
-		}
-
-		const match = line.match(/^\s{2}([^:]+):\s*(.*)$/u);
-
-		if (!match) {
-			cursor += 1;
-			continue;
-		}
-
-		const name = cleanYamlScalar(match[1]);
-		const value = match[2].trim();
-
-		if (value === "|-" || value === "|") {
-			const block = getIndentedBlock(lines, cursor + 1, getIndent(line));
-
-			formulas[name] = block.text;
-			cursor = block.end;
-			continue;
-		}
-
-		formulas[name] = cleanYamlScalar(value);
-		cursor += 1;
-	}
-
-	return formulas;
-}
-
-function getIndentedBlock(lines: string[], start: number, parentIndent: number) {
-	let end = start;
-	const blockLines: string[] = [];
-
-	while (end < lines.length) {
-		const line = lines[end];
-
-		if (line.trim() && getIndent(line) <= parentIndent) {
-			break;
-		}
-
-		blockLines.push(line);
-		end += 1;
-	}
-
-	const contentIndent = Math.min(
-		...blockLines.filter((line) => line.trim()).map(getIndent)
-	);
-	const safeIndent = Number.isFinite(contentIndent) ? contentIndent : parentIndent + 2;
-
-	return {
-		end,
-		text: blockLines.map((line) => line.slice(Math.min(getIndent(line), safeIndent))).join("\n").trim()
-	};
 }
 
 function getFilterExpressions(value: SimpleYamlValue | undefined): string[] {
@@ -322,72 +255,6 @@ function rebaseSourceFolder(folder: string, path: string) {
 	return normalizedFolder;
 }
 
-function serializeCollectionDefinition(definition: CollectionDefinition) {
-	const lines: string[] = [
-		`name: ${formatYamlScalar(definition.name)}`,
-		"source:",
-		"    folders:"
-	];
-
-	for (const folder of definition.source.folders) {
-		lines.push(`        - ${formatYamlScalar(folder)}`);
-	}
-
-	if (definition.schema.length) {
-		lines.push("schema:");
-
-		for (const field of definition.schema) {
-			if (field.formula) {
-				lines.push(`    ${formatYamlKey(field.name)}:`);
-				lines.push("        type: formula");
-				lines.push(`        formula: ${formatYamlScalar(field.formula)}`);
-				continue;
-			}
-
-			lines.push(`    ${formatYamlKey(field.name)}: ${field.type}`);
-		}
-	}
-
-	if (definition.summaries.length) {
-		lines.push("summaries:");
-
-		for (const summary of definition.summaries) {
-			lines.push(`    - name: ${formatYamlScalar(summary.name)}`);
-			lines.push(`      type: ${summary.type}`);
-
-			if (summary.field) {
-				lines.push(`      field: ${formatYamlScalar(summary.field)}`);
-			}
-		}
-	}
-
-	lines.push("views:");
-
-	for (const view of definition.views) {
-		lines.push(`    - type: ${view.type}`);
-		lines.push(`      name: ${formatYamlScalar(view.name)}`);
-
-		if (view.filter) {
-			lines.push(`      filter: ${formatYamlScalar(view.filter)}`);
-		}
-
-		if (view.sortColumn) {
-			lines.push(`      sortBy: ${formatYamlScalar(view.sortColumn)}`);
-			lines.push(`      sortDirection: ${view.sortDirection}`);
-		}
-
-		if (view.columns.length) {
-			lines.push("      columns:");
-
-			for (const column of view.columns) {
-				lines.push(`          - ${formatYamlScalar(column)}`);
-			}
-		}
-	}
-
-	return `${lines.join("\n")}\n`;
-}
-
 function createFallbackBaseView(): CollectionView {
 	return {
 		columns: [],
@@ -433,26 +300,6 @@ function formatQueryValue(value: string) {
 
 function formatQueryToken(value: string) {
 	return `"${value.replace(/(["\\])/gu, "\\$1")}"`;
-}
-
-function formatYamlKey(key: string) {
-	return /^[A-Za-z_][A-Za-z0-9_-]*$/u.test(key) ? key : formatYamlScalar(key);
-}
-
-function formatYamlScalar(value: string) {
-	if (!value) {
-		return "\"\"";
-	}
-
-	if (/^[A-Za-z0-9_.@#/-]+$/u.test(value)) {
-		return value;
-	}
-
-	if (!value.includes("'")) {
-		return `'${value}'`;
-	}
-
-	return `"${value.replace(/"/gu, "\"\"")}"`;
 }
 
 function normalizeFormulaWhitespace(formula: string) {
@@ -511,19 +358,6 @@ function getObsidianBaseName(path: string) {
 	const folderName = directory.split("/").filter(Boolean).at(-1);
 
 	return folderName || "Base";
-}
-
-function findTopLevelKey(lines: string[], key: string) {
-	const normalizedKey = key.toLowerCase();
-
-	return lines.findIndex((line) =>
-		getIndent(line) === 0 &&
-		line.trim().toLowerCase() === `${normalizedKey}:`
-	);
-}
-
-function getIndent(line: string) {
-	return line.match(/^\s*/u)?.[0].replace(/\t/gu, "  ").length ?? 0;
 }
 
 function cleanYamlScalar(value: string) {

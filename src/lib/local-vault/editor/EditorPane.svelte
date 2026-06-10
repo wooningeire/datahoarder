@@ -1,31 +1,26 @@
 <script lang="ts">
 import { onDestroy, tick } from 'svelte';
 import type { LocalVaultFile } from '../../vault/local-files.js';
+import type { LocalVaultShellStore } from "../shell/Store.svelte.js";
 import { getEditorLanguage as getMonacoEditorLanguage } from './editor-language.js';
 import { loadMonaco, type MonacoApi, type MonacoEditor } from './monaco.js';
 
 type Props = {
-	selectedContent: string;
-	selectedFile: LocalVaultFile | null;
-	setMonacoState: (state: 'fallback' | 'idle' | 'loading' | 'ready') => void;
-	setSelectedContent: (content: string) => void;
+    store: LocalVaultShellStore,
 };
 
-let {
-	selectedContent,
-	selectedFile,
-	setMonacoState,
-	setSelectedContent
-}: Props = $props();
+let { store }: Props = $props();
 let editorHost: HTMLDivElement | undefined = $state();
 let monacoState = $state<'idle' | 'loading' | 'ready' | 'fallback'>('idle');
 let monacoApi: MonacoApi | null = null;
 let monacoEditor: MonacoEditor | null = null;
 let monacoSubscription: { dispose: () => void } | null = null;
-let selectedPathParts = $derived(selectedFile ? getPathParts(selectedFile.path, selectedFile.extension) : null);
+let selectedPathParts = $derived(
+    store.selectedFile ? getPathParts(store.selectedFile.path, store.selectedFile.extension) : null,
+);
 
 $effect(() => {
-	setMonacoState(monacoState);
+	store.setMonacoState(monacoState);
 });
 
 $effect(() => {
@@ -35,21 +30,21 @@ $effect(() => {
 });
 
 $effect(() => {
-	syncMonacoContent(selectedContent);
+	syncMonacoContent(store.selectedContent);
 });
 
 $effect(() => {
-	updateMonacoLanguage(selectedFile);
+	updateMonacoLanguage(store.selectedFile);
 });
 
 onDestroy(() => {
-	setMonacoState('idle');
+	store.setMonacoState('idle');
 	monacoSubscription?.dispose();
 	monacoEditor?.dispose();
 });
 
 function handleContentInput(event: Event) {
-	setSelectedContent((event.currentTarget as HTMLTextAreaElement).value);
+	store.setSelectedContent((event.currentTarget as HTMLTextAreaElement).value);
 }
 
 async function initializeMonaco() {
@@ -75,25 +70,25 @@ async function initializeMonaco() {
 			automaticLayout: true,
 			fontFamily: 'var(--font-mono)',
 			fontSize: 14,
-			language: getMonacoEditorLanguage(selectedFile),
+			language: getMonacoEditorLanguage(store.selectedFile),
 			lineNumbersMinChars: 3,
 			minimap: { enabled: false },
 			scrollBeyondLastLine: false,
 			tabSize: 2,
-			value: selectedContent,
+			value: store.selectedContent,
 			wordWrap: 'on'
 		});
 		monacoSubscription = monacoEditor.onDidChangeModelContent(() => {
 			const nextValue = monacoEditor?.getValue() ?? '';
 
-			if (nextValue !== selectedContent) {
-				setSelectedContent(nextValue);
+			if (nextValue !== store.selectedContent) {
+				store.setSelectedContent(nextValue);
 			}
 		});
 		monacoState = 'ready';
 		await tick();
 		monacoEditor.layout();
-		updateMonacoLanguage(selectedFile);
+		updateMonacoLanguage(store.selectedFile);
 	} catch {
 		monacoState = 'fallback';
 	}
@@ -134,10 +129,10 @@ function getPathParts(path: string, extension: string) {
 </script>
 
 <section class="editor-pane" aria-label="Editor">
-	{#if selectedFile}
+	{#if store.selectedFile}
 		<header class="file-header">
 			{#if selectedPathParts}
-				<h2 class="file-path-label" title={selectedFile.path} aria-label={selectedFile.path}>
+				<h2 class="file-path-label" title={store.selectedFile.path} aria-label={store.selectedFile.path}>
 					{#if selectedPathParts.directory}<span class="file-path-directory">{selectedPathParts.directory}</span>{/if}<span class="file-path-name">{selectedPathParts.stem}</span>{#if selectedPathParts.extension}<span class="file-path-extension">{selectedPathParts.extension}</span>{/if}
 				</h2>
 			{/if}
@@ -148,7 +143,7 @@ function getPathParts(path: string, extension: string) {
 			{#if monacoState !== 'ready'}
 				<textarea
 					class="fallback-editor"
-					value={selectedContent}
+					value={store.selectedContent}
 					spellcheck="false"
 					aria-label="File source"
 					oninput={handleContentInput}

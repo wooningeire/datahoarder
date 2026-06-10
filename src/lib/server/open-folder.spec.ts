@@ -85,6 +85,56 @@ describe('open folder server vault', () => {
 		expect(html).not.toContain('&lt;script');
 	}, svelteNotePreviewTimeoutMs);
 
+	it('renders ordinary posted markdown through the portable renderer', async () => {
+		const html = await renderPostedNotePreviewFragment({
+			content: [
+				'# Application Table',
+				'',
+				'- [ ] Call <client>',
+				'',
+				'| Company | Status | Count |',
+				'| --- | :---: | ---: |',
+				'| Acme <Labs> | **Open** | 3 |'
+			].join('\n'),
+			interactiveTaskLists: true,
+			path: 'Application Table.md'
+		});
+
+		expect(html).toContain('class="markdown-table-wrapper"');
+		expect(html).toContain('Acme &lt;Labs&gt;');
+		expect(html).toContain('<input type="checkbox" data-task-index="0">');
+		expect(html).not.toContain('Svelte Note Preview Failed');
+		expect(html).not.toContain('Acme <Labs>');
+	}, svelteNotePreviewTimeoutMs);
+
+	it('renders ordinary open-folder markdown embeds with local vault context', async () => {
+		await seedOpenFolder({
+			'Parent.md': [
+				'# Parent',
+				'',
+				'![[Components/Reusable#Summary|Reusable Card|name=Acme <Labs>|status=Interview]]'
+			].join('\n'),
+			'Components/Reusable.md': [
+				'# Reusable',
+				'',
+				'## Summary',
+				'### {{name}}',
+				'status:: {{status}}'
+			].join('\n')
+		});
+
+		const html = await renderOpenFolderPreviewFragment({
+			path: 'Parent.md'
+		});
+
+		expect(html).toContain('class="note-embed"');
+		expect(html).toContain('Reusable Card');
+		expect(html).toContain('<h3>Acme &lt;Labs&gt;</h3>');
+		expect(html).toContain('status:: Interview');
+		expect(html).not.toContain('Svelte Note Preview Failed');
+		expect(html).not.toContain('Acme <Labs>');
+	}, svelteNotePreviewTimeoutMs);
+
 	it('embeds explicit route files in target server preview documents', async () => {
 		await seedOpenFolder({
 			'Nested/Card.md': '# Card',

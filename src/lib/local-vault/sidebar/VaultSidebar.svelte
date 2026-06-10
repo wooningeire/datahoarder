@@ -2,132 +2,68 @@
 import NoteTree from '../../note-ui/NoteTree.svelte';
 import QuickNotes from './QuickNotes.svelte';
 import SidebarSummary from './SidebarSummary.svelte';
-import type { NoteTreeNode } from '../../note-model/tree.js';
-import type { SavedVaultSearch } from '../../vault/saved-search.js';
-import type { VaultIndex } from '../../vault/index.js';
-import type { VaultSearchResult } from '../../vault/search.js';
-import type { InlineFileCreate } from '../shared/types.js';
 import VaultSearchPanel from './VaultSearchPanel.svelte';
 import VaultSearchResults from './VaultSearchResults.svelte';
-
-type VaultRecord = VaultIndex['records'][number];
+import type { LocalVaultShellStore } from "../shell/Store.svelte.js";
 
 type Props = {
-	fileTree: NoteTreeNode[];
-	filesCount: number;
-	hasVault: boolean;
-	loading: boolean;
-	noteCount: number;
-	pinnedNotes: VaultRecord[];
-	recentNotes: VaultRecord[];
-	savedVaultSearches: SavedVaultSearch[];
-	saving: boolean;
-	searchingVault: boolean;
-	selectedPath: string;
-	inlineFileCreate: InlineFileCreate | null;
-	vaultHasRecords: boolean;
-	vaultSearchQuery: string;
-	vaultSearchResults: VaultSearchResult[];
-	applySavedVaultSearch: (search: SavedVaultSearch) => void;
-	cancelInlineFileCreate: () => void;
-	createDrawingNote: (directoryPath: string) => void;
-	createNote: (directoryPath: string) => void;
-	createNoteFromTemplate: (directoryPath: string) => void;
-	deleteSavedVaultSearch: (search: SavedVaultSearch) => void;
-	openSearchResult: (result: VaultSearchResult) => void;
-	openStoredNoteRecord: (record: VaultRecord) => void;
-	saveCurrentVaultSearch: () => void;
-	selectFile: (filePath: string) => void;
-	setVaultSearchQuery: (query: string) => void;
-	submitInlineFileCreate: () => void;
-	togglePinnedPath: (path: string) => void;
-	updateInlineFileCreateName: (fileName: string) => void;
+    store: LocalVaultShellStore,
 };
 
-let {
-	fileTree,
-	filesCount,
-	hasVault,
-	loading,
-	noteCount,
-	pinnedNotes,
-	recentNotes,
-	savedVaultSearches,
-	saving,
-	searchingVault,
-	selectedPath,
-	inlineFileCreate,
-	vaultHasRecords,
-	vaultSearchQuery,
-	vaultSearchResults,
-	applySavedVaultSearch,
-	cancelInlineFileCreate,
-	createDrawingNote,
-	createNote,
-	createNoteFromTemplate,
-	deleteSavedVaultSearch,
-	openSearchResult,
-	openStoredNoteRecord,
-	saveCurrentVaultSearch,
-	selectFile,
-	setVaultSearchQuery,
-	submitInlineFileCreate,
-	togglePinnedPath,
-	updateInlineFileCreateName
-}: Props = $props();
+let { store }: Props = $props();
 </script>
 
 <aside class="sidebar" aria-label="Local vault">
-	<SidebarSummary {filesCount} {noteCount} />
+	<SidebarSummary filesCount={store.files.length} noteCount={store.noteCount} />
 
 	<VaultSearchPanel
-		{hasVault}
-		{loading}
-		{savedVaultSearches}
-		{saving}
-		{vaultHasRecords}
-		{vaultSearchQuery}
-		{applySavedVaultSearch}
-		{deleteSavedVaultSearch}
-		{saveCurrentVaultSearch}
-		{setVaultSearchQuery}
+		hasVault={Boolean(store.vaultHandle)}
+		loading={store.loading}
+		savedVaultSearches={store.savedVaultSearches}
+		saving={store.saving}
+		vaultHasRecords={Boolean(store.vaultIndex.records.length)}
+		vaultSearchQuery={store.vaultSearchQuery}
+		applySavedVaultSearch={store.interactionActions.applySavedVaultSearch}
+		deleteSavedVaultSearch={store.interactionActions.deleteSavedVaultSearch}
+		saveCurrentVaultSearch={store.interactionActions.saveCurrentVaultSearch}
+		setVaultSearchQuery={store.interactionActions.setVaultSearchQuery}
 	/>
 
 	<div class="vault-browser">
 		<div class="vault-main-browser">
-			{#if searchingVault}
+			{#if store.searchingVault}
 				<VaultSearchResults
-					results={vaultSearchResults}
-					{selectedPath}
-					{openSearchResult}
+					results={store.vaultSearchResults}
+					selectedPath={store.selectedPath}
+					openSearchResult={store.interactionActions.openSearchResult}
 				/>
-			{:else if hasVault}
+			{:else if store.vaultHandle}
 				<NoteTree
-					nodes={fileTree}
-					activePath={selectedPath}
-					createDisabled={loading || saving}
-					{createDrawingNote}
-					{createNote}
-					{createNoteFromTemplate}
-					{inlineFileCreate}
-					{cancelInlineFileCreate}
-					onSelect={selectFile}
+					nodes={store.fileTree}
+					activePath={store.selectedPath}
+					createDisabled={store.loading || store.saving}
+					createDrawingNote={store.noteActions.createDrawingNote}
+					createNote={store.noteActions.createNote}
+					createNoteFromTemplate={store.noteActions.createNoteFromTemplate}
+					inlineFileCreate={store.requestState.getInlineFileCreateProps()}
+					cancelInlineFileCreate={store.requestState.cancelInlineFileCreate}
+					onSelect={store.vaultActions.selectFile}
 					rootLabel="Files"
-					{submitInlineFileCreate}
-					{updateInlineFileCreateName}
+					submitInlineFileCreate={store.requestState.submitInlineFileCreate}
+					updateInlineFileCreateName={store.requestState.updateInlineFileCreateName}
 				/>
 			{:else}
 				<p class="empty-state">No editable text files are indexed yet.</p>
 			{/if}
 		</div>
 
-		{#if !searchingVault}
+		{#if !store.searchingVault}
 			<QuickNotes
-				{pinnedNotes}
-				{recentNotes}
-				{selectedPath}
-				{openStoredNoteRecord}
-				{togglePinnedPath}
+				pinnedNotes={store.pinnedNotes}
+				recentNotes={store.recentNotes}
+				selectedPath={store.selectedPath}
+				openStoredNoteRecord={store.interactionActions.openStoredNoteRecord}
+				togglePinnedPath={store.storedNotes.togglePinnedPath}
 			/>
 		{/if}
 	</div>

@@ -2,11 +2,18 @@ import type { ComponentProps } from 'svelte';
 import { page } from 'vitest/browser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import { createEmptyVaultIndex } from '../../vault/index.js';
+import { createEmptyVaultIndex, type VaultIndex } from '../../vault/index.js';
 import type { LocalVaultFile } from '../../vault/local-files.js';
+import { createLocalVaultShellStore } from "../shell/Store.svelte.js";
 import PreviewPane from './PreviewPane.svelte';
 
 type PreviewPaneProps = ComponentProps<typeof PreviewPane>;
+type PreviewPaneStateOverrides = {
+	files?: LocalVaultFile[];
+	selectedContent?: string;
+	selectedFile?: LocalVaultFile | null;
+	vaultIndex?: VaultIndex;
+};
 
 afterEach(() => {
 	vi.unstubAllGlobals();
@@ -241,48 +248,15 @@ function createTauriFile(path: string, content: string, root: string): LocalVaul
 	};
 }
 
-function createPreviewPaneProps(overrides: Partial<PreviewPaneProps> = {}): PreviewPaneProps {
-	return {
-		baseViews: [],
-		collectionCellEdit: null,
-		collectionFilter: '',
-		collectionKanbanGroupBy: '',
-		collectionKanbanGroups: [],
-		collectionRecordCreationError: '',
-		collectionRecords: [],
-		collectionSortColumn: '',
-		collectionSortDirection: 'asc' as const,
-		collectionSummaries: [],
-		collectionTimelineDateField: '',
-		collectionTimelineItems: [],
-		files: [],
-		hasVault: true,
-		loading: false,
-		saving: false,
-		selectedBacklinks: [],
-		selectedCollection: null,
-		selectedContent: '',
-		selectedFile: null,
-		vaultIndex: createEmptyVaultIndex(),
-		addFieldToSelectedCollection: vi.fn(),
-		bulkSetCollectionField: vi.fn(),
-		cancelCollectionCellEdit: vi.fn(),
-		createCollectionRecord: vi.fn(),
-		downloadCollectionExport: vi.fn(),
-		editCollectionRecordField: vi.fn(),
-		formatCollectionRecordValue: vi.fn(() => ''),
-		handlePreviewChange: vi.fn(),
-		handlePreviewClick: vi.fn(),
-		isEditingCollectionCell: vi.fn(() => false),
-		openBacklink: vi.fn(),
-		openCollectionRecord: vi.fn(),
-		saveCollectionCellEdit: vi.fn(async () => {}),
-		selectCollectionView: vi.fn(),
-		setCollectionFilter: vi.fn(),
-		setPreviewHtml: vi.fn(),
-		setSelectedContent: vi.fn(),
-		sortCollectionBy: vi.fn(),
-		updateCollectionCellEditValue: vi.fn(),
-		...overrides
-	};
+function createPreviewPaneProps(overrides: PreviewPaneStateOverrides = {}): PreviewPaneProps {
+	const store = createLocalVaultShellStore();
+	const selectedFile = overrides.selectedFile ?? null;
+
+	store.files = overrides.files ?? (selectedFile ? [selectedFile] : []);
+	store.selectedContent = overrides.selectedContent ?? '';
+	store.savedContent = store.selectedContent;
+	store.selectedPath = selectedFile?.path ?? '';
+	store.vaultIndex = overrides.vaultIndex ?? createEmptyVaultIndex();
+
+	return { store };
 }

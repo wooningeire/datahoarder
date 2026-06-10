@@ -63,10 +63,6 @@ export function renderSelectedExportBodyHtml(context: SelectedExportContext) {
 		return withSummaries(renderCollectionTableHtml(context.collectionRecords, context.selectedCollection.columns));
 	}
 
-	if (context.previewHtml) {
-		return context.previewHtml;
-	}
-
 	if (context.selectedFile && isDatahoarderBoardFile(context.selectedFile.path)) {
 		return renderLocalBoard(context.selectedContent, context.selectedFile.path, context);
 	}
@@ -77,6 +73,10 @@ export function renderSelectedExportBodyHtml(context: SelectedExportContext) {
 
 	if (context.selectedFile?.extension === '.md') {
 		return renderLocalMarkdown(context.selectedContent, context.selectedFile, context);
+	}
+
+	if (context.previewHtml) {
+		return context.previewHtml;
 	}
 
 	return renderSourceHtml(context.selectedContent);
@@ -152,11 +152,20 @@ export function renderPreviewPaneHtml(
 ) {
 	if (
 		!file ||
-		file.extension === '.md' ||
 		file.extension === '.svx' ||
 		file.extension === '.svelte'
 	) {
 		return '';
+	}
+
+	if (file.extension === '.md' && isExcalidrawNote(content)) {
+		return renderExcalidrawNotePreview(content);
+	}
+
+	if (file.extension === '.md') {
+		return renderLocalMarkdown(content, file, context, {
+			interactiveTaskLists: true
+		});
 	}
 
 	if (isDatahoarderBoardFile(file.path)) {

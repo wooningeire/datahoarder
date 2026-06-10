@@ -1,52 +1,56 @@
 <script lang="ts">
 type Props = {
-	errorMessage: string;
-	status?: string;
+    errorMessage: string,
+    status?: string,
 };
 
-let { errorMessage, status = '' }: Props = $props();
+let { errorMessage, status = "" }: Props = $props();
+
+let statusText = $derived(status.trim());
+let errorText = $derived(errorMessage.trim());
 </script>
 
-<div class="bottom-banners">
-	{#if status}
-		<p class="status-message">{status}</p>
-	{/if}
-	{#if errorMessage}
-		<p class="error-message">{errorMessage}</p>
-	{/if}
-</div>
+{#if statusText || errorText}
+    <section class="status-row" aria-label="Vault status">
+        {#if statusText}
+            <p class="status-message" role="status" aria-live="polite">{statusText}</p>
+        {/if}
+        {#if errorText}
+            <p class="error-message" role="alert">{errorText}</p>
+        {/if}
+    </section>
+{/if}
 
 <style lang="scss">
-.bottom-banners {
-	position: fixed;
-	inset: 0 0 auto;
-	z-index: 20;
-	display: grid;
-	justify-items: center;
-	padding: 0 1rem;
-	pointer-events: none;
+.status-row {
+    grid-row: 3;
+    grid-column: 1;
+
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+    padding: 0.45rem 1rem;
+
+    color: oklch(0.25 0.04 235);
+    background: oklch(0.985 0.01 235);
+    border-top: 1px solid oklch(0.8 0.025 235);
 }
 
 .status-message,
 .error-message {
-	width: min(100%, 52rem);
-	margin: 0.75rem auto 0;
-	padding: 0.55rem 1rem;
-	border-radius: 0.35rem;
-	box-shadow: 0 0.6rem 1.6rem oklch(0.21 0.04 245 / 0.16);
+    min-width: 0;
+    margin: 0;
+
+    font-size: 0.9rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
 .status-message {
-	color: oklch(0.24 0.08 170);
-	background: oklch(0.93 0.05 165);
-	border: 1px solid oklch(0.74 0.08 165);
-	pointer-events: none;
+    color: oklch(0.27 0.08 170);
 }
 
 .error-message {
-	color: oklch(0.34 0.13 30);
-	background: oklch(0.94 0.07 45);
-	border: 1px solid oklch(0.8 0.08 45);
-	pointer-events: auto;
+    color: oklch(0.34 0.13 30);
 }
 </style>

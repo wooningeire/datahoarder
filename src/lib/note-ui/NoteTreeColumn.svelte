@@ -1,6 +1,6 @@
 <script lang="ts">
-import { tick } from "svelte";
 import type { InlineFileCreate } from "../local-vault/shared/types.js";
+import NoteTreeInlineFileCreate from "./NoteTreeInlineFileCreate.svelte";
 import {
     scrollColumnIntoView,
     scrollCurrentNote,
@@ -44,49 +44,13 @@ let {
     updateInlineFileCreateName,
 }: Props = $props();
 
-let inlineCreateInputElement: HTMLInputElement | undefined = $state();
-let focusedInlineCreateId = "";
-
 let hasColumnInlineCreate = $derived(
     Boolean(inlineFileCreate && column.items.some((item) => item.path === `__pending-file-create__:${inlineFileCreate.id}`)),
 );
 
-$effect(() => {
-    if (!inlineFileCreate || !hasColumnInlineCreate) {
-        focusedInlineCreateId = "";
-        return;
-    }
-
-    if (!inlineCreateInputElement || focusedInlineCreateId === inlineFileCreate.id) {
-        return;
-    }
-
-    focusedInlineCreateId = inlineFileCreate.id;
-    void tick().then(() => {
-        inlineCreateInputElement?.focus();
-        inlineCreateInputElement?.select();
-    });
-});
-
 const isActive = (path: string): boolean => path === activePath || `${path}.md` === activePath;
 
 const isSelected = (path: string, level: number): boolean => selectedDirectoryPaths[level] === path;
-
-const handleInlineFileCreateInput = (event: Event): void => {
-    updateInlineFileCreateName?.((event.currentTarget as HTMLInputElement).value);
-};
-
-const handleInlineFileCreateKeydown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape") {
-        event.preventDefault();
-        cancelInlineFileCreate?.();
-    }
-};
-
-const handleInlineFileCreateSubmit = (event: SubmitEvent): void => {
-    event.preventDefault();
-    submitInlineFileCreate?.();
-};
 </script>
 
 <section
@@ -113,32 +77,12 @@ const handleInlineFileCreateSubmit = (event: SubmitEvent): void => {
                 </li>
             {:else if item.kind === "pending-file" && inlineFileCreate}
                 <li class="pending-file-create">
-                    <form onsubmit={handleInlineFileCreateSubmit}>
-                        <span class="file-mark" aria-hidden="true"></span>
-                        <input
-                            bind:this={inlineCreateInputElement}
-                            type="text"
-                            value={inlineFileCreate.fileName}
-                            aria-label={inlineFileCreate.inputLabel}
-                            required
-                            oninput={handleInlineFileCreateInput}
-                            onkeydown={handleInlineFileCreateKeydown}
-                        />
-                        <span class="pending-file-create-extension" aria-hidden="true">
-                            {inlineFileCreate.extension}
-                        </span>
-                        <button type="submit" class="pending-file-create-submit">
-                            {inlineFileCreate.submitLabel}
-                        </button>
-                        <button
-                            type="button"
-                            class="pending-file-create-cancel"
-                            aria-label={`Cancel ${inlineFileCreate.title}`}
-                            onclick={() => cancelInlineFileCreate?.()}
-                        >
-                            Cancel
-                        </button>
-                    </form>
+                    <NoteTreeInlineFileCreate
+                        {cancelInlineFileCreate}
+                        {inlineFileCreate}
+                        {submitInlineFileCreate}
+                        {updateInlineFileCreateName}
+                    />
                 </li>
             {:else if item.kind === "file" && onSelect}
                 <li class:active={isActive(item.path)}>
@@ -365,65 +309,6 @@ button:focus-visible {
     font-weight: 700;
 
     background: oklch(0.86 0.06 205);
-}
-
-.pending-file-create form {
-    display: grid;
-    grid-template-columns: 1rem minmax(0, 1fr) auto auto auto;
-    align-items: center;
-    gap: 0.25rem;
-    min-height: 1.75rem;
-    padding: 0.15rem 0.2rem 0.15rem 0.45rem;
-
-    background: oklch(0.93 0.035 155);
-    border: 1px solid oklch(0.72 0.06 155);
-    border-radius: 0.35rem;
-}
-
-.pending-file-create input {
-    min-width: 0;
-    min-height: 1.45rem;
-    padding: 0.1rem 0.25rem;
-
-    color: oklch(0.22 0.055 245);
-    font: inherit;
-
-    background: oklch(0.995 0.006 235);
-    border: 1px solid oklch(0.7 0.05 185);
-    border-radius: 0.25rem;
-}
-
-.pending-file-create input:focus-visible {
-    outline: 2px solid oklch(0.55 0.14 250);
-    outline-offset: 1px;
-}
-
-.pending-file-create-extension {
-    color: oklch(0.38 0.06 245);
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    font-weight: 700;
-}
-
-.pending-file-create button {
-    display: block;
-    width: auto;
-    min-height: 1.45rem;
-    padding: 0.1rem 0.28rem;
-
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-align: center;
-    text-transform: uppercase;
-
-    background: oklch(0.98 0.012 155);
-    border: 1px solid oklch(0.72 0.06 155);
-    border-radius: 0.25rem;
-}
-
-.pending-file-create button:hover:not(:disabled) {
-    background: oklch(0.88 0.045 155);
 }
 
 .note-column-footer {

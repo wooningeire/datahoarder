@@ -1,64 +1,14 @@
 <script lang="ts">
-import type { PublicPublishProfile } from '../../publishing/public-publish.js';
+import type { LocalVaultShellStore } from "../shell/Store.svelte.js";
 
 type Props = {
-	dirty: boolean;
-	hasSelectedExcalidrawNote: boolean;
-	hasSelectedFile: boolean;
-	hasSelectedRecord: boolean;
-	hasVault: boolean;
-	loading: boolean;
-	publicPublishProfiles: PublicPublishProfile[];
-	publicRecordsCount: number;
-	saving: boolean;
-	selectedFilePinned: boolean;
-	selectedPublicPublishProfilePath: string;
-	supported: boolean;
-	addCanvasElement: () => void;
-	chooseFolder: () => void;
-	deleteSelectedFile: () => void;
-	downloadSelectedHtmlExport: () => void;
-	openCommandPalette: () => void;
-	publishPublicNotes: () => void;
-	refreshVault: () => void;
-	renameSelectedFile: () => void;
-	reopenStoredFolder: () => void;
-	saveSelectedFile: () => void;
-	selectPublicPublishProfile: (path: string) => void;
-	setSelectedInlineField: () => void;
-	toggleSelectedPin: () => void;
+    store: LocalVaultShellStore,
 };
 
-let {
-	dirty,
-	hasSelectedExcalidrawNote,
-	hasSelectedFile,
-	hasSelectedRecord,
-	hasVault,
-	loading,
-	publicPublishProfiles,
-	publicRecordsCount,
-	saving,
-	selectedFilePinned,
-	selectedPublicPublishProfilePath,
-	supported,
-	addCanvasElement,
-	chooseFolder,
-	deleteSelectedFile,
-	downloadSelectedHtmlExport,
-	openCommandPalette,
-	publishPublicNotes,
-	refreshVault,
-	renameSelectedFile,
-	reopenStoredFolder,
-	saveSelectedFile,
-	selectPublicPublishProfile,
-	setSelectedInlineField,
-	toggleSelectedPin
-}: Props = $props();
+let { store }: Props = $props();
 
 function handlePublicPublishProfileChange(event: Event) {
-	selectPublicPublishProfile((event.currentTarget as HTMLSelectElement).value);
+    store.interactionActions.selectPublicPublishProfile((event.currentTarget as HTMLSelectElement).value);
 }
 </script>
 
@@ -69,65 +19,98 @@ function handlePublicPublishProfileChange(event: Event) {
 	</div>
 
 	<div class="actions">
-		<button type="button" class="command-button" onclick={openCommandPalette} aria-keyshortcuts="Control+K Meta+K">
+		<button
+			type="button"
+			class="command-button"
+			onclick={() => store.interactionActions.openCommandPalette()}
+			aria-keyshortcuts="Control+K Meta+K"
+		>
 			Command
 		</button>
-		<button type="button" onclick={chooseFolder} disabled={!supported || loading}>
+		<button type="button" onclick={store.vaultActions.chooseFolder} disabled={!store.supported || store.loading}>
 			Open Folder
 		</button>
-		<button type="button" onclick={reopenStoredFolder} disabled={!supported || loading || !hasVault}>
+		<button
+			type="button"
+			onclick={store.vaultActions.reopenStoredFolder}
+			disabled={!store.supported || store.loading || !store.vaultHandle}
+		>
 			Reopen
 		</button>
-		<button type="button" onclick={refreshVault} disabled={!supported || loading || !hasVault}>
+		<button
+			type="button"
+			onclick={store.vaultActions.refreshVault}
+			disabled={!store.supported || store.loading || !store.vaultHandle}
+		>
 			Refresh
 		</button>
-		<button type="button" onclick={addCanvasElement} disabled={loading || saving || !hasSelectedExcalidrawNote}>
+		<button
+			type="button"
+			onclick={store.noteActions.addCanvasElement}
+			disabled={store.loading || store.saving || !store.selectedExcalidrawNote}
+		>
 			Add Canvas Element
 		</button>
-		<button type="button" onclick={renameSelectedFile} disabled={loading || !hasSelectedFile}>
+		<button
+			type="button"
+			onclick={store.vaultActions.renameSelectedFile}
+			disabled={store.loading || !store.selectedFile}
+		>
 			Rename
 		</button>
 		<button
 			type="button"
-			onclick={toggleSelectedPin}
-			disabled={loading || !hasSelectedRecord}
-			aria-pressed={selectedFilePinned}
+			onclick={store.toggleSelectedPin}
+			disabled={store.loading || !store.selectedRecord}
+			aria-pressed={store.selectedFilePinned}
 		>
-			{selectedFilePinned ? 'Unpin' : 'Pin'}
+			{store.selectedFilePinned ? 'Unpin' : 'Pin'}
 		</button>
-		<button type="button" onclick={setSelectedInlineField} disabled={loading || !hasSelectedRecord || saving}>
+		<button
+			type="button"
+			onclick={store.noteActions.setSelectedInlineField}
+			disabled={store.loading || !store.selectedRecord || store.saving}
+		>
 			Set Field
 		</button>
-		<button type="button" onclick={deleteSelectedFile} disabled={loading || !hasSelectedFile}>
+		<button
+			type="button"
+			onclick={store.vaultActions.deleteSelectedFile}
+			disabled={store.loading || !store.selectedFile}
+		>
 			Delete
 		</button>
-		<button type="button" onclick={downloadSelectedHtmlExport} disabled={loading || !hasSelectedFile}>
+		<button
+			type="button"
+			onclick={store.publishActions.downloadSelectedHtmlExport}
+			disabled={store.loading || !store.selectedFile}
+		>
 			Export HTML
 		</button>
-		{#if publicPublishProfiles.length}
+		{#if store.publicPublishProfiles.length}
 			<select
 				class="publish-profile-select"
-				value={selectedPublicPublishProfilePath}
+				value={store.selectedPublicPublishProfilePath}
 				aria-label="Publish profile"
-				disabled={!supported || loading || !hasVault || saving}
+				disabled={!store.supported || store.loading || !store.vaultHandle || store.saving}
 				onchange={handlePublicPublishProfileChange}
 			>
 				<option value="">Public markers</option>
-				{#each publicPublishProfiles as profile (profile.path)}
+				{#each store.publicPublishProfiles as profile (profile.path)}
 					<option value={profile.path}>{profile.name}</option>
 				{/each}
 			</select>
 		{/if}
 		<button
 			type="button"
-			onclick={publishPublicNotes}
-			disabled={!supported || loading || !hasVault || saving}
-			title={publicRecordsCount ? `Publish ${publicRecordsCount} notes` : 'No publishable notes found'}
+			onclick={store.publishActions.publishPublicNotes}
+			disabled={!store.supported || store.loading || !store.vaultHandle || store.saving}
+			title={store.publicRecords.length ? `Publish ${store.publicRecords.length} notes` : 'No publishable notes found'}
 		>
 			Publish Public
 		</button>
-		<button type="button" class="primary" onclick={saveSelectedFile} disabled={!dirty || saving}>
-			{saving ? 'Saving' : 'Save'}
+		<button type="button" class="primary" onclick={store.vaultActions.saveSelectedFile} disabled={!store.dirty || store.saving}>
+			{store.saving ? 'Saving' : 'Save'}
 		</button>
 	</div>
 </header>

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { expectSelectedFilePath } from "./local-vault-ui.js";
 import { fillInlineFileCreate, fillRequestText } from './request-dialog.js';
 
 async function clickColumnNewItem(page: Page, columnName: string, itemName: string) {
@@ -37,7 +38,7 @@ test('note lifecycle actions create rename and delete notes', async ({ page }) =
 	await page.getByRole('button', { name: 'Rename' }).click();
 	await fillRequestText(page, 'Rename Or Move File', 'File Path', 'archive/capture-renamed', 'Rename File');
 	await expect(page.getByText('Renamed capture.md to archive/capture-renamed')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('archive/capture-renamed')).toBeVisible();
+	await expectSelectedFilePath(page, "archive/capture-renamed");
 	await expect(page.locator('.sidebar-summary').getByText('1 files', { exact: true })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Delete' }).click();
@@ -123,5 +124,5 @@ test('column new menu creates notes in the selected folder', async ({ page }) =>
 	await expect(pendingCreate.getByText('.md')).toBeVisible();
 	await noteNameInput.press('Enter');
 	await expect(page.getByText('Created Projects/Untitled.md')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('Projects/Untitled.md')).toBeVisible();
+	await expectSelectedFilePath(page, "Projects/Untitled.md");
 });

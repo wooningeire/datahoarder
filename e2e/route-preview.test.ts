@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createServer } from "node:net";
 import { expect, test, type FrameLocator, type Page } from "@playwright/test";
+import { expectSelectedFilePath } from "./local-vault-ui.js";
 
 type StartedProcess = {
     child: ChildProcessWithoutNullStreams;
@@ -33,7 +34,7 @@ test("SvelteKit route files preview through the launched target Deno server", as
         await noteColumns.getByRole("button", { name: "+page.svelte" }).first().click();
 
         await expect(page.getByText("Source Only")).toHaveCount(0);
-        await expect(page.getByLabel("Editor").getByText("src/routes/+page.svelte")).toBeVisible();
+        await expectSelectedFilePath(page, "src/routes/+page.svelte");
         await expectServerPreviewHeading(page, "Root route from Deno preview target");
 
         await noteColumns.getByRole("region", { name: "routes" })
@@ -42,7 +43,7 @@ test("SvelteKit route files preview through the launched target Deno server", as
         await noteColumns.getByRole("button", { name: "+page.svelte" }).last().click();
 
         await expect(page.getByText("Source Only")).toHaveCount(0);
-        await expect(page.getByLabel("Editor").getByText("src/routes/notes/+page.svelte")).toBeVisible();
+        await expectSelectedFilePath(page, "src/routes/notes/+page.svelte");
         await expect(page.getByLabel("Preview").locator(".server-preview-frame")).toHaveAttribute(
             "src",
             /\/preview\/src\/routes\/notes\/%2Bpage\.svelte\?v=/u,
@@ -75,7 +76,7 @@ test("opened subfolders preview through their ancestor target Deno server", asyn
         await expect(rootPageButton).toBeVisible();
         await rootPageButton.click();
 
-        await expect(page.getByLabel("Editor").getByText("+page.svelte")).toBeVisible();
+        await expectSelectedFilePath(page, "+page.svelte");
         await expectServerPreviewHeading(page, "Root route from Deno preview target");
     } finally {
         await Promise.all(processes.reverse().map(stopProcess));
@@ -106,7 +107,7 @@ test("server-backed route files lazily launch a target Deno server when origin i
         await noteColumns.getByRole("button", { name: "routes" }).click();
         await noteColumns.getByRole("button", { name: "+page.svelte" }).first().click();
 
-        await expect(page.getByLabel("Editor").getByText("src/routes/+page.svelte")).toBeVisible();
+        await expectSelectedFilePath(page, "src/routes/+page.svelte");
         await waitForHttp(`${targetOrigin}/`, "Root route from Deno preview target", processes);
         await expectServerPreviewHeading(page, "Root route from Deno preview target");
     } finally {
@@ -134,7 +135,7 @@ test("ordinary Svelte notes render through Datahoarder without a target server",
 
         const previewDocument = page.frameLocator(".server-preview-frame");
 
-        await expect(page.getByLabel("Editor").getByText("Notes/Dashboard.svelte")).toBeVisible();
+        await expectSelectedFilePath(page, "Notes/Dashboard.svelte");
         await expect(previewDocument.getByRole("heading", { name: "Local Svelte Dashboard" })).toBeVisible();
         await expect(previewDocument.locator(".server-vite-preview-frame")).toHaveCount(0);
         await expect(page.getByText("Preview Server Required")).toHaveCount(0);
@@ -165,7 +166,7 @@ test("ordinary mdsvex notes render through Datahoarder without a target server",
 
         const previewDocument = page.frameLocator(".server-preview-frame");
 
-        await expect(page.getByLabel("Editor").getByText("Notes/Counter.svx")).toBeVisible();
+        await expectSelectedFilePath(page, "Notes/Counter.svx");
         await expect(page.getByText("Source Only")).toHaveCount(0);
         await expect(previewDocument.getByText("hello 1")).toBeVisible();
         await expect(previewDocument.getByText("hello {x}")).toHaveCount(0);
@@ -198,7 +199,7 @@ test("ordinary markdown notes render through Datahoarder instead of source-only"
 
         const previewDocument = page.frameLocator(".server-preview-frame");
 
-        await expect(page.getByLabel("Editor").getByText("Notes/Index.md")).toBeVisible();
+        await expectSelectedFilePath(page, "Notes/Index.md");
         await expect(page.getByText("Source Only")).toHaveCount(0);
         await expect(previewDocument.getByRole("heading", { name: "Markdown note preview" })).toBeVisible();
         await expect(previewDocument.getByText("markdown value 2")).toBeVisible();

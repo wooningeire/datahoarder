@@ -15,9 +15,6 @@ let monacoState = $state<'idle' | 'loading' | 'ready' | 'fallback'>('idle');
 let monacoApi: MonacoApi | null = null;
 let monacoEditor: MonacoEditor | null = null;
 let monacoSubscription: { dispose: () => void } | null = null;
-let selectedPathParts = $derived(
-    store.selectedFile ? getPathParts(store.selectedFile.path, store.selectedFile.extension) : null,
-);
 
 $effect(() => {
 	store.setMonacoState(monacoState);
@@ -111,33 +108,10 @@ function updateMonacoLanguage(file: LocalVaultFile | null) {
 
 	monacoApi.editor.setModelLanguage(model, getMonacoEditorLanguage(file));
 }
-
-function getPathParts(path: string, extension: string) {
-	const fileName = path.split('/').at(-1) ?? path;
-	const directory = path.slice(0, Math.max(0, path.length - fileName.length));
-	const hasMatchingExtension =
-		extension && fileName.toLowerCase().endsWith(extension.toLowerCase());
-	const fileExtension = hasMatchingExtension ? fileName.slice(-extension.length) : '';
-	const stem = fileExtension ? fileName.slice(0, -fileExtension.length) : fileName;
-
-	return {
-		directory,
-		extension: fileExtension,
-		stem
-	};
-}
 </script>
 
 <section class="editor-pane" aria-label="Editor">
 	{#if store.selectedFile}
-		<header class="file-header">
-			{#if selectedPathParts}
-				<h2 class="file-path-label" title={store.selectedFile.path} aria-label={store.selectedFile.path}>
-					{#if selectedPathParts.directory}<span class="file-path-directory">{selectedPathParts.directory}</span>{/if}<span class="file-path-name">{selectedPathParts.stem}</span>{#if selectedPathParts.extension}<span class="file-path-extension">{selectedPathParts.extension}</span>{/if}
-				</h2>
-			{/if}
-		</header>
-
 		<div class="source-editor">
 			<div class:monaco-pending={monacoState !== 'ready'} class="monaco-host" bind:this={editorHost}></div>
 			{#if monacoState !== 'ready'}
@@ -161,49 +135,12 @@ function getPathParts(path: string, extension: string) {
 <style lang="scss">
 .editor-pane {
 	display: grid;
-	grid-template-rows: auto minmax(0, 1fr);
+	grid-template-rows: minmax(0, 1fr);
 	min-width: 0;
 	min-height: 0;
 	overflow: hidden;
 	background: oklch(0.985 0.006 235);
 	border-right: 1px solid oklch(0.8 0.025 235);
-}
-
-.file-header {
-	display: flex;
-	justify-content: space-between;
-	gap: 1rem;
-	min-width: 0;
-	padding: 0.75rem 0.9rem;
-	border-bottom: 1px solid oklch(0.82 0.025 235);
-}
-
-.file-header h2 {
-	margin: 0;
-}
-
-.file-path-label {
-	max-width: 100%;
-	min-width: 0;
-	overflow: hidden;
-	font-size: 1rem;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.file-path-directory {
-	color: oklch(0.42 0.035 245);
-	font-family: var(--font-mono);
-	font-size: 0.75rem;
-	font-weight: 500;
-}
-
-.file-path-extension {
-	color: oklch(0.42 0.08 180);
-	font-family: var(--font-mono);
-	font-size: 0.74rem;
-	font-weight: 700;
-	text-transform: uppercase;
 }
 
 .source-editor,
@@ -252,11 +189,6 @@ function getPathParts(path: string, extension: string) {
 }
 
 @media (max-width: 760px) {
-	.file-header {
-		align-items: stretch;
-		flex-direction: column;
-	}
-
 	.editor-pane {
 		height: 58vh;
 	}

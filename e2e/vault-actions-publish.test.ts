@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
+import { expectSelectedFilePath } from "./local-vault-ui.js";
 import { fillInlineFileCreate, fillRequestFields } from './request-dialog.js';
 
 async function clickColumnNewItem(page: Page, columnName: string, itemName: string) {
@@ -58,7 +59,7 @@ test('directory columns scroll to new folders and collapse smoothly', async ({ p
 		});
 
 	await noteColumns.getByRole('button', { name: 'alpha.md' }).dispatchEvent('click');
-	await expect(page.getByLabel('Editor').getByText('alpha.md')).toBeVisible();
+	await expectSelectedFilePath(page, "alpha.md");
 	await expect.poll(async () => (await getScrollState()).left).toBeLessThan(1);
 
 	await noteColumns.getByRole('button', { name: 'Atlas' }).click();
@@ -212,7 +213,7 @@ test('new drawing creates a whiteboard SVX note', async ({ page }) => {
 	await clickColumnNewItem(page, 'Files', 'New Drawing');
 	await fillInlineFileCreate(page, 'New drawing name', 'Launch Map');
 	await expect(page.getByText('Created drawing Launch Map.svx')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('Launch Map.svx')).toBeVisible();
+	await expectSelectedFilePath(page, "Launch Map.svx");
 	await expect(page.getByLabel('Preview').getByLabel('Launch Map whiteboard')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByText('Launch Map')).toBeVisible();
 	await expect(page.getByLabel('Editor').getByText('InfiniteWhiteboard')).toBeVisible();
@@ -307,7 +308,7 @@ test('new from template creates a note with rendered placeholders', async ({ pag
 	await fillInlineFileCreate(page, 'New note name', 'Launch Map');
 
 	await expect(page.getByText('Created Launch Map.md from Templates/Project.template.md')).toBeVisible();
-	await expect(page.getByLabel('Editor').locator('.file-header').getByText('Launch Map.md')).toBeVisible();
+	await expectSelectedFilePath(page, "Launch Map.md");
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Launch Map' })).toBeVisible();
 	await expect(page.getByLabel('Preview').getByText('path:: Launch Map.md')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByText('slug:: launch-map')).toBeVisible();

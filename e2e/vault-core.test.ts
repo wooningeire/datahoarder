@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectSelectedFilePath } from "./local-vault-ui.js";
 import { fillInlineFileCreate, fillRequestText } from './request-dialog.js';
 
 test('home page has expected h1', async ({ page }) => {
@@ -24,8 +25,21 @@ test('Monaco editor shows a cursor after opening a local vault', async ({ page }
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 
+	const topbar = page.locator(".topbar");
+	await expect(topbar.getByText("datahoarder-e2e-vault")).toBeVisible();
+	await expectSelectedFilePath(page, "cursor-test.md");
+	const editorPane = page.locator(".editor-pane");
+	await expect(editorPane.locator(".file-header")).toHaveCount(0);
+
 	const editor = page.locator('.monaco-editor');
 	await expect(editor).toBeVisible();
+
+	const editorPaneBox = await editorPane.boundingBox();
+	const monacoBox = await editor.boundingBox();
+	expect(editorPaneBox).not.toBeNull();
+	expect(monacoBox).not.toBeNull();
+	expect(Math.abs(editorPaneBox!.y - monacoBox!.y)).toBeLessThan(2);
+
 	await editor.click();
 	await page.keyboard.type('!');
 
@@ -182,7 +196,7 @@ test('command palette opens notes and runs quick capture actions', async ({ page
 	await palette.locator('.command-palette-results button', { hasText: 'Open Note: Beta' }).click();
 
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Beta' })).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('Projects/Beta.md')).toBeVisible();
+	await expectSelectedFilePath(page, "Projects/Beta.md");
 
 	await page.keyboard.press('Control+K');
 	await expect(palette).toBeVisible();
@@ -191,7 +205,7 @@ test('command palette opens notes and runs quick capture actions', async ({ page
 	await fillInlineFileCreate(page, 'New note name', 'Capture');
 
 	await expect(page.getByText('Created Capture.md')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('Capture.md')).toBeVisible();
+	await expectSelectedFilePath(page, "Capture.md");
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Capture' })).toBeVisible();
 
 	const createdContent = await page.evaluate(async (name) => {
@@ -310,6 +324,6 @@ test('backlinks show notes that point to the selected note', async ({ page }) =>
 	await expect(backlinks.getByText('Other.md')).toHaveCount(0);
 
 	await backlinks.getByRole('button', { name: /Parent/u }).first().click();
-	await expect(page.getByLabel('Editor').getByText('Parent.md')).toBeVisible();
+	await expectSelectedFilePath(page, "Parent.md");
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Parent' })).toBeVisible();
 });

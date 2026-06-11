@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import { expectSelectedFilePath } from "./local-vault-ui.js";
 import { fillInlineFileCreate, fillRequestFields } from './request-dialog.js';
 
 test('kanban collection views group filter and export records', async ({ page }) => {
@@ -812,7 +813,7 @@ test('collection records can be scaffolded from the selected collection', async 
 	);
 	await expect(page.getByText('Added priority field to Applications.dhbase.yaml')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Applications' })).toBeVisible();
-	await expect(page.getByLabel('Editor').getByRole('heading', { name: 'Applications.dhbase.yaml' })).toBeVisible();
+	await expectSelectedFilePath(page, "Applications.dhbase.yaml");
 	await expect(page.getByRole('button', { name: 'Sort by Priority' })).toBeVisible();
 
 	const editedCollectionContent = await page.evaluate(async (name) => {
@@ -830,7 +831,7 @@ test('collection records can be scaffolded from the selected collection', async 
 	await page.getByRole('button', { name: 'New Record' }).click();
 	await fillInlineFileCreate(page, 'New record file name', 'Acme Labs');
 	await expect(page.getByText('Created collection record applications/Acme Labs.md')).toBeVisible();
-	await expect(page.getByLabel('Editor').getByText('applications/Acme Labs.md')).toBeVisible();
+	await expectSelectedFilePath(page, "applications/Acme Labs.md");
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Acme Labs' })).toBeVisible();
 
 	const noteHtmlDownloadPromise = page.waitForEvent('download');

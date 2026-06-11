@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import { expectSelectedFilePath } from "./local-vault-ui.js";
 
 test('markdown preview preserves soft line breaks and repeated paragraph gaps', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-markdown-spacing-${Date.now()}`;
@@ -289,7 +290,7 @@ test('datahoarder board files render link export and publish', async ({ page }) 
 	await expect(preview.getByRole('link', { name: 'Idea <One>' })).toHaveAttribute('data-note-path', 'Target.md');
 
 	await preview.getByRole('link', { name: 'Idea <One>' }).click();
-	await expect(page.getByLabel('Editor').getByText('Target.md')).toBeVisible();
+	await expectSelectedFilePath(page, "Target.md");
 	const boardBacklink = page.getByLabel('Backlinks').getByRole('button', { name: /Launch Board/u });
 	await expect(boardBacklink).toBeVisible();
 
@@ -376,7 +377,7 @@ test('custom Sankey diagrams render in preview exports and public notes', async 
 
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
-	await expect(page.getByLabel('Editor').getByText('Application Flow.md')).toBeVisible();
+	await expectSelectedFilePath(page, "Application Flow.md");
 
 	const preview = page.getByLabel('Preview');
 	await expect(preview.locator('.datahoarder-sankey-svg')).toBeVisible();
@@ -448,7 +449,7 @@ test('custom metric grids render in preview exports and public notes', async ({ 
 
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
-	await expect(page.getByLabel('Editor').getByText('Application Metrics.md')).toBeVisible();
+	await expectSelectedFilePath(page, "Application Metrics.md");
 
 	const preview = page.getByLabel('Preview');
 	await expect(preview.locator('.datahoarder-metrics')).toBeVisible();
@@ -580,7 +581,7 @@ test('quick notes track recent and pinned local notes', async ({ page }) => {
 
 	await quickNotes.locator('.quick-note-link', { hasText: 'Beta' }).dispatchEvent('click');
 	await expectNoteColumnsTopToStayPut();
-	await expect(page.getByLabel('Editor').getByText('beta.md')).toBeVisible();
+	await expectSelectedFilePath(page, "beta.md");
 	await expect(page.getByText('Editing selected file.')).toHaveCount(0);
 	await expect(page.locator('.status-row')).toHaveCount(0);
 	await expect(quickNotes.getByRole('heading', { name: 'Pinned' })).toBeVisible();

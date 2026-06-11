@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { InlineFileCreate } from "../local-vault/shared/types.js";
 import type { NoteTreeNode } from "../note-model/tree.js";
-import NoteTreeColumn from "./NoteTreeColumn.svelte";
+import NoteTreeColumn from "./DirectoryTreeColumn.svelte";
 import NoteTreeNewMenu from "./NoteTreeNewMenu.svelte";
 import {
     buildColumns,

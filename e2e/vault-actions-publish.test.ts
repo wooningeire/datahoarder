@@ -67,6 +67,24 @@ test('directory columns scroll to new folders and collapse smoothly', async ({ p
 	const afterBeacon = await getScrollState();
 	expect(afterBeacon.max).toBeGreaterThan(0);
 
+    await noteColumns.evaluate((node) => {
+        (node as HTMLElement).scrollLeft = 0;
+    });
+    await expect.poll(async () => (await getScrollState()).left).toBeLessThan(1);
+
+    const itemListBox = await page.locator(".note-column-items").first().boundingBox();
+
+    if (!itemListBox) {
+        throw new Error("Expected directory column items to be available for scroll verification.");
+    }
+
+    await page.mouse.move(
+        itemListBox.x + itemListBox.width / 2,
+        itemListBox.y + itemListBox.height / 2,
+    );
+    await page.mouse.wheel(240, 0);
+    await expect.poll(async () => (await getScrollState()).left).toBeGreaterThan(1);
+
 	await noteColumns.getByRole('button', { name: 'Cascade' }).click();
 	await expect.poll(async () => (await getScrollState()).left).toBeGreaterThan(afterBeacon.left + 80);
 

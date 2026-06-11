@@ -1,14 +1,14 @@
 <script lang="ts">
-import type { InlineFileCreate } from "../local-vault/shared/types.js";
+import type { InlineFileCreate } from "../local-vault/shared/types.ts";
 import NoteTreeInlineFileCreate from "./NoteTreeInlineFileCreate.svelte";
 import {
     scrollColumnIntoView,
     scrollCurrentNote,
-} from "./note-tree-scroll.js";
+} from "./note-tree-scroll.ts";
 import type {
     DisplayDirectory,
     NoteColumn,
-} from "./note-tree-model.js";
+} from "./note-tree-model.ts";
 
 type Props = {
     activePath: string,
@@ -59,8 +59,7 @@ const isSelected = (path: string, level: number): boolean => selectedDirectoryPa
     data-column-key={column.key}
     use:scrollColumnIntoView={isLastColumn}
 >
-    <h2 id={`note-column-${column.level}`}>{column.label}</h2>
-    <ul class="note-column-items">
+    <directory-tree-column-items>
         {#each column.items as item (item.path)}
             {#if item.kind === "directory"}
                 <li>
@@ -110,7 +109,7 @@ const isSelected = (path: string, level: number): boolean => selectedDirectoryPa
                 </li>
             {/if}
         {/each}
-    </ul>
+    </directory-tree-column-items>
     {#if hasCreateActions}
         <div class="note-column-footer">
             <div class:open={openNewMenuColumnKey === column.key} class="new-menu">
@@ -163,7 +162,7 @@ h2 {
     white-space: nowrap;
 }
 
-.note-column-items {
+directory-tree-column-items {
     display: grid;
     flex: 1 1 auto;
     align-content: start;
@@ -171,11 +170,8 @@ h2 {
     min-height: 0;
     margin: 0;
     padding: 0;
-    overflow-x: hidden;
     overflow-y: auto;
 
-    list-style: none;
-    overscroll-behavior: contain;
     scrollbar-gutter: stable;
 }
 

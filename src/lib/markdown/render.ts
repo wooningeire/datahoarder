@@ -1,4 +1,5 @@
 import { stripFrontmatter } from '../note-model/raw.js';
+import { getMarkdownCalloutClassName, parseMarkdownCallout } from './callouts.js';
 import { renderEmbedBlock } from './embeds.js';
 import { renderFenceBlock } from './fences.js';
 import { escapeAttribute, escapeHtml, sanitizeMarkdownUrl } from './html.js';
@@ -58,6 +59,28 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 
 		pushBlock(`<p>${paragraphLines.map((line) => renderInline(line, options)).join('\n')}</p>`);
 		paragraphLines = [];
+	}
+
+	function renderQuoteBlock(quoteLines: string[]) {
+		const callout = parseMarkdownCallout(quoteLines);
+
+		if (callout) {
+			const bodyHtml = renderPortableMarkdown(callout.bodyLines.join('\n'), options);
+			const titleHtml = `<p class="markdown-callout-title">${renderInline(callout.title, options)}</p>`;
+
+			return [
+				`<aside class="${getMarkdownCalloutClassName(callout.type)}" data-callout="${escapeAttribute(callout.type)}">`,
+				titleHtml,
+				bodyHtml,
+				'</aside>'
+			].filter(Boolean).join('\n');
+		}
+
+		return [
+			'<blockquote>',
+			renderPortableMarkdown(quoteLines.join('\n'), options),
+			'</blockquote>'
+		].join('\n');
 	}
 
 	for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
@@ -136,11 +159,24 @@ export function renderPortableMarkdown(content: string, options: PortableMarkdow
 			continue;
 		}
 
-		const quote = line.match(/^\s*>\s?(.+)$/u);
+		const quote = line.match(/^\s*>\s?(.*)$/u);
 
 		if (quote) {
 			flushParagraph();
-			pushBlock(`<blockquote>${renderInline(quote[1], options)}</blockquote>`);
+			const quoteLines = [quote[1]];
+
+			for (let quoteLineIndex = lineIndex + 1; quoteLineIndex < lines.length; quoteLineIndex += 1) {
+				const quoteLine = lines[quoteLineIndex]?.match(/^\s*>\s?(.*)$/u);
+
+				if (!quoteLine) {
+					break;
+				}
+
+				quoteLines.push(quoteLine[1]);
+				lineIndex = quoteLineIndex;
+			}
+
+			pushBlock(renderQuoteBlock(quoteLines));
 			continue;
 		}
 

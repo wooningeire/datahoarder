@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Component } from "svelte";
 import type { InlineConfig } from "vite";
+import { remarkObsidianCallouts } from "../markdown/callouts.js";
 import { applyMarkdownSourceRules, remarkMarkSyntax } from "../markdown/rules.js";
 import { isSvelteKitRoutePreviewFile } from "../shared/sveltekit-routes.js";
 import type { LocalVaultFile } from "../vault/local-files.js";
@@ -152,7 +153,10 @@ const getSvelteNoteSource = async (
     const compiled = await runtime.compileMDSvex(patchedContent, {
         extensions: [".svx", ".md"],
         filename: getSvelteNoteCompileFilename(file),
-        remarkPlugins: path.endsWith(".md") ? [remarkMarkSyntax] : [],
+        remarkPlugins: [
+            remarkObsidianCallouts,
+            ...(path.endsWith(".md") ? [remarkMarkSyntax] : []),
+        ],
     });
 
     if (!compiled?.code) {

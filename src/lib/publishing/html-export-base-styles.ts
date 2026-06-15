@@ -48,7 +48,7 @@ article {
 	gap: 0.9rem;
 }
 
-article :is(h1, h2, h3, p, ul, ol, blockquote, pre, .note-embed, .markdown-table-wrapper, .whiteboard-preview-svg, .datahoarder-board, .datahoarder-metrics) {
+article :is(h1, h2, h3, p, ul, ol, blockquote, pre, .markdown-callout, .note-embed, .markdown-table-wrapper, .whiteboard-preview-svg, .datahoarder-board, .datahoarder-metrics) {
 	margin: 0;
 }
 
@@ -70,9 +70,69 @@ pre {
 }
 
 blockquote {
+	display: grid;
+	gap: 0.55rem;
 	padding-left: 0.75rem;
 	color: #475569;
 	border-left: 3px solid #38bdf8;
+}
+
+.markdown-callout {
+	--callout-accent: oklch(0.62 0.11 205);
+	--callout-background: oklch(0.98 0.018 220);
+	--callout-border: oklch(0.82 0.04 210);
+	--callout-text: oklch(0.28 0.055 245);
+
+	display: grid;
+	gap: 0.55rem;
+	padding: 0.7rem 0.8rem;
+	color: var(--callout-text);
+	background: var(--callout-background);
+	border: 1px solid var(--callout-border);
+	border-left: 4px solid var(--callout-accent);
+	border-radius: 0.35rem;
+}
+
+.markdown-callout-title {
+	font-weight: 700;
+}
+
+.markdown-callout-warning,
+.markdown-callout-caution,
+.markdown-callout-attention {
+	--callout-accent: oklch(0.7 0.13 72);
+	--callout-background: oklch(0.985 0.026 82);
+	--callout-border: oklch(0.85 0.055 82);
+	--callout-text: oklch(0.31 0.06 70);
+}
+
+.markdown-callout-error,
+.markdown-callout-danger,
+.markdown-callout-failure,
+.markdown-callout-bug {
+	--callout-accent: oklch(0.62 0.17 25);
+	--callout-background: oklch(0.975 0.022 25);
+	--callout-border: oklch(0.84 0.055 25);
+	--callout-text: oklch(0.32 0.07 25);
+}
+
+.markdown-callout-success,
+.markdown-callout-tip,
+.markdown-callout-done {
+	--callout-accent: oklch(0.62 0.13 155);
+	--callout-background: oklch(0.975 0.021 158);
+	--callout-border: oklch(0.82 0.052 155);
+	--callout-text: oklch(0.28 0.055 155);
+}
+
+.markdown-callout-important,
+.markdown-callout-question,
+.markdown-callout-help,
+.markdown-callout-faq {
+	--callout-accent: oklch(0.58 0.14 285);
+	--callout-background: oklch(0.975 0.02 292);
+	--callout-border: oklch(0.82 0.05 292);
+	--callout-text: oklch(0.31 0.06 285);
 }
 
 .markdown-table-wrapper {

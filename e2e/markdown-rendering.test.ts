@@ -64,6 +64,77 @@ test('markdown preview preserves soft line breaks and repeated paragraph gaps', 
 	expect(repeatedBlankGap).toBeGreaterThan(singleBlankGap + 4);
 });
 
+test('markdown preview renders continuous blockquotes and callouts', async ({ page }) => {
+	const vaultName = `datahoarder-e2e-markdown-callouts-${Date.now()}`;
+
+	await page.addInitScript((name) => {
+		window.showDirectoryPicker = async () => {
+			const root = await navigator.storage.getDirectory();
+			const directory = await root.getDirectoryHandle(name, { create: true });
+			const file = await directory.getFileHandle('Callouts.md', { create: true });
+			const writable = await file.createWritable();
+
+			await writable.write(
+				[
+					'# Callouts',
+					'',
+					'> First quoted line',
+					'> second quoted line',
+					'>',
+					'> [Quote source](https://example.test/source)',
+					'',
+					'> [!info] EIRTEL - Choose Your Own Adventure (Fan Friday)',
+					'> 24.',
+					'> [Reddit thread](https://reddit.example/thread)'
+				].join('\n')
+			);
+			await writable.close();
+
+			return directory;
+		};
+	}, vaultName);
+
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open Folder' }).click();
+
+	const preview = page.getByLabel('Preview');
+	await expect(preview.getByRole('heading', { name: 'Callouts' })).toBeVisible();
+
+	const quote = preview.locator('blockquote');
+	await expect(quote).toHaveCount(1);
+	await expect(quote).toContainText('First quoted line');
+	await expect(quote).toContainText('second quoted line');
+	await expect(quote.getByRole('link', { name: 'Quote source' })).toHaveAttribute(
+		'href',
+		/^https:\/\/example\.test\/source$/u
+	);
+
+	const quoteBorderWidth = await quote.evaluate((node) => getComputedStyle(node).borderLeftWidth);
+	expect(parseFloat(quoteBorderWidth)).toBeGreaterThan(0);
+
+	const callout = preview.locator('.markdown-callout');
+	await expect(callout).toBeVisible();
+	await expect(callout).toHaveAttribute('data-callout', 'info');
+	await expect(callout.locator('.markdown-callout-title')).toHaveText(
+		'EIRTEL - Choose Your Own Adventure (Fan Friday)'
+	);
+	await expect(callout).toContainText('24.');
+	await expect(callout.getByRole('link', { name: 'Reddit thread' })).toHaveAttribute(
+		'href',
+		/^https:\/\/reddit\.example\/thread$/u
+	);
+	await expect(preview.getByText('[!info]')).toHaveCount(0);
+
+	const calloutDisplay = await callout.evaluate((node) => getComputedStyle(node).display);
+	expect(calloutDisplay).toBe('grid');
+
+	const previewMetrics = await preview.evaluate((node) => ({
+		clientWidth: node.clientWidth,
+		scrollWidth: node.scrollWidth
+	}));
+	expect(previewMetrics.scrollWidth).toBeLessThanOrEqual(previewMetrics.clientWidth + 1);
+});
+
 test('markdown task lists render toggle and export safely', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-task-lists-${Date.now()}`;
 

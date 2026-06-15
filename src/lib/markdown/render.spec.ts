@@ -148,6 +148,33 @@ describe('renderPortableMarkdown', () => {
 		expect(html).toContain('<span class="math-display">\\[\nf(x) = x^2\n\\]</span>');
 	});
 
+	it('renders continuous blockquotes and Obsidian callouts', () => {
+		const html = renderPortableMarkdown(
+			[
+				'> First quoted line',
+				'> second quoted line',
+				'>',
+				'> [Quote source](https://example.test/source)',
+				'',
+				'> [!info] EIRTEL - **Fan Friday**',
+				'> 24.',
+				'> [Reddit thread](https://reddit.example/thread)'
+			].join('\n')
+		);
+
+		expect(html.match(/<blockquote>/gu)).toHaveLength(1);
+		expect(html).toContain([
+			'<blockquote>',
+			'<p>First quoted line\nsecond quoted line</p>',
+			'<p><a href="https://example.test/source">Quote source</a></p>',
+			'</blockquote>'
+		].join('\n'));
+		expect(html).toContain('<aside class="markdown-callout markdown-callout-info" data-callout="info">');
+		expect(html).toContain('<p class="markdown-callout-title">EIRTEL - <strong>Fan Friday</strong></p>');
+		expect(html).toContain('<p>24.\n<a href="https://reddit.example/thread">Reddit thread</a></p>');
+		expect(html).not.toContain('[!info]');
+	});
+
 	it('lets callers disable custom markdown rules', () => {
 		const html = renderPortableMarkdown('Inline $x$ and ==marked== and _underlined_.', {
 			markdownRules: {

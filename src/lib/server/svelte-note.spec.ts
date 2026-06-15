@@ -129,6 +129,28 @@ describe("Svelte note preview rendering", () => {
         expect(html).not.toContain("Svelte Note Preview Failed");
     }, svelteNotePreviewTimeoutMs);
 
+    it("server-renders Obsidian callouts in mdsvex markdown notes", async () => {
+        resetSvelteNotePreviewCacheForTest();
+
+        const html = await renderSvelteNotePreview(
+            [
+                "> [!important] Symbols",
+                "> ▮ = n",
+                ">",
+                "> [Reference](https://example.test/reference)",
+            ].join("\n"),
+            createFile("Notes/Callouts.md"),
+        );
+
+        expect(html).toContain('class="markdown-callout markdown-callout-important"');
+        expect(html).toContain('data-callout="important"');
+        expect(html).toContain('<p class="markdown-callout-title">Symbols</p>');
+        expect(html).toContain("▮ = n");
+        expect(html).toContain('<a href="https://example.test/reference" rel="nofollow">Reference</a>');
+        expect(html).not.toContain("[!important]");
+        expect(html).not.toContain("Svelte Note Preview Failed");
+    }, svelteNotePreviewTimeoutMs);
+
     it("keeps line-leading markdown marks inside paragraphs", async () => {
         resetSvelteNotePreviewCacheForTest();
 

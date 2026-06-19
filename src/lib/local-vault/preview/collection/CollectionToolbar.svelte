@@ -10,7 +10,6 @@ type Props = {
 	saving: boolean;
 	selectedCollection: ResolvedCollection;
 	addFieldToSelectedCollection: () => void;
-	bulkSetCollectionField: () => void;
 	createCollectionRecord: () => void;
 	downloadCollectionExport: (format: 'csv' | 'json') => void;
 	setCollectionFilter: (filter: string) => void;
@@ -25,7 +24,6 @@ let {
 	saving,
 	selectedCollection,
 	addFieldToSelectedCollection,
-	bulkSetCollectionField,
 	createCollectionRecord,
 	downloadCollectionExport,
 	setCollectionFilter
@@ -52,13 +50,6 @@ function handleFilterInput(event: Event) {
 	</button>
 	<button type="button" onclick={addFieldToSelectedCollection} disabled={readOnly || !hasVault || loading || saving}>
 		Add Field
-	</button>
-	<button
-		type="button"
-		onclick={bulkSetCollectionField}
-		disabled={readOnly || !hasVault || loading || saving || !recordsCount}
-	>
-		Bulk Set Field
 	</button>
 	<button type="button" onclick={() => downloadCollectionExport('csv')} disabled={loading}>
 		Export CSV

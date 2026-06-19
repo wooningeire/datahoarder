@@ -268,7 +268,6 @@ function getMarkupPreviewErrorMessage(error: unknown) {
 			selectedCollection={store.selectedCollection}
 			selectedContent={store.selectedContent}
 			addFieldToSelectedCollection={store.noteActions.addFieldToSelectedCollection}
-			bulkSetCollectionField={store.collectionActions.bulkSetCollectionField}
 			cancelCollectionCellEdit={store.collectionActions.cancelCollectionCellEdit}
 			createCollectionRecord={store.noteActions.createCollectionRecord}
 			downloadCollectionExport={store.publishActions.downloadCollectionExport}

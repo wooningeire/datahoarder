@@ -56,9 +56,10 @@ type VaultFileActionContext = {
 	vaultHandle: LocalDirectoryHandle | null;
 	vaultIndex: VaultIndex;
 	getErrorMessage: (error: unknown) => string;
-	loadPinnedNotePaths: (vaultName: string) => void;
-	prunePinnedNotePaths: (nextVaultIndex?: VaultIndex) => void;
-	replacePinnedNotePath: (previousPath: string, nextPath: string) => void;
+	loadStoredNoteLists: (vaultName: string) => void;
+	pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void;
+	recordRecentNote: (path: string) => void;
+	replaceStoredNotePath: (previousPath: string, nextPath: string) => void;
 	requestText: (options: RequestTextOptions) => Promise<string | null>;
 };
 
@@ -218,7 +219,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		context.errorMessage = '';
 
 		try {
-			context.loadPinnedNotePaths(handle.name);
+			context.loadStoredNoteLists(handle.name);
 
 			const [nextFiles, nextDirectories] = await Promise.all([
 				readLocalVault(handle),
@@ -241,7 +242,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 
 			context.vaultIndex = nextVaultIndex;
 			context.savedVaultSearches = nextSavedVaultSearches;
-			context.prunePinnedNotePaths(nextVaultIndex);
+			context.pruneStoredNoteLists(nextVaultIndex);
 			context.status = `${nextStatus} ${context.files.length} editable files indexed, ${context.directories.length} folders found, ${context.vaultIndex.records.length} notes parsed.`;
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
@@ -293,6 +294,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		context.selectedContent = content;
 		context.savedContent = content;
 		context.status = nextStatus;
+		context.recordRecentNote(file.path);
 	}
 
 	async function saveSelectedFile() {
@@ -343,7 +345,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 				context.selectedContent
 			);
 
-			context.replacePinnedNotePath(previousPath, movedFile.path);
+			context.replaceStoredNotePath(previousPath, movedFile.path);
 			await applyMovedLocalFile(
 				context,
 				previousPath,

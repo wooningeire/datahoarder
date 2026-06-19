@@ -1,6 +1,5 @@
 import { addCollectionField } from '../../collections/edit.js';
 import { createCollectionRecordDraft, type ResolvedCollection } from '../../collections/index.js';
-import { addDrawingElement } from '../../drawings/edit.js';
 import { createWhiteboardNoteDraft } from '../../drawings/preview.js';
 import {
 	createLocalDirectory,
@@ -10,14 +9,8 @@ import {
 	type LocalVaultDirectory,
 	type LocalVaultFile
 } from '../../vault/local-files.js';
-import { setInlineField } from '../../note-model/fields.js';
 import { getNoteTitle } from '../../vault/paths.js';
-import {
-	formatVaultValue,
-	getVaultRecordValue,
-	type VaultIndex,
-	type VaultRecord
-} from '../../vault/index.js';
+import type { VaultIndex } from '../../vault/index.js';
 import type { SavedVaultSearch } from '../../vault/saved-search.js';
 import {
 	assertNoManagedFolderPathCollision,
@@ -55,10 +48,8 @@ type NoteActionContext = {
 	saving: boolean;
 	selectedCollection: ResolvedCollection | null;
 	selectedContent: string;
-	selectedExcalidrawNote: boolean;
 	selectedFile: LocalVaultFile | null;
 	selectedPath: string;
-	selectedRecord: VaultRecord | null;
 	status: string;
 	templateFiles: LocalVaultFile[];
 	vaultHandle: LocalDirectoryHandle | null;
@@ -66,7 +57,7 @@ type NoteActionContext = {
 	canLeaveSelectedFile: () => Promise<boolean>;
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
-	prunePinnedNotePaths: (nextVaultIndex?: VaultIndex) => void;
+	pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void;
 	requestInlineFileCreate: (request: InlineFileCreateRequest) => Promise<string | null>;
 	requestForm: (config: RequestDialogConfig) => Promise<RequestDialogValues | null>;
 };
@@ -75,73 +66,14 @@ export type NoteActions = ReturnType<typeof createNoteActions>;
 
 export function createNoteActions(context: NoteActionContext) {
 	return {
-		addCanvasElement,
 		addFieldToSelectedCollection,
 		createCollectionRecord,
 		createDrawingNote,
 		createFolder,
 		createNote,
-		createNoteFromTemplate,
-		setSelectedInlineField
+		createNoteFromTemplate
 	};
 
-	async function setSelectedInlineField() {
-		if (!context.selectedFile || !context.selectedRecord) {
-			return;
-		}
-
-		if (context.dirty && !window.confirm('Save current edits with this field update?')) {
-			return;
-		}
-
-		const requestedField = await context.requestForm({
-			fields: [
-				{
-					id: 'key',
-					label: 'Field Name',
-					required: true,
-					value: 'status'
-				},
-				{
-					id: 'value',
-					label: 'Field Value',
-					value: formatVaultValue(getVaultRecordValue(context.selectedRecord, 'status'))
-				}
-			],
-			submitLabel: 'Update Field',
-			title: 'Set Inline Field'
-		});
-
-		if (requestedField === null) {
-			return;
-		}
-
-		const requestedKey = requestedField.key;
-		const requestedValue = requestedField.value;
-
-		context.saving = true;
-		context.errorMessage = '';
-
-		try {
-			const nextContent = setInlineField(context.selectedContent, {
-				key: requestedKey,
-				value: requestedValue
-			});
-
-			const updatedFile = await writeLocalFile(context.selectedFile, nextContent);
-
-			await applyUpdatedLocalFile(
-				context,
-				updatedFile,
-				nextContent,
-				`Updated ${requestedKey.trim()} on ${context.selectedFile.path}`
-			);
-		} catch (error) {
-			context.errorMessage = context.getErrorMessage(error);
-		} finally {
-			context.saving = false;
-		}
-	}
 
 	async function createNote(directoryPath?: string) {
 		if (
@@ -271,71 +203,6 @@ export function createNoteActions(context: NoteActionContext) {
 		}
 	}
 
-	async function addCanvasElement() {
-		if (!context.selectedFile || !context.selectedExcalidrawNote) {
-			return;
-		}
-
-		if (context.dirty && !window.confirm('Save current edits with this canvas update?')) {
-			return;
-		}
-
-		const requestedElement = await context.requestForm({
-			fields: [
-				{
-					id: 'kind',
-					inputKind: 'select',
-					label: 'Element Type',
-					options: [
-						{ label: 'Text', value: 'text' },
-						{ label: 'Rectangle', value: 'rectangle' },
-						{ label: 'Ellipse', value: 'ellipse' },
-						{ label: 'Diamond', value: 'diamond' },
-						{ label: 'Arrow', value: 'arrow' }
-					],
-					required: true,
-					value: 'text'
-				},
-				{
-					id: 'label',
-					label: 'Element Label',
-					value: getNoteTitle(context.selectedFile.path)
-				}
-			],
-			submitLabel: 'Add Element',
-			title: 'Add Canvas Element'
-		});
-
-		if (requestedElement === null) {
-			return;
-		}
-
-		const requestedKind = requestedElement.kind;
-		const requestedLabel = requestedElement.label;
-
-		context.saving = true;
-		context.errorMessage = '';
-
-		try {
-			const result = addDrawingElement(context.selectedContent, {
-				kind: requestedKind,
-				text: requestedLabel
-			});
-
-			const updatedFile = await writeLocalFile(context.selectedFile, result.content);
-
-			await applyUpdatedLocalFile(
-				context,
-				updatedFile,
-				result.content,
-				`Added ${result.kind} to ${context.selectedFile.path}`
-			);
-		} catch (error) {
-			context.errorMessage = context.getErrorMessage(error);
-		} finally {
-			context.saving = false;
-		}
-	}
 
 	async function createNoteFromTemplate(directoryPath?: string) {
 		await createNoteFromTemplateAction(context, directoryPath);

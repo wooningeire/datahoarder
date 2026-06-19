@@ -1,12 +1,4 @@
-import type { CollectionSummaryResult, ResolvedCollection } from '../../collections/index.js';
 import { renderExcalidrawNotePreview } from '../../drawings/preview.js';
-import {
-	renderCollectionKanbanHtml,
-	renderCollectionSummariesHtml,
-	renderCollectionTableHtml,
-	renderCollectionTimelineHtml,
-	renderSourceHtml
-} from '../../publishing/html-export.js';
 import type { LocalVaultFile } from '../../vault/local-files.js';
 import {
 	isDatahoarderBoardFile,
@@ -14,68 +6,12 @@ import {
 } from '../../boards/local-board.js';
 import { renderPortableMarkdown } from '../../markdown/render.js';
 import { isExcalidrawNote } from '../../note-model/raw.js';
-import type { VaultIndex, VaultRecord } from '../../vault/index.js';
+import type { VaultIndex } from '../../vault/index.js';
 
 type LocalRenderContext = {
 	files: LocalVaultFile[];
 	vaultIndex: VaultIndex;
 };
-
-type SelectedExportContext = LocalRenderContext & {
-	collectionRecords: VaultRecord[];
-	collectionSummaries: CollectionSummaryResult[];
-	previewHtml: string;
-	selectedCollection: ResolvedCollection | null;
-	selectedContent: string;
-	selectedFile: LocalVaultFile | null;
-};
-
-export function renderSelectedExportBodyHtml(context: SelectedExportContext) {
-	if (context.selectedCollection) {
-		const summariesHtml = renderCollectionSummariesHtml(context.collectionSummaries);
-		const withSummaries = (bodyHtml: string) => [summariesHtml, bodyHtml].filter(Boolean).join('\n');
-
-		if (context.selectedCollection.view.type.toLowerCase() === 'kanban') {
-			return withSummaries(
-				renderCollectionKanbanHtml(
-					context.collectionRecords,
-					context.selectedCollection.columns,
-					context.selectedCollection.view
-				)
-			);
-		}
-
-		if (context.selectedCollection.view.type.toLowerCase() === 'timeline') {
-			return withSummaries(
-				renderCollectionTimelineHtml(
-					context.collectionRecords,
-					context.selectedCollection.columns,
-					context.selectedCollection.view
-				)
-			);
-		}
-
-		return withSummaries(renderCollectionTableHtml(context.collectionRecords, context.selectedCollection.columns));
-	}
-
-	if (context.selectedFile && isDatahoarderBoardFile(context.selectedFile.path)) {
-		return renderLocalBoard(context.selectedContent, context.selectedFile.path, context);
-	}
-
-	if (context.selectedFile?.extension === '.md' && isExcalidrawNote(context.selectedContent)) {
-		return renderExcalidrawNotePreview(context.selectedContent);
-	}
-
-	if (context.selectedFile?.extension === '.md') {
-		return renderLocalMarkdown(context.selectedContent, context.selectedFile, context);
-	}
-
-	if (context.previewHtml) {
-		return context.previewHtml;
-	}
-
-	return renderSourceHtml(context.selectedContent);
-}
 
 export function renderLocalMarkdown(
 	content: string,

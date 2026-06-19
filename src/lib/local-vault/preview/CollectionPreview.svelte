@@ -35,7 +35,6 @@ type Props = {
 	selectedCollection: ResolvedCollection;
 	selectedContent: string;
 	addFieldToSelectedCollection: () => void;
-	bulkSetCollectionField: () => void;
 	cancelCollectionCellEdit: () => void;
 	createCollectionRecord: () => void;
 	downloadCollectionExport: (format: 'csv' | 'json') => void;
@@ -68,7 +67,6 @@ let {
 	selectedCollection,
 	selectedContent,
 	addFieldToSelectedCollection,
-	bulkSetCollectionField,
 	cancelCollectionCellEdit,
 	createCollectionRecord,
 	downloadCollectionExport,
@@ -101,7 +99,6 @@ let {
 		{saving}
 		{selectedCollection}
 		{addFieldToSelectedCollection}
-		{bulkSetCollectionField}
 		{createCollectionRecord}
 		{downloadCollectionExport}
 		{setCollectionFilter}

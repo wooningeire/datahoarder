@@ -11,17 +11,12 @@ type CommandPaletteContext = {
 	loading: boolean;
 	savedVaultSearches: SavedVaultSearch[];
 	selectedCollection: ResolvedCollection | null;
-	selectedExcalidrawNote: boolean;
 	selectedFile: LocalVaultFile | null;
-	selectedFilePinned: boolean;
-	selectedRecord: VaultRecord | null;
 	supported: boolean;
 	templateFilesCount: number;
 	vaultRecords: VaultRecord[];
-	addCanvasElement: () => void;
 	addFieldToSelectedCollection: () => void;
 	applySavedVaultSearch: (search: SavedVaultSearch) => void;
-	bulkSetCollectionField: () => void;
 	chooseFolder: () => void;
 	createCollectionRecord: () => void;
 	createDrawingNote: () => void;
@@ -29,13 +24,10 @@ type CommandPaletteContext = {
 	createNote: () => void;
 	createNoteFromTemplate: () => void;
 	downloadCollectionExport: (format: 'csv' | 'json') => void;
-	downloadSelectedHtmlExport: () => void;
 	refreshVault: () => void;
 	reopenStoredFolder: () => void;
 	saveSelectedFile: () => void;
 	selectFile: (filePath: string) => Promise<void> | void;
-	setSelectedInlineField: () => void;
-	toggleSelectedPin: () => void;
 };
 
 const maxCommandPaletteResults = 18;
@@ -100,16 +92,6 @@ export function buildCommandPaletteItems(context: CommandPaletteContext): Comman
 		);
 	}
 
-	if (context.selectedFile) {
-		items.push({
-			detail: `Export ${context.selectedFile.path} as standalone HTML`,
-			id: 'export-html',
-			keywords: ['download', 'standalone', 'public'],
-			run: context.downloadSelectedHtmlExport,
-			title: 'Export HTML'
-		});
-	}
-
 	if (context.dirty && context.selectedFile) {
 		items.push({
 			detail: `Save ${context.selectedFile.path}`,
@@ -117,35 +99,6 @@ export function buildCommandPaletteItems(context: CommandPaletteContext): Comman
 			keywords: ['write', 'persist'],
 			run: context.saveSelectedFile,
 			title: 'Save File'
-		});
-	}
-
-	if (context.selectedRecord && !context.loading) {
-		items.push(
-			{
-				detail: `${context.selectedFilePinned ? 'Remove pin from' : 'Pin'} ${context.selectedRecord.title}`,
-				id: 'toggle-pin',
-				keywords: ['quick note', 'favorite', 'pin'],
-				run: context.toggleSelectedPin,
-				title: context.selectedFilePinned ? 'Unpin Current Note' : 'Pin Current Note'
-			},
-			{
-				detail: `Set an inline field on ${context.selectedRecord.title}`,
-				id: 'set-field',
-				keywords: ['metadata', 'property', 'field'],
-				run: context.setSelectedInlineField,
-				title: 'Set Field'
-			}
-		);
-	}
-
-	if (context.selectedExcalidrawNote) {
-		items.push({
-			detail: `Append an element to ${context.selectedFile?.path ?? 'the drawing'}`,
-			id: 'add-canvas-element',
-			keywords: ['drawing', 'excalidraw', 'whiteboard', 'svx'],
-			run: context.addCanvasElement,
-			title: 'Add Canvas Element'
 		});
 	}
 
@@ -164,13 +117,6 @@ export function buildCommandPaletteItems(context: CommandPaletteContext): Comman
 				keywords: ['database', 'schema', 'column'],
 				run: context.addFieldToSelectedCollection,
 				title: 'Add Collection Field'
-			},
-			{
-				detail: `${context.collectionRecordsCount} visible records`,
-				id: 'collection-bulk-set-field',
-				keywords: ['database', 'automation', 'mass update'],
-				run: context.bulkSetCollectionField,
-				title: 'Bulk Set Collection Field'
 			},
 			{
 				detail: `${context.collectionRecordsCount} visible records`,

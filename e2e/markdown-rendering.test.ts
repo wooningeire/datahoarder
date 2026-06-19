@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { expectSelectedFilePath } from "./local-vault-ui.js";
 
@@ -135,7 +134,7 @@ test('markdown preview renders continuous blockquotes and callouts', async ({ pa
 	expect(previewMetrics.scrollWidth).toBeLessThanOrEqual(previewMetrics.clientWidth + 1);
 });
 
-test('markdown task lists render toggle and export safely', async ({ page }) => {
+test('markdown task lists render and toggle safely', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-task-lists-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -189,24 +188,9 @@ test('markdown task lists render toggle and export safely', async ({ page }) => 
 	}, vaultName);
 
 	expect(taskSource).toContain('- [x] Call <client>');
-
-	const htmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const htmlDownload = await htmlDownloadPromise;
-	const htmlPath = await htmlDownload.path();
-	expect(htmlPath).toBeTruthy();
-	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
-
-	expect(htmlDownload.suggestedFilename()).toBe('tasks.html');
-	expect(htmlContent).toContain('class="task-list-item"');
-	expect(htmlContent).toContain('<input type="checkbox" disabled checked>');
-	expect(htmlContent).toContain('Call &lt;client&gt;');
-	expect(htmlContent).toContain('Ship <strong>draft</strong>');
-	expect(htmlContent).toContain('.task-list-item input');
-	expect(htmlContent).not.toContain('Call <client>');
 });
 
-test('markdown tables render in preview and exports', async ({ page }) => {
+test('markdown tables render in preview', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-markdown-tables-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -248,25 +232,9 @@ test('markdown tables render in preview and exports', async ({ page }) => {
 	await expect(preview.getByRole('link', { name: 'Site' })).toHaveAttribute('href', /^https:\/\/example\.test\/?$/u);
 	await expect(preview.locator('.markdown-table code')).toHaveText('A|B');
 	await expect(preview.getByText('Plain | pipe', { exact: true })).toBeVisible();
-
-	const htmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const htmlDownload = await htmlDownloadPromise;
-	const htmlPath = await htmlDownload.path();
-	expect(htmlPath).toBeTruthy();
-	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
-
-	expect(htmlDownload.suggestedFilename()).toBe('application-table.html');
-	expect(htmlContent).toContain('class="markdown-table-wrapper"');
-	expect(htmlContent).toContain('<th data-align="center">Status</th>');
-	expect(htmlContent).toContain('<td data-align="right"><code>A|B</code></td>');
-	expect(htmlContent).toContain('Acme &lt;Labs&gt;');
-	expect(htmlContent).toContain('Escaped | pipe');
-	expect(htmlContent).toContain('.markdown-table-wrapper');
-	expect(htmlContent).not.toContain('Acme <Labs>');
 });
 
-test('datahoarder board files render linked exports', async ({ page }) => {
+test('datahoarder board files render linked previews', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-boards-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -344,23 +312,10 @@ test('datahoarder board files render linked exports', async ({ page }) => {
 	await expect(boardBacklink).toBeVisible();
 
 	await boardBacklink.dispatchEvent('click');
-	const htmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const htmlDownload = await htmlDownloadPromise;
-	const htmlPath = await htmlDownload.path();
-	expect(htmlPath).toBeTruthy();
-	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
-
-	expect(htmlDownload.suggestedFilename()).toBe('launch-board.html');
-	expect(htmlContent).toContain('class="datahoarder-board"');
-	expect(htmlContent).toContain('Idea &lt;One&gt;');
-	expect(htmlContent).toContain('Plan &lt;fast&gt; launch flow.');
-	expect(htmlContent).toContain('next &lt;step&gt;');
-	expect(htmlContent).toContain('.datahoarder-board-node');
-	expect(htmlContent).not.toContain('Idea <One>');
+	await expectSelectedFilePath(page, "Boards/Launch.dhboard.json");
 });
 
-test('custom Sankey diagrams render in preview and exports', async ({ page }) => {
+test('custom Sankey diagrams render in preview', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-sankey-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -396,22 +351,9 @@ test('custom Sankey diagrams render in preview and exports', async ({ page }) =>
 	await expect(preview.getByText('Applied', { exact: true })).toBeVisible();
 	await expect(preview.getByText('Offer <signed>', { exact: true })).toBeVisible();
 	await expect(preview.locator('figcaption', { hasText: '3 flows across 4 nodes, total 19.' })).toBeVisible();
-
-	const htmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const htmlDownload = await htmlDownloadPromise;
-	const htmlPath = await htmlDownload.path();
-	expect(htmlPath).toBeTruthy();
-	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
-
-	expect(htmlDownload.suggestedFilename()).toBe('application-flow.html');
-	expect(htmlContent).toContain('class="datahoarder-sankey-svg"');
-	expect(htmlContent).toContain('Offer &lt;signed&gt;');
-	expect(htmlContent).not.toContain('Offer <signed>');
-	expect(htmlContent).not.toContain('<pre><code>Applied');
 });
 
-test('custom metric grids render in preview and exports', async ({ page }) => {
+test('custom metric grids render in preview', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-metrics-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -453,26 +395,10 @@ test('custom metric grids render in preview and exports', async ({ page }) => {
 	await expect(preview.getByText('120ms', { exact: true })).toBeVisible();
 	await expect(preview.getByText('Waiting on **portfolio** note', { exact: true })).toBeVisible();
 	await expect(preview.getByText('Ignored line')).toHaveCount(0);
-
-	const htmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const htmlDownload = await htmlDownloadPromise;
-	const htmlPath = await htmlDownload.path();
-	expect(htmlPath).toBeTruthy();
-	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
-
-	expect(htmlDownload.suggestedFilename()).toBe('application-metrics.html');
-	expect(htmlContent).toContain('class="datahoarder-metrics"');
-	expect(htmlContent).toContain('class="datahoarder-metric datahoarder-metric-good"');
-	expect(htmlContent).toContain('This week &lt;fast&gt;');
-	expect(htmlContent).toContain('Waiting on **portfolio** note');
-	expect(htmlContent).toContain('.datahoarder-metric-value');
-	expect(htmlContent).not.toContain('This week <fast>');
-	expect(htmlContent).not.toContain('Ignored line');
 });
 
-test("pinned notes stay stable without recent notes or the bottom status bar", async ({ page }) => {
-    const vaultName = `datahoarder-e2e-pinned-notes-${Date.now()}`;
+test('quick notes track recent local notes', async ({ page }) => {
+	const vaultName = `datahoarder-e2e-quick-notes-${Date.now()}`;
 
     await page.addInitScript((name) => {
         window.showDirectoryPicker = async () => {
@@ -530,40 +456,32 @@ test("pinned notes stay stable without recent notes or the bottom status bar", a
         expect(Math.abs(noteColumnsBox!.y - initialNoteColumnsTop)).toBeLessThan(2);
     };
 
-    await noteColumns.getByRole("button", { name: "beta.md" }).click();
-    await expectNoteColumnsTopToStayPut();
-    await noteColumns.getByRole("button", { name: "gamma.md" }).click();
-    await expectNoteColumnsTopToStayPut();
-    await page.locator(".topbar").getByRole("button", { name: "Pin" }).click();
-    await expectNoteColumnsTopToStayPut();
+	await noteColumns.getByRole('button', { name: 'beta.md' }).click();
+	await expectNoteColumnsTopToStayPut();
+	await noteColumns.getByRole('button', { name: 'gamma.md' }).click();
+	await expectNoteColumnsTopToStayPut();
 
-    const pinnedNotes = page.getByLabel("Pinned notes");
-    await expect(pinnedNotes).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Recent" })).toHaveCount(0);
+	const quickNotes = page.getByLabel('Quick notes');
+	await expect(quickNotes.getByRole('heading', { name: 'Pinned' })).toHaveCount(0);
+	await expect(quickNotes.getByRole('heading', { name: 'Recent' })).toBeVisible();
+	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Beta' })).toBeVisible();
 
-    await noteColumns.getByRole("button", { name: "beta.md" }).click();
-    await expectNoteColumnsTopToStayPut();
-    await expectSelectedFilePath(page, "beta.md");
-    await expect(pinnedNotes).toBeVisible();
-    await expect(pinnedNotes.getByRole("heading", { name: "Pinned" })).toBeVisible();
-    await expect(pinnedNotes.locator(".pinned-note-link", { hasText: "Gamma" })).toBeVisible();
-    await expect(pinnedNotes.locator(".pinned-note-link", { hasText: "Beta" })).toHaveCount(0);
+	await quickNotes.locator('.quick-note-link', { hasText: 'Beta' }).dispatchEvent('click');
+	await expectNoteColumnsTopToStayPut();
+	await expectSelectedFilePath(page, "beta.md");
+	await expect(page.getByText('Editing selected file.')).toHaveCount(0);
+	await expect(page.locator('.status-row')).toHaveCount(0);
+	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Gamma' })).toBeVisible();
+	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Beta' })).toHaveCount(0);
 
-    await pinnedNotes.locator(".pinned-note-link", { hasText: "Gamma" }).click();
-    await expectNoteColumnsTopToStayPut();
-    await expectSelectedFilePath(page, "gamma.md");
-    await expect(page.getByLabel("Pinned notes")).toHaveCount(0);
+	const storedLists = await page.evaluate((name) => {
+		const recent = window.localStorage.getItem(`datahoarder-local-vault-recent-notes:${name}`);
 
-    const storedLists = await page.evaluate((name) => {
-        const pinned = window.localStorage.getItem(`datahoarder-local-vault-pinned-notes:${name}`);
-        const recent = window.localStorage.getItem(`datahoarder-local-vault-recent-notes:${name}`);
+		return {
+			recent: recent ? JSON.parse(recent) : []
+		};
+	}, vaultName);
 
-        return {
-            pinned: pinned ? JSON.parse(pinned) : [],
-            recent,
-        };
-    }, vaultName);
-
-    expect(storedLists.pinned).toEqual(["gamma.md"]);
-    expect(storedLists.recent).toBeNull();
+	expect(storedLists.recent).toContain('beta.md');
+	expect(storedLists.recent).toContain('gamma.md');
 });

@@ -1,5 +1,4 @@
 import { getBaseViews } from "../../note-model/base.js";
-import { isExcalidrawNote, isWhiteboardNote } from "../../note-model/raw.js";
 import { isNoteTemplatePath } from "../../note-model/template.js";
 import {
     buildLocalVaultTree,
@@ -102,18 +101,9 @@ export class LocalVaultShellStore {
     selectedBacklinks = $derived(
         this.selectedRecord ? getVaultBacklinks(this.vaultIndex, this.selectedRecord) : [],
     );
-    selectedExcalidrawNote = $derived(
-        Boolean(
-            (this.selectedFile?.extension === ".md" && isExcalidrawNote(this.selectedContent)) ||
-                (this.selectedFile?.extension === ".svx" && isWhiteboardNote(this.selectedContent)),
-        ),
-    );
-    selectedFilePinned = $derived(
-        this.selectedFile ? this.storedNotes.pinnedNotePaths.includes(this.selectedFile.path) : false,
-    );
-    pinnedNotes = $derived(
+    recentNotes = $derived(
         getStoredNoteRecords(
-            this.storedNotes.pinnedNotePaths.filter((path) => path !== this.selectedFile?.path),
+            this.storedNotes.recentNotePaths.filter((path) => path !== this.selectedFile?.path),
             this.vaultIndex.recordsByPath,
         ),
     );
@@ -161,9 +151,10 @@ export class LocalVaultShellStore {
     collectionSummaries = $derived(getCollectionSummariesForView(this.selectedCollection, this.collectionRecords));
 
     getErrorMessage = getShellErrorMessage;
-    loadPinnedNotePaths = this.storedNotes.loadPinnedNotePaths;
-    prunePinnedNotePaths = this.storedNotes.prunePinnedNotePaths;
-    replacePinnedNotePath = this.storedNotes.replacePinnedNotePath;
+    loadStoredNoteLists = this.storedNotes.loadStoredNoteLists;
+    pruneStoredNoteLists = this.storedNotes.pruneStoredNoteLists;
+    recordRecentNote = this.storedNotes.recordRecentNote;
+    replaceStoredNotePath = this.storedNotes.replaceStoredNotePath;
     requestInlineFileCreate = this.requestState.requestInlineFileCreate;
     requestForm = this.requestState.requestForm;
     requestText = this.requestState.requestText;
@@ -179,10 +170,6 @@ export class LocalVaultShellStore {
     collectionActions = createCollectionActions(this);
     publishActions = createPublishActions(this);
 
-    toggleSelectedPin = (): void => {
-        this.storedNotes.toggleSelectedPin(this.selectedRecord);
-    };
-
     toggleDirectoryPanel = (): void => {
         this.directoryPanelOpen = !this.directoryPanelOpen;
     };
@@ -195,17 +182,12 @@ export class LocalVaultShellStore {
             loading: this.loading,
             savedVaultSearches: this.savedVaultSearches,
             selectedCollection: this.selectedCollection,
-            selectedExcalidrawNote: this.selectedExcalidrawNote,
             selectedFile: this.selectedFile,
-            selectedFilePinned: this.selectedFilePinned,
-            selectedRecord: this.selectedRecord,
             supported: this.supported,
             templateFilesCount: this.templateFiles.length,
             vaultRecords: this.vaultIndex.records,
-            addCanvasElement: this.noteActions.addCanvasElement,
             addFieldToSelectedCollection: this.noteActions.addFieldToSelectedCollection,
             applySavedVaultSearch: this.interactionActions.applySavedVaultSearch,
-            bulkSetCollectionField: this.collectionActions.bulkSetCollectionField,
             chooseFolder: this.vaultActions.chooseFolder,
             createCollectionRecord: this.noteActions.createCollectionRecord,
             createDrawingNote: this.noteActions.createDrawingNote,
@@ -213,13 +195,10 @@ export class LocalVaultShellStore {
             createNote: this.noteActions.createNote,
             createNoteFromTemplate: this.noteActions.createNoteFromTemplate,
             downloadCollectionExport: this.publishActions.downloadCollectionExport,
-            downloadSelectedHtmlExport: this.publishActions.downloadSelectedHtmlExport,
             refreshVault: this.vaultActions.refreshVault,
             reopenStoredFolder: this.vaultActions.reopenStoredFolder,
             saveSelectedFile: this.vaultActions.saveSelectedFile,
             selectFile: this.vaultActions.selectFile,
-            setSelectedInlineField: this.noteActions.setSelectedInlineField,
-            toggleSelectedPin: this.toggleSelectedPin,
         }),
     );
     filteredCommandPaletteItems = $derived.by(() =>

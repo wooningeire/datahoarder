@@ -40,7 +40,7 @@ type InteractionActionContext = {
 	vaultSearchQuery: string;
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
-	prunePinnedNotePaths: (nextVaultIndex?: VaultIndex) => void;
+	pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void;
 	requestText: (options: RequestTextOptions) => Promise<string | null>;
 	selectFile: (filePath: string) => Promise<void>;
 };

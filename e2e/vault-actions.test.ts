@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { expectSelectedFilePath } from "./local-vault-ui.js";
 import { fillInlineFileCreate, fillRequestFields } from './request-dialog.js';
@@ -195,18 +194,6 @@ test('Excalidraw notes render a static SVG preview', async ({ page }) => {
 	const preview = page.getByLabel('Preview');
 	await expect(preview.locator('.excalidraw-preview-svg')).toBeVisible();
 	await expect(preview.getByText('Launch <fast>')).toBeVisible();
-
-	const htmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const htmlDownload = await htmlDownloadPromise;
-	const htmlPath = await htmlDownload.path();
-	expect(htmlPath).toBeTruthy();
-	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
-
-	expect(htmlDownload.suggestedFilename()).toBe('visual-plan.html');
-	expect(htmlContent).toContain('class="excalidraw-preview-svg"');
-	expect(htmlContent).toContain('Launch &lt;fast&gt;');
-	expect(htmlContent).not.toContain('<script>');
 });
 
 test('new drawing creates a whiteboard SVX note', async ({ page }) => {
@@ -231,61 +218,6 @@ test('new drawing creates a whiteboard SVX note', async ({ page }) => {
 	await expect(page.getByLabel('Preview').getByLabel('Launch Map whiteboard')).toBeVisible();
 	await expect(page.getByLabel('Preview').getByText('Launch Map')).toBeVisible();
 	await expect(page.getByLabel('Editor').getByText('InfiniteWhiteboard')).toBeVisible();
-});
-
-test('whiteboard drawing notes can append canvas elements', async ({ page }) => {
-	const vaultName = `datahoarder-e2e-add-canvas-element-${Date.now()}`;
-
-	await page.addInitScript((name) => {
-		window.showDirectoryPicker = async () => {
-			const root = await navigator.storage.getDirectory();
-
-			return root.getDirectoryHandle(name, { create: true });
-		};
-	}, vaultName);
-
-	await page.goto('/');
-	await page.getByRole('button', { name: 'Open Folder' }).click();
-	await clickColumnNewItem(page, 'Files', 'New Drawing');
-	await fillInlineFileCreate(page, 'New drawing name', 'Canvas');
-	await page.getByRole('button', { name: 'Add Canvas Element' }).click();
-	await fillRequestFields(
-		page,
-		'Add Canvas Element',
-		{
-			'Element Type': 'rectangle',
-			'Element Label': 'Milestone <risk> & reward'
-		},
-		'Add Element'
-	);
-
-	await expect(page.getByText('Added rectangle to Canvas.svx')).toBeVisible();
-	await expect(page.getByLabel('Canvas whiteboard').getByText('Milestone <risk> & reward')).toBeVisible();
-
-	const savedDrawingContent = await page.evaluate(async (name) => {
-		const root = await navigator.storage.getDirectory();
-		const directory = await root.getDirectoryHandle(name);
-		const file = await directory.getFileHandle('Canvas.svx');
-		const blob = await file.getFile();
-
-		return blob.text();
-	}, vaultName);
-
-	expect(savedDrawingContent).toContain('"kind": "shape"');
-	expect(savedDrawingContent).toContain('"shape": "rectangle"');
-	expect(savedDrawingContent).toContain('"label": "Milestone <risk> & reward"');
-
-	const htmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const htmlDownload = await htmlDownloadPromise;
-	const htmlPath = await htmlDownload.path();
-	expect(htmlPath).toBeTruthy();
-	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
-
-	expect(htmlContent).toContain('class="whiteboard-preview-svg"');
-	expect(htmlContent).toContain('Milestone &lt;risk&gt; &amp; reward');
-	expect(htmlContent).not.toContain('Milestone <risk> & reward');
-	expect(htmlContent).not.toContain('<script>');
 });
 
 test('new from template creates a note with rendered placeholders', async ({ page }) => {
@@ -329,8 +261,8 @@ test('new from template creates a note with rendered placeholders', async ({ pag
 	await expect(page.getByLabel('Preview').getByText(/created:: \d{4}-\d{2}-\d{2}/u)).toBeVisible();
 });
 
-test('set field updates inline note properties', async ({ page }) => {
-	const vaultName = `datahoarder-e2e-set-field-${Date.now()}`;
+test('removed topbar commands are not exposed', async ({ page }) => {
+	const vaultName = `datahoarder-e2e-removed-topbar-actions-${Date.now()}`;
 
 	await page.addInitScript((name) => {
 		window.showDirectoryPicker = async () => {
@@ -350,23 +282,15 @@ test('set field updates inline note properties', async ({ page }) => {
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 	await expect(page.getByLabel('Preview').getByText('status:: Applied')).toBeVisible();
 
-	await page.getByRole('button', { name: 'Set Field' }).click();
-	await fillRequestFields(
-		page,
-		'Set Inline Field',
-		{
-			'Field Name': 'status',
-			'Field Value': 'Interview'
-		},
-		'Update Field'
-	);
-	await expect(page.getByText('Updated status on application.md')).toBeVisible();
-	await expect(page.getByLabel('Preview').getByText('status:: Interview')).toBeVisible();
-	await expect(page.getByLabel('Preview').getByText('status:: Applied')).toHaveCount(0);
-	await expect(page.getByLabel('Editor').getByText('status:: Interview')).toBeVisible();
+	const topbar = page.locator('.topbar');
+
+	await expect(topbar.getByRole('button', { name: 'Add Canvas Element' })).toHaveCount(0);
+	await expect(topbar.getByRole('button', { name: 'Export HTML' })).toHaveCount(0);
+	await expect(topbar.getByRole('button', { name: 'Pin', exact: true })).toHaveCount(0);
+	await expect(topbar.getByRole('button', { name: 'Set Field' })).toHaveCount(0);
 });
 
-test('note embeds render reusable blocks in preview and HTML exports', async ({ page }) => {
+test('note embeds render reusable blocks in preview', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-embeds-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -427,18 +351,4 @@ test('note embeds render reusable blocks in preview and HTML exports', async ({ 
 	await expect(preview.getByText('status:: Interview')).toBeVisible();
 	await expect(preview.getByText('detail:: Use **portfolio** note')).toBeVisible();
 	await expect(preview.getByText('Hidden section.')).toHaveCount(0);
-
-	const htmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const htmlDownload = await htmlDownloadPromise;
-	const htmlPath = await htmlDownload.path();
-	expect(htmlPath).toBeTruthy();
-	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
-
-	expect(htmlContent).toContain('class="note-embed"');
-	expect(htmlContent).toContain('<h3>Acme &lt;Labs&gt;</h3>');
-	expect(htmlContent).toContain('status:: Interview');
-	expect(htmlContent).toContain('detail:: Use **portfolio** note');
-	expect(htmlContent).not.toContain('Acme <Labs>');
-	expect(htmlContent).not.toContain('Hidden section.');
 });

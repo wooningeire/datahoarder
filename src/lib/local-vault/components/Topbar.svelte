@@ -70,13 +70,6 @@ let openFileParts = $derived(getOpenFileParts(openFilePath));
         </button>
         <button
             type="button"
-            onclick={store.noteActions.addCanvasElement}
-            disabled={store.loading || store.saving || !store.selectedExcalidrawNote}
-        >
-            Add Canvas Element
-        </button>
-        <button
-            type="button"
             onclick={store.vaultActions.renameSelectedFile}
             disabled={store.loading || !store.selectedFile}
         >
@@ -84,32 +77,10 @@ let openFileParts = $derived(getOpenFileParts(openFilePath));
         </button>
         <button
             type="button"
-            onclick={store.toggleSelectedPin}
-            disabled={store.loading || !store.selectedRecord}
-            aria-pressed={store.selectedFilePinned}
-        >
-            {store.selectedFilePinned ? "Unpin" : "Pin"}
-        </button>
-        <button
-            type="button"
-            onclick={store.noteActions.setSelectedInlineField}
-            disabled={store.loading || !store.selectedRecord || store.saving}
-        >
-            Set Field
-        </button>
-        <button
-            type="button"
             onclick={store.vaultActions.deleteSelectedFile}
             disabled={store.loading || !store.selectedFile}
         >
             Delete
-        </button>
-        <button
-            type="button"
-            onclick={store.publishActions.downloadSelectedHtmlExport}
-            disabled={store.loading || !store.selectedFile}
-        >
-            Export HTML
         </button>
         <button
             type="button"

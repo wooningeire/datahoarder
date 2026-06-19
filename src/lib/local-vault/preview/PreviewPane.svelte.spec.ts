@@ -36,19 +36,20 @@ describe('PreviewPane note preview', () => {
 	});
 
 	it('renders browser markdown without reporting it as source-only', async () => {
-		const file = createBrowserFile('Index.md', '# Browser Markdown');
+		const content = '<script>const title = "Browser Markdown";</script>\n# Browser Markdown';
+		const file = createBrowserFile('Index.md', content);
 		const fetchMock = mockPreviewResponse('<h1>Browser Markdown</h1>');
 
 		await render(PreviewPane, createPreviewPaneProps({
 			files: [file],
-			selectedContent: '# Browser Markdown',
+			selectedContent: content,
 			selectedFile: file
 		}));
 
 		expect(document.body.textContent).not.toContain('Source Only');
 		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 		expect(getPreviewRequest(fetchMock)).toEqual({
-			content: '# Browser Markdown',
+			content,
 			path: 'Index.md'
 		});
 		await expect.element(page.getByRole('heading', { name: 'Browser Markdown' })).toBeInTheDocument();
@@ -93,11 +94,13 @@ describe('PreviewPane note preview', () => {
 	});
 
 	it('keeps the current browser markup preview visible while an edit is rendering', async () => {
-		const file = createBrowserFile('Index.md', '# First');
+		const firstContent = '<script>const title = "First";</script>\n# First';
+		const secondContent = '<script>const title = "Second";</script>\n# Second';
+		const file = createBrowserFile('Index.md', firstContent);
 		const { fetchMock, resolveNext } = mockQueuedPreviewResponses();
 		const rendered = await render(PreviewPane, createPreviewPaneProps({
 			files: [file],
-			selectedContent: '# First',
+			selectedContent: firstContent,
 			selectedFile: file
 		}));
 
@@ -107,7 +110,7 @@ describe('PreviewPane note preview', () => {
 
 		await rendered.rerender(createPreviewPaneProps({
 			files: [file],
-			selectedContent: '# Second',
+			selectedContent: secondContent,
 			selectedFile: file
 		}));
 

@@ -92,22 +92,6 @@ test('kanban collection views group filter and export records', async ({ page })
 		summaries.locator('.collection-summary', { hasText: 'By Status' }).getByText('Applied', { exact: true })
 	).toHaveCount(0);
 
-	const htmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const htmlDownload = await htmlDownloadPromise;
-	const htmlPath = await htmlDownload.path();
-	expect(htmlPath).toBeTruthy();
-	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
-
-	expect(htmlDownload.suggestedFilename()).toBe('applications-pipeline.html');
-	expect(htmlContent).toContain('class="collection-summary-grid"');
-	expect(htmlContent).toContain('By Status');
-	expect(htmlContent).toContain('class="kanban-board"');
-	expect(htmlContent).toContain('Interview');
-	expect(htmlContent).toContain('Nimbus Works');
-	expect(htmlContent).not.toContain('<table>');
-	expect(htmlContent).not.toContain('Acme Labs');
-
 	const csvDownloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export CSV' }).click();
 	const csvDownload = await csvDownloadPromise;
@@ -292,20 +276,6 @@ test('timeline collection views sort filter and export records', async ({ page }
 	await preview.getByRole('searchbox', { name: 'Filter collection records' }).fill('sketch');
 	await expect(preview.getByRole('button', { name: 'Sketch', exact: true })).toBeVisible();
 	await expect(preview.getByRole('button', { name: 'Polish', exact: true })).toHaveCount(0);
-
-	const htmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const htmlDownload = await htmlDownloadPromise;
-	const htmlPath = await htmlDownload.path();
-	expect(htmlPath).toBeTruthy();
-	const htmlContent = await readFile(htmlPath ?? '', 'utf8');
-
-	expect(htmlDownload.suggestedFilename()).toBe('commission-timeline-work-log.html');
-	expect(htmlContent).toContain('class="timeline-list"');
-	expect(htmlContent).toContain('2026-01-05');
-	expect(htmlContent).toContain('Sketch');
-	expect(htmlContent).not.toContain('<table>');
-	expect(htmlContent).not.toContain('Polish');
 
 	const csvDownloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export CSV' }).click();
@@ -507,7 +477,7 @@ test('TypeScript collection files derive typed object columns', async ({ page })
 	await expect(preview.getByRole('cell', { name: '95', exact: true })).toHaveCount(2);
 	await expect(page.getByRole('button', { name: 'New Record' })).toBeDisabled();
 	await expect(page.getByRole('button', { name: 'Add Field' })).toBeDisabled();
-	await expect(page.getByRole('button', { name: 'Bulk Set Field' })).toBeDisabled();
+	await expect(page.getByRole('button', { name: 'Bulk Set Field' })).toHaveCount(0);
 
 	const csvDownloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export CSV' }).click();
@@ -520,99 +490,6 @@ test('TypeScript collection files derive typed object columns', async ({ page })
 	expect(csvContent).toContain('Company,pay.structure,pay.min,pay.max,hourlyPay.min,hourlyPay.max');
 	expect(csvContent).toContain('Acme Labs,Salary,200000,220000,96.153846,105.769231');
 	expect(csvContent).toContain('Hourly Co,Hourly,70,95,70,95');
-});
-
-test('collection fields can be bulk updated across visible filtered records', async ({ page }) => {
-	const vaultName = `datahoarder-e2e-bulk-field-${Date.now()}`;
-
-	await page.addInitScript((name) => {
-		window.showDirectoryPicker = async () => {
-			const root = await navigator.storage.getDirectory();
-			const directory = await root.getDirectoryHandle(name, { create: true });
-			const collectionFile = await directory.getFileHandle('Tasks.dhbase.yaml', { create: true });
-			const writable = await collectionFile.createWritable();
-
-			await writable.write(
-				[
-					'name: Tasks',
-					'schema:',
-					'  status: text',
-					'  owner: text',
-					'source:',
-					'  folders: [tasks]',
-					'views:',
-					'  - type: table',
-					'    name: Table',
-					'    columns: [title, status, owner]'
-				].join('\n')
-			);
-			await writable.close();
-
-			const tasksDirectory = await directory.getDirectoryHandle('tasks', { create: true });
-			const writeTask = async (fileName: string, content: string) => {
-				const file = await tasksDirectory.getFileHandle(fileName, { create: true });
-				const taskWritable = await file.createWritable();
-
-				await taskWritable.write(content);
-				await taskWritable.close();
-			};
-
-			await writeTask('alpha.md', '# Alpha\n\nstatus:: Todo\nowner:: V\n');
-			await writeTask('beta.md', '# Beta\n\nstatus:: Todo\nowner:: V\n');
-			await writeTask('gamma.md', '# Gamma\n\nstatus:: Todo\nowner:: Z\n');
-
-			return directory;
-		};
-	}, vaultName);
-
-	page.on('dialog', async (dialog) => {
-		await dialog.accept();
-	});
-
-	await page.goto('/');
-	await page.getByRole('button', { name: 'Open Folder' }).click();
-	await page.locator('.note-columns').getByRole('button', { name: 'Tasks.dhbase.yaml' }).click();
-
-	const preview = page.getByLabel('Preview');
-	await preview.getByRole('searchbox', { name: 'Filter collection records' }).fill('V');
-	await expect(preview.getByRole('button', { name: 'Alpha', exact: true })).toBeVisible();
-	await expect(preview.getByRole('button', { name: 'Beta', exact: true })).toBeVisible();
-	await expect(preview.getByRole('button', { name: 'Gamma', exact: true })).toHaveCount(0);
-
-	await page.getByRole('button', { name: 'Bulk Set Field' }).click();
-	await fillRequestFields(
-		page,
-		'Bulk Set Collection Field',
-		{
-			Field: 'status',
-			Value: 'Done'
-		},
-		'Review Update'
-	);
-	await expect(page.getByText('Updated status on 2 visible records.')).toBeVisible();
-	await expect(preview.locator('.collection-cell-edit', { hasText: 'Done' })).toHaveCount(2);
-
-	const taskFiles = await page.evaluate(async (name) => {
-		const root = await navigator.storage.getDirectory();
-		const directory = await root.getDirectoryHandle(name);
-		const tasksDirectory = await directory.getDirectoryHandle('tasks');
-		const readTask = async (fileName: string) => {
-			const file = await tasksDirectory.getFileHandle(fileName);
-			const blob = await file.getFile();
-
-			return blob.text();
-		};
-
-		return {
-			alpha: await readTask('alpha.md'),
-			beta: await readTask('beta.md'),
-			gamma: await readTask('gamma.md')
-		};
-	}, vaultName);
-
-	expect(taskFiles.alpha).toContain('status:: Done');
-	expect(taskFiles.beta).toContain('status:: Done');
-	expect(taskFiles.gamma).toContain('status:: Todo');
 });
 
 test('collection cells use typed inline editors from schema metadata', async ({ page }) => {
@@ -834,20 +711,6 @@ test('collection records can be scaffolded from the selected collection', async 
 	await expectSelectedFilePath(page, "applications/Acme Labs.md");
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'Acme Labs' })).toBeVisible();
 
-	const noteHtmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const noteHtmlDownload = await noteHtmlDownloadPromise;
-	const noteHtmlPath = await noteHtmlDownload.path();
-	expect(noteHtmlPath).toBeTruthy();
-	const noteHtmlContent = await readFile(noteHtmlPath ?? '', 'utf8');
-
-	expect(noteHtmlDownload.suggestedFilename()).toBe('acme-labs.html');
-	expect(noteHtmlContent).toContain('<p>Datahoarder note export</p>');
-	expect(noteHtmlContent).toContain('<title>Acme Labs</title>');
-	expect(noteHtmlContent).toContain('<h1>Acme Labs</h1>');
-	expect(noteHtmlContent).toContain('class="datahoarder-svelte-note"');
-	await expect(page.getByText('Exported applications/Acme Labs.md as HTML.')).toBeVisible();
-
 	await page.locator('.note-columns').getByRole('button', { name: 'Applications.dhbase.yaml' }).click();
 	const preview = page.getByLabel('Preview');
 
@@ -916,20 +779,4 @@ test('collection records can be scaffolded from the selected collection', async 
 		}
 	]);
 	await expect(page.getByText('Exported 1 collection records as JSON.')).toBeVisible();
-
-	const collectionHtmlDownloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export HTML' }).click();
-	const collectionHtmlDownload = await collectionHtmlDownloadPromise;
-	const collectionHtmlPath = await collectionHtmlDownload.path();
-	expect(collectionHtmlPath).toBeTruthy();
-	const collectionHtmlContent = await readFile(collectionHtmlPath ?? '', 'utf8');
-
-	expect(collectionHtmlDownload.suggestedFilename()).toBe('applications-table.html');
-	expect(collectionHtmlContent).toContain('<p>Table collection view</p>');
-	expect(collectionHtmlContent).toContain('<title>Applications</title>');
-	expect(collectionHtmlContent).toContain('<td>Acme Labs</td>');
-	expect(collectionHtmlContent).toContain('<td>Acme Labs LLC</td>');
-	expect(collectionHtmlContent).toContain('<td>High</td>');
-	expect(collectionHtmlContent).not.toContain('Nimbus Works');
-	await expect(page.getByText('Exported Applications.dhbase.yaml as HTML.')).toBeVisible();
 });

@@ -10,21 +10,16 @@ import { hasInlineField, setInlineField } from '../../note-model/fields.js';
 import type { VaultIndex, VaultRecord } from '../../vault/index.js';
 import type { SavedVaultSearch } from '../../vault/saved-search.js';
 import {
-	getCollectionColumnLabel,
 	getCollectionViewSortColumn,
 	hasOwnCaseInsensitiveProperty,
 	isEditableCollectionColumn
 } from '../preview/collection-view.js';
-import type { CollectionCellEdit, RequestDialogConfig, RequestDialogValues } from '../shared/types.js';
-import {
-	applyUpdatedLocalFile,
-	applyUpdatedLocalFiles
-} from './vault-snapshot-mutations.js';
+import type { CollectionCellEdit } from '../shared/types.js';
+import { applyUpdatedLocalFile } from './vault-snapshot-mutations.js';
 
 type CollectionActionContext = {
 	collectionCellEdit: CollectionCellEdit | null;
 	collectionFilter: string;
-	collectionRecords: VaultRecord[];
 	collectionSortColumn: string;
 	collectionSortDirection: 'asc' | 'desc';
 	directories: LocalVaultDirectory[];
@@ -46,9 +41,7 @@ type CollectionActionContext = {
 	vaultIndex: VaultIndex;
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
-	prunePinnedNotePaths: (nextVaultIndex?: VaultIndex) => void;
-	requestForm: (config: RequestDialogConfig) => Promise<RequestDialogValues | null>;
-	saveSelectedFile: () => Promise<void>;
+	pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void;
 	selectFile: (filePath: string) => Promise<void>;
 };
 
@@ -57,7 +50,6 @@ export type CollectionActions = ReturnType<typeof createCollectionActions>;
 export function createCollectionActions(context: CollectionActionContext) {
 	return {
 		applyCollectionViewDefaults,
-		bulkSetCollectionField,
 		cancelCollectionCellEdit,
 		editCollectionRecordField,
 		isEditingCollectionCell,
@@ -176,133 +168,6 @@ export function createCollectionActions(context: CollectionActionContext) {
 		};
 	}
 
-	async function bulkSetCollectionField() {
-		if (!context.vaultHandle || context.loading || context.saving || !context.selectedCollection) {
-			return;
-		}
-
-		if (!context.collectionRecords.length) {
-			context.status = 'No visible collection records to update.';
-			return;
-		}
-
-		if (!(await context.canMutateVault())) {
-			return;
-		}
-
-		if (context.dirty) {
-			if (!window.confirm('Save current collection edits before this bulk update?')) {
-				return;
-			}
-
-			await context.saveSelectedFile();
-
-			if (context.dirty) {
-				return;
-			}
-		}
-
-		const editableColumns = context.selectedCollection.columns.filter((column) =>
-			isEditableCollectionColumn(context.selectedCollection, column)
-		);
-
-		if (!editableColumns.length) {
-			context.errorMessage = 'No editable collection fields are visible in this view.';
-			return;
-		}
-
-		const defaultField = editableColumns[0];
-		const requestedUpdate = await context.requestForm({
-			description: `${context.collectionRecords.length} visible records will be eligible for this update.`,
-			fields: [
-				{
-					id: 'key',
-					inputKind: 'select',
-					label: 'Field',
-					options: editableColumns.map((column) => ({
-						label: getCollectionColumnLabel(column),
-						value: column
-					})),
-					required: true,
-					value: defaultField
-				},
-				{
-					id: 'value',
-					label: 'Value',
-					value: ''
-				}
-			],
-			submitLabel: 'Review Update',
-			title: 'Bulk Set Collection Field'
-		});
-
-		if (requestedUpdate === null) {
-			return;
-		}
-
-		const key = requestedUpdate.key.trim();
-
-		if (!isEditableCollectionColumn(context.selectedCollection, key)) {
-			context.errorMessage = `${key || 'That field'} cannot be edited from collection records.`;
-			return;
-		}
-
-		const requestedValue = requestedUpdate.value;
-
-		if (!window.confirm(`Set ${key} on ${context.collectionRecords.length} visible collection records?`)) {
-			return;
-		}
-
-		const recordsToUpdate = [...context.collectionRecords];
-		let updatedCount = 0;
-		const skippedPaths: string[] = [];
-		const updatedFiles: LocalVaultFile[] = [];
-
-		context.saving = true;
-		context.errorMessage = '';
-
-		try {
-			for (const record of recordsToUpdate) {
-				const file = context.files.find((candidate) => candidate.path === record.path);
-
-				if (!file) {
-					skippedPaths.push(record.path);
-					continue;
-				}
-
-				const content = context.selectedFile?.path === file.path ? context.selectedContent : await readLocalFile(file);
-
-				if (hasOwnCaseInsensitiveProperty(record.properties, key) && !hasInlineField(content, key)) {
-					skippedPaths.push(record.path);
-					continue;
-				}
-
-				const nextContent = setInlineField(content, {
-					key,
-					value: requestedValue
-				});
-
-				updatedFiles.push(await writeLocalFile(file, nextContent));
-				updatedCount += 1;
-
-				if (context.selectedFile?.path === file.path) {
-					context.selectedContent = nextContent;
-					context.savedContent = nextContent;
-				}
-			}
-
-			const skippedStatus = skippedPaths.length ? ` Skipped ${skippedPaths.length} read-only or missing records.` : '';
-			await applyUpdatedLocalFiles(
-				context,
-				updatedFiles,
-				`Updated ${key} on ${updatedCount} visible records.${skippedStatus}`
-			);
-		} catch (error) {
-			context.errorMessage = context.getErrorMessage(error);
-		} finally {
-			context.saving = false;
-		}
-	}
 
 	function sortCollectionBy(column: string) {
 		if (context.collectionSortColumn === column) {

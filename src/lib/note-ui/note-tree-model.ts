@@ -105,6 +105,17 @@ export const findActiveDirectoryPaths = (
     return [];
 };
 
+export const reconcileSelectedDirectoryPaths = (
+    selectedPaths: string[],
+    activePaths: string[],
+): string[] => {
+    if (isDirectoryBranchPrefix(activePaths, selectedPaths)) {
+        return selectedPaths;
+    }
+
+    return activePaths;
+};
+
 export const getDirectoryPathSegments = (directoryPath: string): string[] => {
     const paths: string[] = [];
     let currentPath = "";
@@ -177,5 +188,9 @@ const sortDisplayNodes = (rootNodes: DisplayNode[]): void => {
         }
     }
 };
+
+const isDirectoryBranchPrefix = (ancestorPaths: string[], descendantPaths: string[]): boolean => (
+    ancestorPaths.every((path, index) => descendantPaths[index] === path)
+);
 
 const isPathInsideDirectory = (path: string, directoryPath: string): boolean => path.startsWith(`${directoryPath}/`);

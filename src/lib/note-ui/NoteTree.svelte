@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import type { InlineFileCreate } from "../local-vault/shared/types.js";
 import type { NoteTreeNode } from "../note-model/tree.js";
 import NoteTreeColumn from "./DirectoryTreeColumn.svelte";
@@ -7,6 +8,7 @@ import {
     buildDisplayNodes,
     findActiveDirectoryPaths,
     getDirectoryPathSegments,
+    reconcileSelectedDirectoryPaths,
     type DisplayDirectory,
 } from "./note-tree-model.js";
 import {
@@ -68,7 +70,14 @@ let hasCreateActions = $derived(Boolean(createDrawingNote || createFolder || cre
 let openNewMenuColumn = $derived(columns.find((column) => column.key === openNewMenuColumnKey));
 
 $effect(() => {
-    selectedDirectoryPaths = inlineFileCreate ? inlineCreateDirectoryPaths : activeDirectoryPaths;
+    const currentDirectoryPaths = untrack(() => selectedDirectoryPaths);
+    const nextDirectoryPaths = inlineFileCreate
+        ? inlineCreateDirectoryPaths
+        : reconcileSelectedDirectoryPaths(currentDirectoryPaths, activeDirectoryPaths);
+
+    if (nextDirectoryPaths !== currentDirectoryPaths) {
+        selectedDirectoryPaths = nextDirectoryPaths;
+    }
 });
 
 $effect(() => {

@@ -11,6 +11,7 @@ import {
     canUseServerVault,
     canUseTauriNativeFileAccess,
     type LocalDirectoryHandle,
+    type LocalVaultDirectory,
     type LocalVaultFile,
 } from "../../vault/local-files.js";
 import {
@@ -52,6 +53,7 @@ export class LocalVaultShellStore {
     supported = $state(false);
     vaultHandle = $state<LocalDirectoryHandle | null>(null);
     files = $state<LocalVaultFile[]>([]);
+    directories = $state<LocalVaultDirectory[]>([]);
     vaultIndex = $state<VaultIndex>(createEmptyVaultIndex());
     selectedPath = $state("");
     selectedContent = $state("");
@@ -71,6 +73,7 @@ export class LocalVaultShellStore {
     collectionSortDirection = $state<"asc" | "desc">("asc");
     commandPaletteOpen = $state(false);
     commandPaletteQuery = $state("");
+    directoryPanelOpen = $state(true);
     lastCollectionFilePath = $state("");
     lastCollectionViewDefaultsKey = $state("");
     previewHtml = $state("");
@@ -94,7 +97,7 @@ export class LocalVaultShellStore {
             this.files.find((file) => file.routePath === this.selectedPath) ??
             null,
     );
-    fileTree = $derived(buildLocalVaultTree(this.files));
+    fileTree = $derived(buildLocalVaultTree(this.files, this.directories));
     noteCount = $derived(
         this.files.filter((file) => file.extension === ".md" || file.extension === ".svx").length,
     );
@@ -207,6 +210,10 @@ export class LocalVaultShellStore {
         this.storedNotes.toggleSelectedPin(this.selectedRecord);
     };
 
+    toggleDirectoryPanel = (): void => {
+        this.directoryPanelOpen = !this.directoryPanelOpen;
+    };
+
     commandPaletteItems = $derived.by(() =>
         buildCommandPaletteItems({
             collectionRecordsCount: this.collectionRecords.length,
@@ -230,6 +237,7 @@ export class LocalVaultShellStore {
             chooseFolder: this.vaultActions.chooseFolder,
             createCollectionRecord: this.noteActions.createCollectionRecord,
             createDrawingNote: this.noteActions.createDrawingNote,
+            createFolder: this.noteActions.createFolder,
             createNote: this.noteActions.createNote,
             createNoteFromTemplate: this.noteActions.createNoteFromTemplate,
             downloadCollectionExport: this.publishActions.downloadCollectionExport,

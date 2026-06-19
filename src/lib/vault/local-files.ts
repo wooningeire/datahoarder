@@ -2,10 +2,13 @@ import {
 	getLocalRoutePath,
 	getPathExtension,
 	isEditableTextFile,
+	normalizeLocalDirectoryPath,
 	normalizeLocalTextPath
 } from './local-file-paths.js';
+import { assertManageableLocalDirectoryPath, isIgnoredLocalDirectoryName, sortLocalVaultDirectories } from './local-directory-helpers.js';
 import {
 	canUseServerVault,
+	createServerDirectory,
 	createServerFile,
 	deleteServerFile,
 	getServerVaultHandle,
@@ -13,11 +16,13 @@ import {
 	isServerFileHandle,
 	isServerVaultFile,
 	moveServerFile,
+	readServerVaultDirectories,
 	readServerVault,
 	writeServerFile
 } from './local-file-server.js';
 import {
 	canUseTauriNativeFileAccess,
+	createTauriDirectory,
 	createTauriFile,
 	createTauriVaultHandle,
 	deleteTauriFile,
@@ -28,18 +33,17 @@ import {
 	isTauriVaultFile,
 	moveTauriFile,
 	pickTauriVaultHandle,
+	readTauriVaultDirectories,
 	readTauriVault,
 	writeTauriFile
 } from './local-file-tauri.js';
-import {
-	getStoredVaultHandle,
-	storeVaultHandle
-} from './local-file-storage.js';
+import { getStoredVaultHandle, storeVaultHandle } from './local-file-storage.js';
 export { buildLocalVaultTree, getTextAssets } from './local-file-tree.js';
 
 export {
 	getLocalRoutePath,
 	isEditableTextFile,
+	normalizeLocalDirectoryPath,
 	normalizeLocalTextPath
 } from './local-file-paths.js';
 
@@ -60,10 +64,7 @@ export {
 	pickTauriVaultHandle
 } from './local-file-tauri.js';
 
-export {
-	getStoredVaultHandle,
-	storeVaultHandle
-} from './local-file-storage.js';
+export { getStoredVaultHandle, storeVaultHandle } from './local-file-storage.js';
 
 export type DatahoarderPermissionMode = 'read' | 'readwrite';
 export type DatahoarderPermissionState = 'granted' | 'denied' | 'prompt';
@@ -146,6 +147,10 @@ export type LocalVaultFile = {
 	updatedAt: number;
 };
 
+export type LocalVaultDirectory = {
+	path: string;
+};
+
 export function canUseFileSystemAccess() {
 	return (
 		!canUseTauriNativeFileAccess() &&
@@ -169,6 +174,22 @@ export async function readLocalVault(handle: LocalDirectoryHandle) {
 	await collectFiles(handle, '', files);
 
 	return files.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
+}
+
+export async function readLocalVaultDirectories(handle: LocalDirectoryHandle) {
+	if (isServerDirectoryHandle(handle)) {
+		return readServerVaultDirectories();
+	}
+
+	if (isTauriDirectoryHandle(handle)) {
+		return readTauriVaultDirectories(handle);
+	}
+
+	const directories: LocalVaultDirectory[] = [];
+
+	await collectDirectories(handle, '', directories);
+
+	return sortLocalVaultDirectories(directories);
 }
 
 export async function readLocalFile(file: LocalVaultFile) {
@@ -209,6 +230,38 @@ export async function createLocalFile(
 
 	const handle = await directory.getFileHandle(fileName, { create: true });
 	await writeLocalFileHandle(handle, content);
+
+	return normalizedPath;
+}
+
+export async function createLocalDirectory(root: LocalDirectoryHandle, path: string) {
+	const normalizedPath = normalizeLocalDirectoryPath(path);
+
+	assertManageableLocalDirectoryPath(normalizedPath);
+
+	if (isServerDirectoryHandle(root)) {
+		return createServerDirectory(normalizedPath);
+	}
+
+	if (isTauriDirectoryHandle(root)) {
+		return createTauriDirectory(root.root, normalizedPath);
+	}
+
+	const { directory, fileName } = await getLocalParentDirectory(root, normalizedPath, true);
+
+	if (!directory.getDirectoryHandle) {
+		throw new Error('This browser does not support creating folders in selected folders.');
+	}
+
+	if (await localFileExists(directory, fileName)) {
+		throw new Error(`A file already exists at ${normalizedPath}.`);
+	}
+
+	if (await localDirectoryExists(directory, fileName)) {
+		throw new Error(`A folder already exists at ${normalizedPath}.`);
+	}
+
+	await directory.getDirectoryHandle(fileName, { create: true });
 
 	return normalizedPath;
 }
@@ -328,7 +381,24 @@ async function localFileExists(directory: BrowserLocalDirectoryHandle, fileName:
 		await directory.getFileHandle(fileName);
 		return true;
 	} catch (error) {
-		if (isNotFoundError(error)) {
+		if (isNotFoundError(error) || isTypeMismatchError(error)) {
+			return false;
+		}
+
+		throw error;
+	}
+}
+
+async function localDirectoryExists(directory: BrowserLocalDirectoryHandle, directoryName: string) {
+	if (!directory.getDirectoryHandle) {
+		return false;
+	}
+
+	try {
+		await directory.getDirectoryHandle(directoryName);
+		return true;
+	} catch (error) {
+		if (isNotFoundError(error) || isTypeMismatchError(error)) {
 			return false;
 		}
 
@@ -338,6 +408,10 @@ async function localFileExists(directory: BrowserLocalDirectoryHandle, fileName:
 
 function isNotFoundError(error: unknown) {
 	return error instanceof DOMException && error.name === 'NotFoundError';
+}
+
+function isTypeMismatchError(error: unknown) {
+	return error instanceof DOMException && error.name === 'TypeMismatchError';
 }
 
 export async function verifyPermission(
@@ -379,7 +453,7 @@ async function collectFiles(
 		const path = parentPath ? `${parentPath}/${name}` : name;
 
 		if (handle.kind === 'directory') {
-			if (name === 'node_modules' || name === '.git' || name === '.svelte-kit') {
+			if (isIgnoredLocalDirectoryName(name)) {
 				continue;
 			}
 
@@ -403,4 +477,22 @@ async function collectFiles(
 		});
 	}
 }
+
+async function collectDirectories(
+	directory: BrowserLocalDirectoryHandle,
+	parentPath: string,
+	directories: LocalVaultDirectory[]
+) {
+	for await (const [name, handle] of directory.entries()) {
+		if (handle.kind !== 'directory' || isIgnoredLocalDirectoryName(name)) {
+			continue;
+		}
+
+		const path = parentPath ? `${parentPath}/${name}` : name;
+
+		directories.push({ path });
+		await collectDirectories(handle, path, directories);
+	}
+}
+
 

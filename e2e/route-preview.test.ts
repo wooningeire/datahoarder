@@ -116,6 +116,74 @@ test("server-backed route files lazily launch a target Deno server when origin i
     }
 });
 
+test("creating server-backed folders does not trigger a Vite page reload", async ({ page }) => {
+    const workspaceRoot = await createReloadWorkspace();
+    const appPort = await getAvailablePort();
+    const appOrigin = `http://127.0.0.1:${appPort}`;
+    const processes: StartedProcess[] = [];
+    let mainFrameNavigations = 0;
+    const mainFrameUrls: string[] = [];
+    const vaultSnapshotReads: string[] = [];
+
+    page.on("framenavigated", (frame) => {
+        if (frame === page.mainFrame()) {
+            mainFrameNavigations += 1;
+            mainFrameUrls.push(frame.url());
+        }
+    });
+    page.on("request", (request) => {
+        const path = new URL(request.url()).pathname;
+
+        if (path === "/api/vault/files" || path === "/api/vault/directories") {
+            vaultSnapshotReads.push(path);
+        }
+    });
+
+    try {
+        processes.push(startDatahoarderDev(appPort, workspaceRoot, {
+            DATAHOARDER_TARGET_DEV_DISABLED: "true",
+        }));
+        await waitForHttp(`${appOrigin}/api/vault`, workspaceRoot.replace(/\\/gu, "\\\\"), processes);
+
+        await page.goto(appOrigin);
+        await expect(page.locator(".note-columns").getByRole("button", { name: "Seed.md" })).toBeVisible();
+        await waitForStableMainFrameNavigations(() => mainFrameNavigations);
+
+        const initialNavigations = mainFrameNavigations;
+        const initialVaultSnapshotReads = vaultSnapshotReads.length;
+        const sentinel = await page.evaluate(() => {
+            const value = `folder-create-${Date.now()}`;
+
+            (window as Window & { __datahoarderReloadSentinel?: string }).__datahoarderReloadSentinel = value;
+
+            return value;
+        });
+        const rootColumn = page
+            .locator(".note-column")
+            .filter({ has: page.getByRole("heading", { name: "Files", exact: true }) });
+
+        await rootColumn.getByRole("button", { name: "New", exact: true }).click();
+        await page.getByRole("menu", { name: "New options" }).getByRole("menuitem", { name: "New Folder" }).click();
+        await page.getByRole("textbox", { name: "New folder name" }).fill("Projects");
+        await page.getByRole("textbox", { name: "New folder name" }).press("Enter");
+
+        await expect(page.getByText("Created folder Projects")).toBeVisible();
+        await expect(page.locator(".note-columns").getByRole("button", { name: "Projects" })).toBeVisible();
+        await page.waitForTimeout(750);
+
+        expect(mainFrameNavigations, `${mainFrameUrls.join("\n")}\n${formatProcessLogs(processes)}`).toBe(
+            initialNavigations,
+        );
+        expect(vaultSnapshotReads.slice(initialVaultSnapshotReads)).toEqual([]);
+        await expect(page.evaluate(() =>
+            (window as Window & { __datahoarderReloadSentinel?: string }).__datahoarderReloadSentinel ?? "",
+        )).resolves.toBe(sentinel);
+    } finally {
+        await Promise.all(processes.reverse().map(stopProcess));
+        await rm(workspaceRoot, { force: true, recursive: true });
+    }
+});
+
 test("ordinary Svelte notes render through Datahoarder without a target server", async ({ page }) => {
     const workspaceRoot = await createRouteWorkspace();
     const appPort = await getAvailablePort();
@@ -282,6 +350,14 @@ async function createRouteWorkspace() {
     return workspaceRoot;
 }
 
+async function createReloadWorkspace() {
+    await mkdir("e2e-vaults", { recursive: true });
+    const workspaceRoot = await mkdtemp(resolve("e2e-vaults", "folder-reload-"));
+
+    await writeFile(resolve(workspaceRoot, "Seed.md"), "# Seed\n\nKeep the shell alive.", "utf8");
+    return workspaceRoot;
+}
+
 function startDatahoarderFolderDev(
     port: number,
     workspaceRoot: string,
@@ -384,6 +460,30 @@ async function waitForHttp(url: string, expectedText: string, processes: Started
     }
 
     throw new Error(`Timed out waiting for ${url}: ${lastError}\n${formatProcessLogs(processes)}`);
+}
+
+async function waitForStableMainFrameNavigations(readNavigationCount: () => number) {
+    const deadline = Date.now() + 10_000;
+    let previousCount = readNavigationCount();
+    let stableSince = Date.now();
+
+    while (Date.now() < deadline) {
+        await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+
+        const nextCount = readNavigationCount();
+
+        if (nextCount !== previousCount) {
+            previousCount = nextCount;
+            stableSince = Date.now();
+            continue;
+        }
+
+        if (Date.now() - stableSince >= 800) {
+            return;
+        }
+    }
+
+    throw new Error("Timed out waiting for main frame navigations to settle.");
 }
 
 function getAvailablePort() {

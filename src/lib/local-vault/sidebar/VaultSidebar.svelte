@@ -13,7 +13,7 @@ type Props = {
 let { store }: Props = $props();
 </script>
 
-<aside class="sidebar" aria-label="Local vault">
+<aside id="vault-directory-panel" class="sidebar" aria-label="Local vault">
 	<SidebarSummary filesCount={store.files.length} noteCount={store.noteCount} />
 
 	<VaultSearchPanel
@@ -43,6 +43,7 @@ let { store }: Props = $props();
 					activePath={store.selectedPath}
 					createDisabled={store.loading || store.saving}
 					createDrawingNote={store.noteActions.createDrawingNote}
+					createFolder={store.noteActions.createFolder}
 					createNote={store.noteActions.createNote}
 					createNoteFromTemplate={store.noteActions.createNoteFromTemplate}
 					inlineFileCreate={store.requestState.getInlineFileCreateProps()}

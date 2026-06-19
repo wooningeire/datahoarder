@@ -20,36 +20,12 @@ export const getLocalRoutePath = (path: string) => {
     return stripCompiledNoteExtension(path);
 };
 
+export const normalizeLocalDirectoryPath = (path: string) => {
+    return normalizeLocalPathSegments(path, "Folder path").join("/");
+};
+
 export const normalizeLocalTextPath = (path: string, defaultExtension = ".md") => {
-    const trimmedPath = path.trim().replace(/\\/gu, "/");
-
-    if (!trimmedPath) {
-        throw new Error("File path is required.");
-    }
-
-    if (/^(?:[a-z]:)?\//iu.test(trimmedPath) || /^[a-z]:/iu.test(trimmedPath)) {
-        throw new Error("Use a path relative to the opened vault.");
-    }
-
-    const segments = trimmedPath
-        .replace(/^\.\/+/u, "")
-        .split("/")
-        .map((segment) => segment.trim())
-        .filter(Boolean);
-
-    if (!segments.length) {
-        throw new Error("File path is required.");
-    }
-
-    if (segments.some((segment) => segment === "." || segment === "..")) {
-        throw new Error("File paths cannot contain . or .. segments.");
-    }
-
-    if (segments.some((segment) => /[<>:"|?*\u0000-\u001f]/u.test(segment))) {
-        throw new Error("File paths cannot contain Windows-reserved characters.");
-    }
-
-    let normalizedPath = segments.join("/");
+    let normalizedPath = normalizeLocalPathSegments(path, "File path").join("/");
 
     if (defaultExtension && !getPathExtension(normalizedPath)) {
         normalizedPath = `${normalizedPath}${defaultExtension}`;
@@ -67,4 +43,36 @@ export const getPathExtension = (path: string) => {
     const extensionIndex = fileName.lastIndexOf(".");
 
     return extensionIndex > 0 ? fileName.slice(extensionIndex).toLowerCase() : "";
+};
+
+const normalizeLocalPathSegments = (path: string, label: string) => {
+    const trimmedPath = path.trim().replace(/\\/gu, "/");
+
+    if (!trimmedPath) {
+        throw new Error(`${label} is required.`);
+    }
+
+    if (/^(?:[a-z]:)?\//iu.test(trimmedPath) || /^[a-z]:/iu.test(trimmedPath)) {
+        throw new Error("Use a path relative to the opened vault.");
+    }
+
+    const segments = trimmedPath
+        .replace(/^\.\/+/u, "")
+        .split("/")
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
+    if (!segments.length) {
+        throw new Error(`${label} is required.`);
+    }
+
+    if (segments.some((segment) => segment === "." || segment === "..")) {
+        throw new Error("File paths cannot contain . or .. segments.");
+    }
+
+    if (segments.some((segment) => /[<>:"|?*\u0000-\u001f]/u.test(segment))) {
+        throw new Error("File paths cannot contain Windows-reserved characters.");
+    }
+
+    return segments;
 };

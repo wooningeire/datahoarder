@@ -45,7 +45,36 @@ test('note lifecycle actions create rename and delete notes', async ({ page }) =
 	await expect(page.getByText('Deleted archive/capture-renamed')).toBeVisible();
 	await expect(page.locator('.sidebar-summary').getByText('0 files', { exact: true })).toBeVisible();
 	await expect(page.locator('.sidebar-summary').getByText('0 notes', { exact: true })).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'No File Selected' })).toBeVisible();
+	await expect(
+		page.getByRole('region', { name: 'Editor' }).getByRole('heading', { name: 'No File Selected', exact: true })
+	).toBeVisible();
+});
+
+test("new menu creates empty folders and notes inside them", async ({ page }) => {
+	const vaultName = `datahoarder-e2e-folder-create-${Date.now()}`;
+
+	await page.addInitScript((name) => {
+		window.showDirectoryPicker = async () => {
+			const root = await navigator.storage.getDirectory();
+
+			return root.getDirectoryHandle(name, { create: true });
+		};
+	}, vaultName);
+
+	await page.goto("/");
+	await page.getByRole("button", { name: "Open Folder" }).click();
+	await expect(page.locator(".sidebar-summary").getByText("0 notes", { exact: true })).toBeVisible();
+
+	await clickColumnNewItem(page, "Files", "New Folder");
+	await fillInlineFileCreate(page, "New folder name", "Projects");
+	await expect(page.getByText("Created folder Projects")).toBeVisible();
+	await expect(page.locator(".note-columns").getByRole("button", { name: "Projects" })).toBeVisible();
+
+	await page.locator(".note-columns").getByRole("button", { name: "Projects" }).click();
+	await clickColumnNewItem(page, "Projects", "New Note");
+	await fillInlineFileCreate(page, "New note name", "Kickoff");
+	await expect(page.getByText("Created Projects/Kickoff.md")).toBeVisible();
+	await expectSelectedFilePath(page, "Projects/Kickoff.md");
 });
 
 test('column new menu creates notes in the selected folder', async ({ page }) => {
@@ -79,11 +108,20 @@ test('column new menu creates notes in the selected folder', async ({ page }) =>
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open Folder' }).click();
 	await expect(page.getByText('Loading Monaco editor.')).toHaveCount(0);
-	await page.locator('.note-columns').getByRole('button', { name: 'Projects' }).click();
 	const projectsColumn = page
 		.locator('.note-column')
 		.filter({ has: page.getByRole('heading', { name: 'Projects', exact: true }) });
+
+	try {
+		await expect(projectsColumn).toBeVisible({ timeout: 1000 });
+	} catch {
+		await page.locator('.note-columns').getByRole('button', { name: 'Projects' }).click();
+	}
+
+	await expect(projectsColumn).toBeVisible();
+
 	const projectsNewButton = projectsColumn.getByRole('button', { name: 'New', exact: true });
+	const newMenuContainer = projectsColumn.locator(".new-menu");
 	const projectsItems = projectsColumn.locator('.note-column-items');
 	const noteColumns = page.locator('.note-columns');
 	const initialScrollTop = await noteColumns.evaluate((node) => node.scrollTop);
@@ -108,12 +146,31 @@ test('column new menu creates notes in the selected folder', async ({ page }) =>
 	await page.mouse.click(clickPoint.x, clickPoint.y);
 	const newMenu = page.getByRole('menu', { name: 'New options' });
 	await expect(newMenu).toBeVisible();
+	const menuStyle = await newMenu.evaluate((node) => {
+		const style = window.getComputedStyle(node);
+
+		return {
+			animationTimingFunction: style.animationTimingFunction,
+			position: style.position,
+		};
+	});
+
+	expect(menuStyle.position).toBe("absolute");
+	expect(menuStyle.animationTimingFunction).toBe("cubic-bezier(0, 1, 0.5, 1)");
+	await page.getByRole("button", { name: "Open Folder" }).focus();
+	await expect(newMenu).toHaveCount(0);
+	await page.mouse.click(clickPoint.x, clickPoint.y);
+	await expect(newMenu).toBeVisible();
 	const openedNewButtonBox = await projectsNewButton.boundingBox();
+	const newMenuContainerBox = await newMenuContainer.boundingBox();
 	const newMenuBox = await newMenu.boundingBox();
 	expect(openedNewButtonBox).not.toBeNull();
+	expect(newMenuContainerBox).not.toBeNull();
 	expect(newMenuBox).not.toBeNull();
 	expect(Math.abs(openedNewButtonBox!.y - newButtonBox!.y)).toBeLessThan(2);
 	expect(Math.abs(openedNewButtonBox!.height - newButtonBox!.height)).toBeLessThan(2);
+	expect(Math.abs(newMenuBox!.x - newMenuContainerBox!.x)).toBeLessThan(1);
+	expect(Math.abs(newMenuBox!.width - newMenuContainerBox!.width)).toBeLessThan(1);
 	expect(newMenuBox!.y + newMenuBox!.height).toBeLessThanOrEqual(openedNewButtonBox!.y + 1);
 	await expect.poll(async () => noteColumns.evaluate((node) => node.scrollTop)).toBe(initialScrollTop);
 	await newMenu.getByRole('menuitem', { name: 'New Note' }).click();

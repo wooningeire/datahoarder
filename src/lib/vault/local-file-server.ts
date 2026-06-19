@@ -19,6 +19,10 @@ type ServerVaultFileResponse = {
     updatedAt: number,
 };
 
+type ServerVaultDirectoryResponse = {
+    path: string,
+};
+
 export const getServerVaultHandle = async () => {
     const metadata = await fetchServerVaultMetadata();
 
@@ -54,6 +58,10 @@ export const readServerVault = async () => {
     return response.map(createServerVaultFile);
 };
 
+export const readServerVaultDirectories = async () => {
+    return serverRequest<ServerVaultDirectoryResponse[]>("/api/vault/directories");
+};
+
 export const isServerFileHandle = (handle: LocalFileHandle): handle is ServerLocalFileHandle => {
     return "source" in handle && handle.source === "server";
 };
@@ -81,6 +89,16 @@ export const writeServerFile = async (path: string, content: string) => {
 export const createServerFile = async (path: string, content: string) => {
     const result = await serverRequest<{ path: string }>("/api/vault/file", {
         body: JSON.stringify({ content, path }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+    });
+
+    return result.path;
+};
+
+export const createServerDirectory = async (path: string) => {
+    const result = await serverRequest<{ path: string }>("/api/vault/directory", {
+        body: JSON.stringify({ path }),
         headers: { "content-type": "application/json" },
         method: "POST",
     });

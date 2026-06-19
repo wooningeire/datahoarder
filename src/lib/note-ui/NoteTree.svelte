@@ -2,7 +2,6 @@
 import type { InlineFileCreate } from "../local-vault/shared/types.js";
 import type { NoteTreeNode } from "../note-model/tree.js";
 import NoteTreeColumn from "./DirectoryTreeColumn.svelte";
-import NoteTreeNewMenu from "./NoteTreeNewMenu.svelte";
 import {
     buildColumns,
     buildDisplayNodes,
@@ -18,16 +17,11 @@ import {
 
 type CreateAction = (directoryPath: string) => void | Promise<void>;
 
-type NewMenuBounds = {
-    left: number,
-    top: number,
-    width: number,
-};
-
 type Props = {
     activePath: string,
     createDisabled?: boolean,
     createDrawingNote?: CreateAction,
+    createFolder?: CreateAction,
     createNote?: CreateAction,
     createNoteFromTemplate?: CreateAction,
     inlineFileCreate?: InlineFileCreate | null,
@@ -43,6 +37,7 @@ let {
     activePath,
     createDisabled = false,
     createDrawingNote,
+    createFolder,
     createNote,
     createNoteFromTemplate,
     inlineFileCreate = null,
@@ -55,7 +50,6 @@ let {
 }: Props = $props();
 
 let selectedDirectoryPaths = $state<string[]>([]);
-let newMenuBounds = $state<NewMenuBounds | null>(null);
 let openNewMenuColumnKey = $state("");
 let noteColumnsElement: HTMLDivElement | undefined = $state();
 let collapsingColumnSpace = $state(0);
@@ -70,7 +64,7 @@ let inlineCreateDirectoryPaths = $derived(
     inlineFileCreate ? getDirectoryPathSegments(inlineFileCreate.directoryPath) : [],
 );
 let columns = $derived(buildColumns(displayNodes, selectedDirectoryPaths, rootLabel));
-let hasCreateActions = $derived(Boolean(createDrawingNote || createNote || createNoteFromTemplate));
+let hasCreateActions = $derived(Boolean(createDrawingNote || createFolder || createNote || createNoteFromTemplate));
 let openNewMenuColumn = $derived(columns.find((column) => column.key === openNewMenuColumnKey));
 
 $effect(() => {
@@ -141,18 +135,19 @@ $effect(() => {
 });
 
 const selectDirectory = (node: DisplayDirectory, level: number): void => {
-    selectedDirectoryPaths = [...selectedDirectoryPaths.slice(0, level), node.path];
+    selectedDirectoryPaths = [
+        ...selectedDirectoryPaths.slice(0, level),
+        node.path,
+    ];
 };
 
-const toggleNewMenu = (columnKey: string, event: MouseEvent): void => {
+const toggleNewMenu = (columnKey: string): void => {
     if (openNewMenuColumnKey === columnKey) {
         closeNewMenu();
         return;
     }
 
-    const triggerRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     openNewMenuColumnKey = columnKey;
-    newMenuBounds = getNewMenuBounds(triggerRect);
 };
 
 const createInColumn = async (
@@ -165,25 +160,6 @@ const createInColumn = async (
 
 const closeNewMenu = (): void => {
     openNewMenuColumnKey = "";
-    newMenuBounds = null;
-};
-
-const getNewMenuBounds = (triggerRect: DOMRect): NewMenuBounds => {
-    const gap = 4;
-    const estimatedMenuHeight = 112;
-    const columnsRect = noteColumnsElement?.getBoundingClientRect();
-    const boundaryTop = Math.max(0, columnsRect?.top ?? 0);
-    const boundaryBottom = Math.min(window.innerHeight, columnsRect?.bottom ?? window.innerHeight);
-    const opensBelow = triggerRect.bottom + gap + estimatedMenuHeight <= boundaryBottom;
-    const top = opensBelow
-        ? triggerRect.bottom + gap
-        : Math.max(boundaryTop + gap, triggerRect.top - gap - estimatedMenuHeight);
-
-    return {
-        left: triggerRect.left,
-        top,
-        width: triggerRect.width,
-    };
 };
 
 const animateCollapsedColumns = (node: HTMLElement, reservedSpace: number): void => {
@@ -223,8 +199,14 @@ const getMaxScrollLeft = (node: HTMLElement): number => Math.max(0, node.scrollW
         <NoteTreeColumn
             {activePath}
             {cancelInlineFileCreate}
+            {closeNewMenu}
             {column}
+            {createDrawingNote}
             {createDisabled}
+            {createFolder}
+            {createInColumn}
+            {createNote}
+            {createNoteFromTemplate}
             {hasCreateActions}
             {inlineFileCreate}
             isLastColumn={column.level === columns.length - 1}
@@ -237,15 +219,6 @@ const getMaxScrollLeft = (node: HTMLElement): number => Math.max(0, node.scrollW
             {updateInlineFileCreateName}
         />
     {/each}
-    <NoteTreeNewMenu
-        bounds={newMenuBounds}
-        column={openNewMenuColumn}
-        {createDrawingNote}
-        {createInColumn}
-        {createNote}
-        {createNoteFromTemplate}
-        {hasCreateActions}
-    />
 </div>
 
 <style lang="scss">

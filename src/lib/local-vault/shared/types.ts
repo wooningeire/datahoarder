@@ -42,7 +42,7 @@ export type RequestTextOptions = {
 	value?: string;
 };
 
-export type InlineFileCreateKind = 'collection-record' | 'drawing' | 'note' | 'template';
+export type InlineFileCreateKind = 'collection-record' | 'drawing' | 'folder' | 'note' | 'template';
 
 export type InlineFileCreateRequest = {
 	directoryPath: string;

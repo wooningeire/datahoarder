@@ -62,6 +62,12 @@ struct VaultFileSnapshot {
     updated_at: f64,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VaultDirectorySnapshot {
+    path: String,
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -83,9 +89,11 @@ pub fn run() {
             datahoarder_validate_vault_root,
             datahoarder_ensure_vault_preview_origin,
             datahoarder_list_vault_files,
+            datahoarder_list_vault_directories,
             datahoarder_read_vault_file,
             datahoarder_write_vault_file,
             datahoarder_create_vault_file,
+            datahoarder_create_vault_directory,
             datahoarder_delete_vault_file,
             datahoarder_move_vault_file,
         ])
@@ -147,6 +155,20 @@ fn datahoarder_list_vault_files(root: String) -> Result<Vec<VaultFileSnapshot>, 
 }
 
 #[tauri::command]
+fn datahoarder_list_vault_directories(
+    root: String,
+) -> Result<Vec<VaultDirectorySnapshot>, String> {
+    let root = validate_vault_root(root)?;
+    let root_path = PathBuf::from(&root.root);
+    let mut directories = Vec::new();
+
+    collect_vault_directories(&root_path, "", &mut directories)?;
+    directories.sort_by(|left, right| left.path.to_lowercase().cmp(&right.path.to_lowercase()));
+
+    Ok(directories)
+}
+
+#[tauri::command]
 fn datahoarder_read_vault_file(root: String, path: String) -> Result<String, String> {
     let root = validate_vault_root(root)?;
     let path = resolve_vault_file_path(&root.root, &path)?;
@@ -182,6 +204,26 @@ fn datahoarder_create_vault_file(
     }
 
     fs::write(file_path, content).map_err(format_io_error)?;
+
+    Ok(path)
+}
+
+#[tauri::command]
+fn datahoarder_create_vault_directory(root: String, path: String) -> Result<String, String> {
+    let root = validate_vault_root(root)?;
+    let path = normalize_vault_directory_path(&path)?;
+    let directory_path =
+        PathBuf::from(&root.root).join(path.replace('/', std::path::MAIN_SEPARATOR_STR));
+
+    if directory_path.is_dir() {
+        return Err(format!("A folder already exists at {path}."));
+    }
+
+    if directory_path.exists() {
+        return Err(format!("A file already exists at {path}."));
+    }
+
+    fs::create_dir_all(directory_path).map_err(format_io_error)?;
 
     Ok(path)
 }
@@ -730,10 +772,30 @@ fn resolve_vault_file_path(root: &str, path: &str) -> Result<PathBuf, String> {
 }
 
 fn normalize_vault_path(path: &str) -> Result<String, String> {
+    let normalized_path = normalize_vault_path_with_label(path, "File path")?;
+
+    if normalized_path.split('/').any(is_ignored_directory) {
+        return Err("This folder name is reserved by the vault index.".to_string());
+    }
+
+    Ok(normalized_path)
+}
+
+fn normalize_vault_directory_path(path: &str) -> Result<String, String> {
+    let normalized_path = normalize_vault_path_with_label(path, "Folder path")?;
+
+    if normalized_path.split('/').any(is_ignored_directory) {
+        return Err("This folder name is reserved by the vault index.".to_string());
+    }
+
+    Ok(normalized_path)
+}
+
+fn normalize_vault_path_with_label(path: &str, label: &str) -> Result<String, String> {
     let trimmed = path.trim().replace('\\', "/");
 
     if trimmed.is_empty() {
-        return Err("File path is required.".to_string());
+        return Err(format!("{label} is required."));
     }
 
     if Path::new(&trimmed).is_absolute() || trimmed.contains(':') {
@@ -748,7 +810,7 @@ fn normalize_vault_path(path: &str) -> Result<String, String> {
         .collect::<Vec<_>>();
 
     if segments.is_empty() {
-        return Err("File path is required.".to_string());
+        return Err(format!("{label} is required."));
     }
 
     if segments
@@ -804,6 +866,44 @@ fn collect_vault_files(
                 .map(|duration| duration.as_millis() as f64)
                 .unwrap_or(0.0),
         });
+    }
+
+    Ok(())
+}
+
+fn collect_vault_directories(
+    root: &Path,
+    parent_path: &str,
+    directories: &mut Vec<VaultDirectorySnapshot>,
+) -> Result<(), String> {
+    let directory = if parent_path.is_empty() {
+        root.to_path_buf()
+    } else {
+        root.join(parent_path.replace('/', std::path::MAIN_SEPARATOR_STR))
+    };
+
+    for entry in fs::read_dir(directory).map_err(format_io_error)? {
+        let entry = entry.map_err(format_io_error)?;
+        let metadata = entry.metadata().map_err(format_io_error)?;
+
+        if !metadata.is_dir() {
+            continue;
+        }
+
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        if is_ignored_directory(&name) {
+            continue;
+        }
+
+        let path = if parent_path.is_empty() {
+            name
+        } else {
+            format!("{parent_path}/{name}")
+        };
+
+        directories.push(VaultDirectorySnapshot { path: path.clone() });
+        collect_vault_directories(root, &path, directories)?;
     }
 
     Ok(())

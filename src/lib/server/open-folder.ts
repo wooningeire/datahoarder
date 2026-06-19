@@ -8,8 +8,13 @@ import {
 import { renderPortableMarkdown } from '../markdown/render.js';
 import { isSvelteEnhancedMarkdownContent } from '../markdown/svelte-markup.js';
 import {
+	assertManageableLocalDirectoryPath,
+	isIgnoredLocalDirectoryName
+} from '../vault/local-directory-helpers.js';
+import {
 	getLocalRoutePath,
 	isEditableTextFile,
+	normalizeLocalDirectoryPath,
 	normalizeLocalTextPath,
 	type LocalFileHandle,
 	type LocalVaultFile
@@ -22,6 +27,7 @@ import {
 	getOpenFolderName,
 	getOpenFolderRoot,
 	requireOpenFolderRoot,
+	resolveDirectoryPathWithinRoot,
 	resolvePathWithinRoot
 } from './open-folder-root.js';
 import {
@@ -53,6 +59,10 @@ export type OpenFolderFileSnapshot = {
 	updatedAt: number;
 };
 
+export type OpenFolderDirectorySnapshot = {
+	path: string;
+};
+
 export type OpenFolderPreviewRequest = {
 	content?: string;
 	interactiveTaskLists?: boolean;
@@ -64,8 +74,6 @@ type PreviewSourceContext = {
 	sourcePath?: string;
 	sourceRoot?: string;
 };
-
-const ignoredDirectories = new Set(['.git', '.svelte-kit', 'build', 'dist', 'node_modules']);
 
 export async function getOpenFolderMetadata(): Promise<OpenFolderMetadata> {
 	const root = await getOpenFolderRoot();
@@ -90,6 +98,15 @@ export async function listOpenFolderFiles() {
 	await collectOpenFolderFiles(root, '', files);
 
 	return files.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
+}
+
+export async function listOpenFolderDirectories() {
+	const root = await requireOpenFolderRoot();
+	const directories: OpenFolderDirectorySnapshot[] = [];
+
+	await collectOpenFolderDirectories(root, '', directories);
+
+	return directories.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
 }
 
 export async function readOpenFolderTextFile(path: string) {
@@ -119,6 +136,34 @@ export async function createOpenFolderTextFile(path: string, content: string) {
 
 	await mkdir(dirname(filesystemPath), { recursive: true });
 	await writeFile(filesystemPath, content, 'utf8');
+
+	return normalizedPath;
+}
+
+export async function createOpenFolderDirectory(path: string) {
+	const normalizedPath = normalizeLocalDirectoryPath(path);
+
+	assertManageableLocalDirectoryPath(normalizedPath);
+
+	const root = await requireOpenFolderRoot();
+	const filesystemPath = resolveDirectoryPathWithinRoot(root, normalizedPath);
+
+	try {
+		const existing = await stat(filesystemPath);
+
+		if (existing.isDirectory()) {
+			throw new Error(`A folder already exists at ${normalizedPath}.`);
+		}
+
+		throw new Error(`A file already exists at ${normalizedPath}.`);
+	} catch (error) {
+		if (!isNotFoundError(error)) {
+			throw error;
+		}
+	}
+
+	await mkdir(dirname(filesystemPath), { recursive: true });
+	await mkdir(filesystemPath);
 
 	return normalizedPath;
 }
@@ -330,7 +375,7 @@ async function collectOpenFolderFiles(
 		const path = parentPath ? `${parentPath}/${entry.name}` : entry.name;
 
 		if (entry.isDirectory()) {
-			if (!ignoredDirectories.has(entry.name)) {
+			if (!isIgnoredLocalDirectoryName(entry.name)) {
 				await collectOpenFolderFiles(root, path, files);
 			}
 
@@ -350,6 +395,23 @@ async function collectOpenFolderFiles(
 			size: entryStats.size,
 			updatedAt: entryStats.mtimeMs
 		});
+	}
+}
+
+async function collectOpenFolderDirectories(
+	root: string,
+	parentPath: string,
+	directories: OpenFolderDirectorySnapshot[]
+) {
+	for (const entry of await readdir(resolve(root, parentPath), { withFileTypes: true })) {
+		if (!entry.isDirectory() || isIgnoredLocalDirectoryName(entry.name)) {
+			continue;
+		}
+
+		const path = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+
+		directories.push({ path });
+		await collectOpenFolderDirectories(root, path, directories);
 	}
 }
 

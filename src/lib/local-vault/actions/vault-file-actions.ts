@@ -10,12 +10,14 @@ import {
 	normalizeLocalTextPath,
 	pickTauriVaultHandle,
 	readLocalFile,
+	readLocalVaultDirectories,
 	readLocalVault,
 	storeVaultHandle,
 	verifyPermission,
 	writeLocalFile,
 	type DatahoarderPermissionMode,
 	type LocalDirectoryHandle,
+	type LocalVaultDirectory,
 	type LocalVaultFile
 } from '../../vault/local-files.js';
 import {
@@ -39,6 +41,7 @@ type DatahoarderWindow = Window & {
 
 type VaultFileActionContext = {
 	dirty: boolean;
+	directories: LocalVaultDirectory[];
 	errorMessage: string;
 	files: LocalVaultFile[];
 	loading: boolean;
@@ -221,8 +224,13 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		try {
 			context.loadStoredNoteLists(handle.name);
 
-			const nextFiles = await readLocalVault(handle);
+			const [nextFiles, nextDirectories] = await Promise.all([
+				readLocalVault(handle),
+				readLocalVaultDirectories(handle)
+			]);
+
 			context.files = nextFiles;
+			context.directories = nextDirectories;
 			context.status = `Loaded ${nextFiles.length} editable files. Opening the selected file while parsing notes.`;
 
 			await actions.restoreSelectionAfterVaultLoad(nextFiles);
@@ -241,7 +249,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 			context.publicPublishProfiles = nextPublicPublishProfiles;
 			context.pruneSelectedPublicPublishProfile();
 			context.pruneStoredNoteLists(nextVaultIndex);
-			context.status = `${nextStatus} ${context.files.length} editable files indexed, ${context.vaultIndex.records.length} notes parsed.`;
+			context.status = `${nextStatus} ${context.files.length} editable files indexed, ${context.directories.length} folders found, ${context.vaultIndex.records.length} notes parsed.`;
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		} finally {
@@ -385,8 +393,13 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		context.loading = true;
 
 		try {
-			const nextFiles = await readLocalVault(context.vaultHandle);
+			const [nextFiles, nextDirectories] = await Promise.all([
+				readLocalVault(context.vaultHandle),
+				readLocalVaultDirectories(context.vaultHandle)
+			]);
+
 			context.files = nextFiles;
+			context.directories = nextDirectories;
 
 			await actions.restoreSelectionAfterVaultLoad(nextFiles, preferredPath);
 			await tick();

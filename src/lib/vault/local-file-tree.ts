@@ -1,10 +1,11 @@
 import type { NoteTreeDirectory, NoteTreeNode } from "../note-model/tree.js";
-import type { LocalVaultFile } from "./local-files.js";
+import type { LocalVaultDirectory, LocalVaultFile } from "./local-files.js";
 import { isEditableTextFile } from "./local-file-paths.js";
 import { getNoteExtension, type VaultRouteConfig } from "./paths.js";
 
 export const buildLocalVaultTree = (
     files: LocalVaultFile[],
+    directories: LocalVaultDirectory[] = [],
     _config: VaultRouteConfig = {},
 ) => {
     const root: NoteTreeDirectory = {
@@ -15,6 +16,10 @@ export const buildLocalVaultTree = (
     };
     const directoryLookup = new Map<string, NoteTreeDirectory>([["", root]]);
 
+    for (const directory of directories) {
+        ensureLocalTreeDirectory(root, directoryLookup, directory.path);
+    }
+
     for (const file of files) {
         const segments = file.path.split("/");
         const fileName = segments.pop();
@@ -23,28 +28,7 @@ export const buildLocalVaultTree = (
             continue;
         }
 
-        let parent = root;
-        let parentPath = "";
-
-        for (const segment of segments) {
-            parentPath = parentPath ? `${parentPath}/${segment}` : segment;
-
-            let directory = directoryLookup.get(parentPath);
-
-            if (!directory) {
-                directory = {
-                    kind: "directory",
-                    name: segment,
-                    path: parentPath,
-                    children: [],
-                };
-
-                directoryLookup.set(parentPath, directory);
-                parent.children.push(directory);
-            }
-
-            parent = directory;
-        }
+        const parent = ensureLocalTreeDirectory(root, directoryLookup, segments.join("/"));
 
         parent.children.push({
             kind: "file",
@@ -76,4 +60,35 @@ const sortLocalTree = (nodes: NoteTreeNode[]) => {
             sortLocalTree(node.children);
         }
     }
+};
+
+const ensureLocalTreeDirectory = (
+    root: NoteTreeDirectory,
+    directoryLookup: Map<string, NoteTreeDirectory>,
+    path: string,
+): NoteTreeDirectory => {
+    let parent = root;
+    let parentPath = "";
+
+    for (const segment of path.split("/").filter(Boolean)) {
+        parentPath = parentPath ? `${parentPath}/${segment}` : segment;
+
+        let directory = directoryLookup.get(parentPath);
+
+        if (!directory) {
+            directory = {
+                kind: "directory",
+                name: segment,
+                path: parentPath,
+                children: [],
+            };
+
+            directoryLookup.set(parentPath, directory);
+            parent.children.push(directory);
+        }
+
+        parent = directory;
+    }
+
+    return parent;
 };

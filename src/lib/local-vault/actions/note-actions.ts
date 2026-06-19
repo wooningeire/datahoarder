@@ -3,11 +3,14 @@ import { createCollectionRecordDraft, type ResolvedCollection } from '../../coll
 import { addDrawingElement } from '../../drawings/edit.js';
 import { createWhiteboardNoteDraft } from '../../drawings/preview.js';
 import {
+	createLocalDirectory,
 	createLocalFile,
 	writeLocalFile,
 	type LocalDirectoryHandle,
+	type LocalVaultDirectory,
 	type LocalVaultFile
 } from '../../vault/local-files.js';
+import { sortLocalVaultDirectories } from '../../vault/local-directory-helpers.js';
 import { hasInlineField, setInlineField } from '../../note-model/fields.js';
 import { getNoteTitle } from '../../vault/paths.js';
 import {
@@ -18,7 +21,9 @@ import {
 	type VaultRecord
 } from '../../vault/index.js';
 import {
+	assertNoManagedFolderPathCollision,
 	assertNoManagedPathCollision as assertNoLocalManagedPathCollision,
+	getAvailableFolderPath as getAvailableLocalFolderPath,
 	getAvailableNotePath as getAvailableLocalNotePath
 } from '../shared/path-availability.js';
 import type {
@@ -27,6 +32,7 @@ import type {
 	RequestDialogValues
 } from '../shared/types.js';
 import {
+	getInlineCreateDirectoryPath,
 	getInlineCreatePath,
 	getSuggestedCreatePath,
 	splitCreatePath
@@ -36,6 +42,7 @@ import { createNoteFromTemplateAction } from './note-template-actions.js';
 type NoteActionContext = {
 	collectionRecordCreationError: string;
 	dirty: boolean;
+	directories: LocalVaultDirectory[];
 	errorMessage: string;
 	files: LocalVaultFile[];
 	loading: boolean;
@@ -66,6 +73,7 @@ export function createNoteActions(context: NoteActionContext) {
 		addFieldToSelectedCollection,
 		createCollectionRecord,
 		createDrawingNote,
+		createFolder,
 		createNote,
 		createNoteFromTemplate,
 		setSelectedInlineField
@@ -208,6 +216,52 @@ export function createNoteActions(context: NoteActionContext) {
 			const createdPath = await createLocalFile(context.vaultHandle, nextPath, draft.content, '.svx');
 
 			await context.reloadVaultAfterFileOperation(`Created drawing ${createdPath}`, createdPath);
+		} catch (error) {
+			context.errorMessage = context.getErrorMessage(error);
+		}
+	}
+
+	async function createFolder(directoryPath?: string) {
+		if (
+			!context.vaultHandle ||
+			context.loading ||
+			!(await context.canMutateVault()) ||
+			!(await context.canLeaveSelectedFile())
+		) {
+			return;
+		}
+
+		const suggestedPath = getAvailableLocalFolderPath(
+			context.files,
+			context.directories,
+			getSuggestedCreatePath(directoryPath, 'New Folder', 'New Folder')
+		);
+		const suggestedCreatePath = splitCreatePath(suggestedPath);
+		const requestedFolderName = await context.requestInlineFileCreate({
+			directoryPath: suggestedCreatePath.directoryPath,
+			extension: '',
+			fileName: suggestedCreatePath.fileName,
+			inputLabel: 'New folder name',
+			kind: 'folder',
+			submitLabel: 'Create',
+			title: 'New Folder'
+		});
+
+		if (requestedFolderName === null) {
+			return;
+		}
+
+		try {
+			context.errorMessage = '';
+			const nextPath = getInlineCreateDirectoryPath(suggestedCreatePath.directoryPath, requestedFolderName);
+
+			assertNoManagedFolderPathCollision(context.files, context.directories, nextPath);
+
+			const createdPath = await createLocalDirectory(context.vaultHandle, nextPath);
+
+			// Empty folders do not affect files or the index, so keep the selected file mounted.
+			context.directories = sortLocalVaultDirectories([...context.directories, { path: createdPath }]);
+			context.status = `Created folder ${createdPath}`;
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		}

@@ -1,6 +1,8 @@
 import {
 	getLocalRoutePath,
+	normalizeLocalDirectoryPath,
 	normalizeLocalTextPath,
+	type LocalVaultDirectory,
 	type LocalVaultFile
 } from '../../vault/local-files.js';
 
@@ -51,4 +53,57 @@ export function assertNoManagedPathCollision(files: LocalVaultFile[], path: stri
 			throw new Error(`A managed file already exists at ${file.path}.`);
 		}
 	}
+}
+
+export function getAvailableFolderPath(
+	files: LocalVaultFile[],
+	directories: LocalVaultDirectory[],
+	basePath: string
+) {
+	const normalizedBasePath = normalizeLocalDirectoryPath(basePath);
+	const existingPaths = getExistingFolderCollisionPaths(files, directories);
+
+	if (!existingPaths.has(normalizedBasePath.toLowerCase())) {
+		return normalizedBasePath;
+	}
+
+	for (let index = 2; index < 1000; index += 1) {
+		const candidate = `${normalizedBasePath} ${index}`;
+
+		if (!existingPaths.has(candidate.toLowerCase())) {
+			return candidate;
+		}
+	}
+
+	return normalizedBasePath;
+}
+
+export function assertNoManagedFolderPathCollision(
+	files: LocalVaultFile[],
+	directories: LocalVaultDirectory[],
+	path: string
+) {
+	const normalizedPath = path.toLowerCase();
+
+	for (const file of files) {
+		if (file.path.toLowerCase() === normalizedPath) {
+			throw new Error(`A managed file already exists at ${file.path}.`);
+		}
+	}
+
+	for (const directory of directories) {
+		if (directory.path.toLowerCase() === normalizedPath) {
+			throw new Error(`A folder already exists at ${directory.path}.`);
+		}
+	}
+}
+
+function getExistingFolderCollisionPaths(
+	files: LocalVaultFile[],
+	directories: LocalVaultDirectory[]
+) {
+	return new Set([
+		...files.map((file) => file.path.toLowerCase()),
+		...directories.map((directory) => directory.path.toLowerCase())
+	]);
 }

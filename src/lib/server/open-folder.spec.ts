@@ -3,7 +3,9 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createWhiteboardNoteDraft } from '../drawings/preview.js';
 import {
+	createOpenFolderDirectory,
 	getOpenFolderMetadata,
+	listOpenFolderDirectories,
 	listOpenFolderFiles,
 	readOpenFolderTextFile,
 	renderOpenFolderPreviewDocument,
@@ -62,6 +64,28 @@ describe('open folder server vault', () => {
 		expect(metadata.root).toBe(root);
 		expect(files.map((file) => file.path)).toEqual(['Index.md', 'Nested/Card.svx', 'README']);
 		expect(files[0]?.routePath).toBe('Index');
+	});
+
+	it('creates empty folders and includes them in directory snapshots', async () => {
+		await seedOpenFolder({
+			'Projects/Seed.md': '# Seed'
+		});
+
+		const createdPath = await createOpenFolderDirectory('Archive/Empty');
+		const directories = await listOpenFolderDirectories();
+
+		expect(createdPath).toBe('Archive/Empty');
+		expect(directories.map((directory) => directory.path)).toEqual([
+			'Archive',
+			'Archive/Empty',
+			'Projects'
+		]);
+		await expect(createOpenFolderDirectory('Archive/Empty')).rejects.toThrow(
+			'A folder already exists at Archive/Empty.'
+		);
+		await expect(createOpenFolderDirectory('Projects/Seed.md')).rejects.toThrow(
+			'A file already exists at Projects/Seed.md.'
+		);
 	});
 
 	it('renders markdown preview fragments through mdsvex and Svelte SSR', async () => {

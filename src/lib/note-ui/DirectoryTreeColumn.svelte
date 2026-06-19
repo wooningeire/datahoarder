@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { InlineFileCreate } from "../local-vault/shared/types.ts";
 import NoteTreeInlineFileCreate from "./NoteTreeInlineFileCreate.svelte";
+import NoteTreeNewMenu from "./NoteTreeNewMenu.svelte";
 import {
     scrollColumnIntoView,
     scrollCurrentNote,
@@ -10,11 +11,19 @@ import type {
     NoteColumn,
 } from "./note-tree-model.ts";
 
+type CreateAction = (directoryPath: string) => void | Promise<void>;
+
 type Props = {
     activePath: string,
     cancelInlineFileCreate?: () => void,
+    closeNewMenu: () => void,
     column: NoteColumn,
+    createDrawingNote?: CreateAction,
     createDisabled: boolean,
+    createFolder?: CreateAction,
+    createInColumn: (create: CreateAction, directoryPath: string) => Promise<void>,
+    createNote?: CreateAction,
+    createNoteFromTemplate?: CreateAction,
     hasCreateActions: boolean,
     inlineFileCreate: InlineFileCreate | null,
     isLastColumn: boolean,
@@ -23,15 +32,21 @@ type Props = {
     selectedDirectoryPaths: string[],
     selectDirectory: (node: DisplayDirectory, level: number) => void,
     submitInlineFileCreate?: () => void,
-    toggleNewMenu: (columnKey: string, event: MouseEvent) => void,
+    toggleNewMenu: (columnKey: string) => void,
     updateInlineFileCreateName?: (fileName: string) => void,
 };
 
 let {
     activePath,
     cancelInlineFileCreate,
+    closeNewMenu,
     column,
+    createDrawingNote,
     createDisabled,
+    createFolder,
+    createInColumn,
+    createNote,
+    createNoteFromTemplate,
     hasCreateActions,
     inlineFileCreate,
     isLastColumn,
@@ -47,10 +62,22 @@ let {
 let hasColumnInlineCreate = $derived(
     Boolean(inlineFileCreate && column.items.some((item) => item.path === `__pending-file-create__:${inlineFileCreate.id}`)),
 );
+let isNewMenuOpen = $derived(openNewMenuColumnKey === column.key);
 
 const isActive = (path: string): boolean => path === activePath || `${path}.md` === activePath;
 
 const isSelected = (path: string, level: number): boolean => selectedDirectoryPaths[level] === path;
+
+const closeNewMenuOnFocusOut = (event: FocusEvent): void => {
+    const currentTarget = event.currentTarget;
+    const nextFocus = event.relatedTarget;
+
+    if (currentTarget instanceof HTMLElement && nextFocus instanceof Node && currentTarget.contains(nextFocus)) {
+        return;
+    }
+
+    closeNewMenu();
+};
 </script>
 
 <section
@@ -59,14 +86,16 @@ const isSelected = (path: string, level: number): boolean => selectedDirectoryPa
     data-column-key={column.key}
     use:scrollColumnIntoView={isLastColumn}
 >
-    <directory-tree-column-items>
+    <h2 id={`note-column-${column.level}`}>{column.label}</h2>
+    <directory-tree-column-items class="note-column-items">
         {#each column.items as item (item.path)}
             {#if item.kind === "directory"}
                 <li>
                     <button
                         type="button"
+                        class:expanded={isSelected(item.path, column.level)}
                         class:selected={isSelected(item.path, column.level)}
-                        aria-pressed={isSelected(item.path, column.level)}
+                        aria-expanded={isSelected(item.path, column.level)}
                         onclick={() => selectDirectory(item, column.level)}
                     >
                         <span class="directory-mark" aria-hidden="true"></span>
@@ -112,18 +141,27 @@ const isSelected = (path: string, level: number): boolean => selectedDirectoryPa
     </directory-tree-column-items>
     {#if hasCreateActions}
         <div class="note-column-footer">
-            <div class:open={openNewMenuColumnKey === column.key} class="new-menu">
+            <div class:open={isNewMenuOpen} class="new-menu" onfocusout={closeNewMenuOnFocusOut}>
                 <button
                     type="button"
                     class="new-menu-trigger"
-                    aria-expanded={openNewMenuColumnKey === column.key}
+                    aria-expanded={isNewMenuOpen}
                     aria-haspopup="menu"
                     disabled={createDisabled}
-                    onclick={(event) => toggleNewMenu(column.key, event)}
+                    onclick={() => toggleNewMenu(column.key)}
                 >
                     <span>New</span>
                     <span class="new-menu-chevron" aria-hidden="true"></span>
                 </button>
+                <NoteTreeNewMenu
+                    column={isNewMenuOpen ? column : undefined}
+                    {createDrawingNote}
+                    {createFolder}
+                    {createInColumn}
+                    {createNote}
+                    {createNoteFromTemplate}
+                    {hasCreateActions}
+                />
             </div>
         </div>
     {/if}
@@ -279,6 +317,12 @@ button:focus-visible {
 
     transform: rotate(-45deg);
     transform-origin: center;
+}
+
+.expanded .chevron::before {
+    top: 0.24rem;
+
+    transform: rotate(45deg);
 }
 
 .file-mark::before {

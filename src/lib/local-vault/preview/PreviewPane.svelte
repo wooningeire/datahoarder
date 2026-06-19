@@ -346,17 +346,15 @@ function getMarkupPreviewErrorMessage(error: unknown) {
 	border-radius: 0.35rem;
 }
 
-@media (max-width: 1340px) {
+@media (max-width: 83.75rem) {
 	.preview-pane {
-		grid-column: 1 / -1;
-		grid-row: 2;
 		min-height: 0;
 
 		border-top: 1px solid oklch(0.8 0.025 235);
 	}
 }
 
-@media (max-width: 760px) {
+@media (max-width: 47.5rem) {
 	.preview-pane {
 		grid-row: auto;
 		min-height: 24rem;

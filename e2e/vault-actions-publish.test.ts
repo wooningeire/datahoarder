@@ -92,27 +92,41 @@ test('directory columns scroll to new folders and collapse smoothly', async ({ p
 	await noteColumns.getByRole('button', { name: 'Delta' }).click();
 	await expect.poll(async () => (await getScrollState()).left).toBeGreaterThan(afterBeacon.left + 160);
 
-	await noteColumns.getByRole('button', { name: 'Atlas' }).dispatchEvent('click');
-	const collapseStart = await getScrollState();
-	expect(collapseStart.left).toBeGreaterThan(1);
-	expect(collapseStart.paddingRight).toBeGreaterThan(0);
-	await expect
-		.poll(
-			async () => {
-				const collapseFrame = await getScrollState();
+    const beforeCollapse = await getScrollState();
+    expect(beforeCollapse.left).toBeGreaterThan(1);
 
-				return (
-					collapseFrame.left > 1 &&
-					collapseFrame.left < collapseStart.left &&
-					collapseFrame.paddingRight > 0 &&
-					collapseFrame.paddingRight < collapseStart.paddingRight
-				);
-			},
-			{ intervals: [16, 32, 48, 64, 80, 120], timeout: 300 }
-		)
-		.toBe(true);
+    await noteColumns.getByRole('button', { name: 'Atlas' }).dispatchEvent('click');
+    const collapseStart = await getScrollState();
+    expect(collapseStart.left).toBeGreaterThan(1);
+    expect(collapseStart.paddingRight).toBeGreaterThan(0);
+    await expect
+        .poll(
+            async () => {
+                const collapseFrame = await getScrollState();
 
-	await expect.poll(async () => (await getScrollState()).left).toBeLessThan(1);
+                return (
+                    collapseFrame.left > 1 &&
+                    collapseFrame.left < collapseStart.left &&
+                    collapseFrame.paddingRight > 0 &&
+                    collapseFrame.paddingRight < collapseStart.paddingRight
+                );
+            },
+            { intervals: [16, 32, 48, 64, 80, 120], timeout: 300 },
+        )
+        .toBe(true);
+
+    await expect.poll(async () => (await getScrollState()).left).toBeLessThan(1);
+    await expect.poll(async () => (await getScrollState()).paddingRight).toBeLessThan(1);
+
+    const atlasButton = noteColumns.getByRole("button", { name: "Atlas" });
+
+    await expect(atlasButton).toHaveAttribute("aria-expanded", "true");
+    await expect(noteColumns.locator('[data-column-key="Atlas"]')).toHaveCount(1);
+    await expect(noteColumns.locator(".note-column")).toHaveCount(2);
+    await atlasButton.click();
+    await expect(atlasButton).toHaveAttribute("aria-expanded", "true");
+    await expect(noteColumns.locator('[data-column-key="Atlas"]')).toHaveCount(1);
+    await expect(noteColumns.locator(".note-column")).toHaveCount(2);
 });
 
 test('Excalidraw notes render a static SVG preview', async ({ page }) => {

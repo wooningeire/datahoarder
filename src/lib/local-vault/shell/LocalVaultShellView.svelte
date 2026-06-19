@@ -38,8 +38,10 @@ let { store }: Props = $props();
         />
     {/if}
 
-    <div class="workspace">
-        <VaultSidebar {store} />
+    <div class:directory-panel-collapsed={!store.directoryPanelOpen} class="workspace">
+        {#if store.directoryPanelOpen}
+            <VaultSidebar {store} />
+        {/if}
 
         <EditorPane {store} />
 
@@ -64,28 +66,61 @@ let { store }: Props = $props();
 
 .workspace {
     --vault-sidebar-width: 32rem;
+    --content-pane-min-width: 20rem;
 
     display: grid;
     grid-row: 2;
     grid-column: 1;
-    grid-template-columns: var(--vault-sidebar-width) minmax(20rem, 1fr) minmax(18rem, 0.85fr);
+    grid-template-columns:
+        var(--vault-sidebar-width)
+        repeat(2, minmax(var(--content-pane-min-width), 1fr));
     grid-template-rows: minmax(0, 1fr);
     min-height: 0;
     overflow: hidden;
 }
 
-@media (max-width: 1340px) {
+.workspace.directory-panel-collapsed {
+    grid-template-columns: repeat(2, minmax(var(--content-pane-min-width), 1fr));
+}
+
+@media (max-width: 83.75rem) {
     .workspace {
         grid-template-columns: var(--vault-sidebar-width) minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) minmax(14rem, 0.72fr);
     }
+
+    .workspace :global(.sidebar) {
+        grid-row: 1 / -1;
+    }
+
+    .workspace.directory-panel-collapsed {
+        grid-template-columns: repeat(2, minmax(var(--content-pane-min-width), 1fr));
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .workspace.directory-panel-collapsed :global(.preview-pane) {
+        border-top: 0;
+    }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 47.5rem) {
     .workspace {
         grid-template-columns: 1fr;
         grid-template-rows: auto auto auto;
         overflow: auto;
+    }
+
+    .workspace :global(.sidebar) {
+        grid-row: auto;
+    }
+
+    .workspace.directory-panel-collapsed {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+    }
+
+    .workspace.directory-panel-collapsed :global(.preview-pane) {
+        border-top: 1px solid oklch(0.8 0.025 235);
     }
 }
 </style>

@@ -1,18 +1,12 @@
 <script lang="ts">
 import type { NoteColumn } from "./note-tree-model.js";
 
-type NewMenuBounds = {
-    left: number,
-    top: number,
-    width: number,
-};
-
 type CreateAction = (directoryPath: string) => void | Promise<void>;
 
 type Props = {
-    bounds: NewMenuBounds | null,
     column?: NoteColumn,
     createDrawingNote?: CreateAction,
+    createFolder?: CreateAction,
     createInColumn: (create: CreateAction, directoryPath: string) => Promise<void>,
     createNote?: CreateAction,
     createNoteFromTemplate?: CreateAction,
@@ -20,9 +14,9 @@ type Props = {
 };
 
 let {
-    bounds,
     column,
     createDrawingNote,
+    createFolder,
     createInColumn,
     createNote,
     createNoteFromTemplate,
@@ -30,14 +24,11 @@ let {
 }: Props = $props();
 </script>
 
-{#if hasCreateActions && column && bounds}
+{#if hasCreateActions && column}
     <div
         class="new-menu-items"
         role="menu"
         aria-label="New options"
-        style:--new-menu-left={`${bounds.left}px`}
-        style:--new-menu-top={`${bounds.top}px`}
-        style:--new-menu-width={`${bounds.width}px`}
     >
         {#if createNote}
             <button
@@ -57,6 +48,15 @@ let {
                 New Drawing
             </button>
         {/if}
+        {#if createFolder}
+            <button
+                type="button"
+                role="menuitem"
+                onclick={() => createInColumn(createFolder, column.directoryPath)}
+            >
+                New Folder
+            </button>
+        {/if}
         {#if createNoteFromTemplate}
             <button
                 type="button"
@@ -71,21 +71,26 @@ let {
 
 <style lang="scss">
 .new-menu-items {
-    position: fixed;
+    position: absolute;
     z-index: 25;
-    left: var(--new-menu-left);
-    top: var(--new-menu-top);
+    right: 0;
+    bottom: calc(100% + 0.25rem);
+    left: 0;
 
     box-sizing: border-box;
     display: grid;
     gap: 0.18rem;
-    width: var(--new-menu-width);
     padding: 0.25rem;
+    overflow: hidden;
 
     background: oklch(0.99 0.008 235);
     border: 1px solid oklch(0.76 0.04 235);
     border-radius: 0.35rem;
     box-shadow: 0 0.7rem 1.6rem oklch(0.16 0.04 245 / 0.16);
+
+    animation: new-menu-drawer 160ms cubic-bezier(0, 1, 0.5, 1);
+    transform-origin: bottom center;
+    will-change: clip-path, opacity, transform;
 }
 
 .new-menu-items button {
@@ -104,5 +109,25 @@ let {
 
 .new-menu-items button:hover {
     background: oklch(0.92 0.04 205);
+}
+
+@keyframes new-menu-drawer {
+    from {
+        clip-path: inset(100% 0 0);
+        opacity: 0;
+        transform: translateY(0.35rem);
+    }
+
+    to {
+        clip-path: inset(0);
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .new-menu-items {
+        animation-duration: 1ms;
+    }
 }
 </style>

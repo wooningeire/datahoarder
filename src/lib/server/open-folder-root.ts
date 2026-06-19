@@ -1,6 +1,9 @@
 import { stat } from "node:fs/promises";
 import { basename, resolve, sep } from "node:path";
-import { normalizeLocalTextPath } from "../vault/local-files.js";
+import {
+    normalizeLocalDirectoryPath,
+    normalizeLocalTextPath,
+} from "../vault/local-files.js";
 import { getEnv } from "./open-folder-env.js";
 
 export const getOpenFolderRoot = async () => {
@@ -36,6 +39,17 @@ export const requireOpenFolderRoot = async () => {
 
 export const resolvePathWithinRoot = (root: string, path: string) => {
     const normalizedPath = normalizeLocalTextPath(path, "");
+
+    return resolveNormalizedPathWithinRoot(root, normalizedPath);
+};
+
+export const resolveDirectoryPathWithinRoot = (root: string, path: string) => {
+    const normalizedPath = normalizeLocalDirectoryPath(path);
+
+    return resolveNormalizedPathWithinRoot(root, normalizedPath);
+};
+
+const resolveNormalizedPathWithinRoot = (root: string, normalizedPath: string) => {
     const resolvedRoot = resolve(root);
     const filesystemPath = resolve(resolvedRoot, ...normalizedPath.split("/"));
 

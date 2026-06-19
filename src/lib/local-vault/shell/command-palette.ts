@@ -26,6 +26,7 @@ type CommandPaletteContext = {
 	chooseFolder: () => void;
 	createCollectionRecord: () => void;
 	createDrawingNote: () => void;
+	createFolder: () => void;
 	createNote: () => void;
 	createNoteFromTemplate: () => void;
 	downloadCollectionExport: (format: 'csv' | 'json') => void;
@@ -83,6 +84,13 @@ export function buildCommandPaletteItems(context: CommandPaletteContext): Comman
 				keywords: ['canvas', 'whiteboard', 'drawing', 'svx'],
 				run: context.createDrawingNote,
 				title: 'New Drawing'
+			},
+			{
+				detail: 'Create an empty folder in the vault root',
+				id: 'new-folder',
+				keywords: ['directory', 'organize', 'folder'],
+				run: context.createFolder,
+				title: 'New Folder'
 			},
 			{
 				detail: context.templateFilesCount ? 'Create a note from a local template' : 'No templates found',

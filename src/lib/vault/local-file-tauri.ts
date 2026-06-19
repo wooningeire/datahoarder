@@ -35,6 +35,10 @@ type TauriVaultFileResponse = {
     updatedAt: number,
 };
 
+type TauriVaultDirectoryResponse = {
+    path: string,
+};
+
 export const canUseTauriNativeFileAccess = () => {
     return Boolean(getTauriInvoke());
 };
@@ -134,6 +138,13 @@ export const readTauriVault = async (handle: TauriLocalDirectoryHandle) => {
     return response.map((file) => createTauriVaultFile(handle, file));
 };
 
+export const readTauriVaultDirectories = async (handle: TauriLocalDirectoryHandle) => {
+    return tauriCommand<TauriVaultDirectoryResponse[]>(
+        "datahoarder_list_vault_directories",
+        { root: handle.root },
+    );
+};
+
 export const isTauriFileHandle = (handle: LocalFileHandle): handle is TauriLocalFileHandle => {
     return "source" in handle && handle.source === "tauri";
 };
@@ -144,6 +155,10 @@ export const writeTauriFile = async (root: string, path: string, content: string
 
 export const createTauriFile = async (root: string, path: string, content: string) => {
     return tauriCommand<string>("datahoarder_create_vault_file", { content, path, root });
+};
+
+export const createTauriDirectory = async (root: string, path: string) => {
+    return tauriCommand<string>("datahoarder_create_vault_directory", { path, root });
 };
 
 export const deleteTauriFile = async (root: string, path: string) => {

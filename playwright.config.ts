@@ -11,7 +11,7 @@ export default defineConfig({
     webServer: skipWebServer
         ? undefined
         : {
-            command: "deno task build && deno task preview",
-            port: 4173,
+            command: "deno task build:app && deno task preview",
+            url: appOrigin,
         },
 });

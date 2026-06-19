@@ -49,7 +49,7 @@ const handleSubmit = (event: SubmitEvent): void => {
 </script>
 
 <form onsubmit={handleSubmit}>
-    <span class="file-mark" aria-hidden="true"></span>
+    <span class:folder-mark={inlineFileCreate.kind === "folder"} class="file-mark" aria-hidden="true"></span>
     <input
         bind:this={inputElement}
         type="text"
@@ -106,6 +106,31 @@ form {
 
     background: oklch(0.58 0.1 180);
     border-radius: 999px;
+
+    content: "";
+}
+
+.file-mark.folder-mark::before {
+    top: 0.32rem;
+    left: 0.14rem;
+
+    width: 0.7rem;
+    height: 0.45rem;
+
+    background: oklch(0.72 0.08 85);
+    border-radius: 0.12rem;
+}
+
+.file-mark.folder-mark::after {
+    position: absolute;
+    top: 0.22rem;
+    left: 0.18rem;
+
+    width: 0.38rem;
+    height: 0.18rem;
+
+    background: oklch(0.78 0.09 85);
+    border-radius: 0.12rem 0.12rem 0 0;
 
     content: "";
 }

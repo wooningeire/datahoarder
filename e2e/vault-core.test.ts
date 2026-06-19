@@ -51,6 +51,104 @@ test('Monaco editor shows a cursor after opening a local vault', async ({ page }
 	expect(cursorBox?.width).toBeGreaterThan(0);
 });
 
+test("editor and preview panes keep equal widths across shell layouts", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.addInitScript(() => {
+        window.showDirectoryPicker = async () => {
+            const root = await navigator.storage.getDirectory();
+            const directory = await root.getDirectoryHandle("datahoarder-e2e-pane-width", { create: true });
+            const file = await directory.getFileHandle("Equal Widths.md", { create: true });
+            const writable = await file.createWritable();
+
+            await writable.write("# Equal Widths\n\nEditor and preview should share the content area evenly.");
+            await writable.close();
+
+            return directory;
+        };
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Open Folder" }).click();
+    await expectSelectedFilePath(page, "Equal Widths.md");
+    await expect(page.locator(".monaco-editor")).toBeVisible();
+    await expect(page.getByLabel("Preview").getByRole("heading", { name: "Equal Widths" })).toBeVisible();
+
+    const getPaneMetrics = async () => {
+        const editorPaneBox = await page.locator(".editor-pane").boundingBox();
+        const previewPaneBox = await page.locator(".preview-pane").boundingBox();
+        const workspaceMetrics = await page.locator(".workspace").evaluate((node) => ({
+            clientWidth: node.clientWidth,
+            scrollWidth: node.scrollWidth,
+        }));
+
+        expect(editorPaneBox).not.toBeNull();
+        expect(previewPaneBox).not.toBeNull();
+
+        return {
+            editorWidth: editorPaneBox!.width,
+            previewWidth: previewPaneBox!.width,
+            workspaceClientWidth: workspaceMetrics.clientWidth,
+            workspaceScrollWidth: workspaceMetrics.scrollWidth,
+        };
+    };
+
+    await expect(page.locator("#vault-directory-panel")).toBeVisible();
+    const expandedPaneMetrics = await getPaneMetrics();
+
+    await page.getByRole("button", { name: "Hide Files" }).click();
+    await expect(page.locator("#vault-directory-panel")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Show Files" })).toBeVisible();
+
+    const collapsedPaneMetrics = await getPaneMetrics();
+
+    expect(collapsedPaneMetrics.editorWidth).toBeGreaterThan(expandedPaneMetrics.editorWidth + 80);
+    expect(collapsedPaneMetrics.previewWidth).toBeGreaterThan(expandedPaneMetrics.previewWidth + 80);
+    expect(Math.abs(collapsedPaneMetrics.editorWidth - collapsedPaneMetrics.previewWidth)).toBeLessThan(2);
+    expect(collapsedPaneMetrics.workspaceScrollWidth).toBeLessThanOrEqual(
+        collapsedPaneMetrics.workspaceClientWidth + 1,
+    );
+
+    await page.getByRole("button", { name: "Show Files" }).click();
+    await expect(page.locator("#vault-directory-panel")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Hide Files" })).toBeVisible();
+
+    const assertEqualPaneWidths = async (
+        viewport: {
+            height: number,
+            shouldFitWorkspace: boolean,
+            width: number,
+        },
+    ): Promise<void> => {
+        await page.setViewportSize({
+            height: viewport.height,
+            width: viewport.width,
+        });
+
+        const editorPaneBox = await page.locator(".editor-pane").boundingBox();
+        const previewPaneBox = await page.locator(".preview-pane").boundingBox();
+        const workspaceMetrics = await page.locator(".workspace").evaluate((node) => ({
+            clientWidth: node.clientWidth,
+            scrollWidth: node.scrollWidth,
+        }));
+
+        expect(editorPaneBox).not.toBeNull();
+        expect(previewPaneBox).not.toBeNull();
+        expect(Math.abs(editorPaneBox!.width - previewPaneBox!.width)).toBeLessThan(2);
+
+        if (viewport.shouldFitWorkspace) {
+            expect(workspaceMetrics.scrollWidth).toBeLessThanOrEqual(workspaceMetrics.clientWidth + 1);
+        }
+    };
+
+    for (const viewport of [
+        { width: 1440, height: 900, shouldFitWorkspace: true },
+        { width: 1280, height: 820, shouldFitWorkspace: true },
+        { width: 740, height: 900, shouldFitWorkspace: false },
+    ]) {
+        await assertEqualPaneWidths(viewport);
+    }
+});
+
 test('markdown opens before slow full-vault indexing finishes', async ({ page }) => {
 	await page.addInitScript(() => {
 		const state = window as unknown as { __slowIndexReadsCompleted: number };

@@ -1,4 +1,7 @@
-import { normalizeLocalTextPath } from "../../vault/local-files.js";
+import {
+    normalizeLocalDirectoryPath,
+    normalizeLocalTextPath,
+} from "../../vault/local-files.js";
 
 export const getSuggestedCreatePath = (
     directoryPath: string | undefined,
@@ -45,6 +48,19 @@ export const getInlineCreatePath = (
     }
 
     return directoryPath ? `${directoryPath}/${nextFileName}` : nextFileName;
+};
+
+export const getInlineCreateDirectoryPath = (
+    directoryPath: string,
+    directoryName: string,
+): string => {
+    const nextDirectoryName = normalizeLocalDirectoryPath(directoryName);
+
+    if (nextDirectoryName.includes("/")) {
+        throw new Error("Use a folder name, not a path. Choose the parent folder in the sidebar first.");
+    }
+
+    return directoryPath ? `${directoryPath}/${nextDirectoryName}` : nextDirectoryName;
 };
 
 const stripMatchingExtension = (fileName: string, extension: string): string => {

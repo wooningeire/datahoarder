@@ -40,6 +40,15 @@ const handlePublicPublishProfileChange = (event: Event): void => {
     <div class="actions">
         <button
             type="button"
+            class="directory-panel-toggle"
+            aria-controls="vault-directory-panel"
+            aria-expanded={store.directoryPanelOpen}
+            onclick={store.toggleDirectoryPanel}
+        >
+            {store.directoryPanelOpen ? "Hide Files" : "Show Files"}
+        </button>
+        <button
+            type="button"
             class="command-button"
             onclick={() => store.interactionActions.openCommandPalette()}
             aria-keyshortcuts="Control+K Meta+K"
@@ -202,6 +211,12 @@ const handlePublicPublishProfileChange = (event: Event): void => {
     color: oklch(0.25 0.06 245);
     background: oklch(0.93 0.035 155);
     border-color: oklch(0.66 0.11 155);
+}
+
+.directory-panel-toggle {
+    color: oklch(0.25 0.06 255);
+    background: oklch(0.94 0.035 220);
+    border-color: oklch(0.68 0.08 225);
 }
 
 .publish-profile-select {

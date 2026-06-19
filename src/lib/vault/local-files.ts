@@ -1,44 +1,39 @@
 import {
 	getLocalRoutePath,
-	getPathExtension,
-	isEditableTextFile,
-	normalizeLocalDirectoryPath,
-	normalizeLocalTextPath
+	isEditableTextFile
 } from './local-file-paths.js';
-import { assertManageableLocalDirectoryPath, isIgnoredLocalDirectoryName, sortLocalVaultDirectories } from './local-directory-helpers.js';
+import { isIgnoredLocalDirectoryName, sortLocalVaultDirectories } from './local-directory-helpers.js';
 import {
 	canUseServerVault,
-	createServerDirectory,
-	createServerFile,
-	deleteServerFile,
 	getServerVaultHandle,
 	isServerDirectoryHandle,
-	isServerFileHandle,
 	isServerVaultFile,
-	moveServerFile,
 	readServerVaultDirectories,
-	readServerVault,
-	writeServerFile
+	readServerVault
 } from './local-file-server.js';
 import {
 	canUseTauriNativeFileAccess,
-	createTauriDirectory,
-	createTauriFile,
 	createTauriVaultHandle,
-	deleteTauriFile,
 	ensureTauriVaultPreviewOrigin,
 	getTauriVaultHandle,
 	isTauriDirectoryHandle,
-	isTauriFileHandle,
 	isTauriVaultFile,
-	moveTauriFile,
 	pickTauriVaultHandle,
 	readTauriVaultDirectories,
-	readTauriVault,
-	writeTauriFile
+	readTauriVault
 } from './local-file-tauri.js';
 import { getStoredVaultHandle, storeVaultHandle } from './local-file-storage.js';
 export { buildLocalVaultTree, getTextAssets } from './local-file-tree.js';
+export {
+	createLocalDirectory,
+	createLocalFile,
+	createLocalVaultFile,
+	createLocalVaultFileSnapshot,
+	deleteLocalFile,
+	moveLocalFile,
+	moveLocalVaultFile,
+	writeLocalFile
+} from './local-file-mutations.js';
 
 export {
 	getLocalRoutePath,
@@ -151,6 +146,14 @@ export type LocalVaultDirectory = {
 	path: string;
 };
 
+type SortableLocalVaultFile = {
+	path: string;
+};
+
+export const sortLocalVaultFiles = <T extends SortableLocalVaultFile>(files: T[]) => {
+	return files.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
+};
+
 export function canUseFileSystemAccess() {
 	return (
 		!canUseTauriNativeFileAccess() &&
@@ -173,7 +176,7 @@ export async function readLocalVault(handle: LocalDirectoryHandle) {
 
 	await collectFiles(handle, '', files);
 
-	return files.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
+	return sortLocalVaultFiles(files);
 }
 
 export async function readLocalVaultDirectories(handle: LocalDirectoryHandle) {
@@ -196,222 +199,6 @@ export async function readLocalFile(file: LocalVaultFile) {
 	const blob = await file.handle.getFile();
 
 	return blob.text();
-}
-
-export async function writeLocalFile(file: LocalVaultFile, content: string) {
-	await writeLocalFileHandle(file.handle, content);
-}
-
-export async function createLocalFile(
-	root: LocalDirectoryHandle,
-	path: string,
-	content: string,
-	defaultExtension = '.md'
-) {
-	const normalizedPath = normalizeLocalTextPath(path, defaultExtension);
-
-	if (isServerDirectoryHandle(root)) {
-		return createServerFile(normalizedPath, content);
-	}
-
-	if (isTauriDirectoryHandle(root)) {
-		return createTauriFile(root.root, normalizedPath, content);
-	}
-
-	const { directory, fileName } = await getLocalParentDirectory(root, normalizedPath, true);
-
-	if (!directory.getFileHandle) {
-		throw new Error('This browser does not support creating files in selected folders.');
-	}
-
-	if (await localFileExists(directory, fileName)) {
-		throw new Error(`A file already exists at ${normalizedPath}.`);
-	}
-
-	const handle = await directory.getFileHandle(fileName, { create: true });
-	await writeLocalFileHandle(handle, content);
-
-	return normalizedPath;
-}
-
-export async function createLocalDirectory(root: LocalDirectoryHandle, path: string) {
-	const normalizedPath = normalizeLocalDirectoryPath(path);
-
-	assertManageableLocalDirectoryPath(normalizedPath);
-
-	if (isServerDirectoryHandle(root)) {
-		return createServerDirectory(normalizedPath);
-	}
-
-	if (isTauriDirectoryHandle(root)) {
-		return createTauriDirectory(root.root, normalizedPath);
-	}
-
-	const { directory, fileName } = await getLocalParentDirectory(root, normalizedPath, true);
-
-	if (!directory.getDirectoryHandle) {
-		throw new Error('This browser does not support creating folders in selected folders.');
-	}
-
-	if (await localFileExists(directory, fileName)) {
-		throw new Error(`A file already exists at ${normalizedPath}.`);
-	}
-
-	if (await localDirectoryExists(directory, fileName)) {
-		throw new Error(`A folder already exists at ${normalizedPath}.`);
-	}
-
-	await directory.getDirectoryHandle(fileName, { create: true });
-
-	return normalizedPath;
-}
-
-export async function deleteLocalFile(root: LocalDirectoryHandle, path: string) {
-	const normalizedPath = normalizeLocalTextPath(path, '');
-
-	if (isServerDirectoryHandle(root)) {
-		await deleteServerFile(normalizedPath);
-		return;
-	}
-
-	if (isTauriDirectoryHandle(root)) {
-		await deleteTauriFile(root.root, normalizedPath);
-		return;
-	}
-
-	const { directory, fileName } = await getLocalParentDirectory(root, normalizedPath, false);
-
-	if (!directory.removeEntry) {
-		throw new Error('This browser does not support deleting files in selected folders.');
-	}
-
-	await directory.removeEntry(fileName);
-}
-
-export async function moveLocalFile(
-	root: LocalDirectoryHandle,
-	currentPath: string,
-	nextPath: string,
-	content: string
-) {
-	const normalizedCurrentPath = normalizeLocalTextPath(currentPath, '');
-	const normalizedNextPath = normalizeLocalTextPath(nextPath, '');
-
-	if (normalizedCurrentPath === normalizedNextPath) {
-		return normalizedCurrentPath;
-	}
-
-	if (normalizedCurrentPath.toLowerCase() === normalizedNextPath.toLowerCase()) {
-		throw new Error('Case-only renames are not supported yet.');
-	}
-
-	if (isServerDirectoryHandle(root)) {
-		return moveServerFile(normalizedCurrentPath, normalizedNextPath, content);
-	}
-
-	if (isTauriDirectoryHandle(root)) {
-		return moveTauriFile(root.root, normalizedCurrentPath, normalizedNextPath, content);
-	}
-
-	await createLocalFile(root, normalizedNextPath, content, '');
-	await deleteLocalFile(root, normalizedCurrentPath);
-
-	return normalizedNextPath;
-}
-
-async function writeLocalFileHandle(handle: LocalFileHandle, content: string) {
-	if (isServerFileHandle(handle)) {
-		await writeServerFile(handle.path, content);
-		return;
-	}
-
-	if (isTauriFileHandle(handle)) {
-		await writeTauriFile(handle.root, handle.path, content);
-		return;
-	}
-
-	if (!handle.createWritable) {
-		throw new Error('This browser does not support writing to selected files.');
-	}
-
-	const writable = await handle.createWritable();
-
-	if ('getWriter' in writable) {
-		const writer = (writable as unknown as WritableStream<string>).getWriter();
-		await writer.write(content);
-		await writer.close();
-		return;
-	}
-
-	await writable.write(content);
-	await writable.close();
-}
-
-async function getLocalParentDirectory(
-	root: BrowserLocalDirectoryHandle,
-	path: string,
-	create: boolean
-) {
-	const segments = path.split('/');
-	const fileName = segments.pop();
-
-	if (!fileName) {
-		throw new Error('File path is required.');
-	}
-
-	let directory: BrowserLocalDirectoryHandle = root;
-
-	for (const segment of segments) {
-		if (!directory.getDirectoryHandle) {
-			throw new Error('This browser does not support nested folder access.');
-		}
-
-		directory = await directory.getDirectoryHandle(segment, { create });
-	}
-
-	return { directory, fileName };
-}
-
-async function localFileExists(directory: BrowserLocalDirectoryHandle, fileName: string) {
-	if (!directory.getFileHandle) {
-		return false;
-	}
-
-	try {
-		await directory.getFileHandle(fileName);
-		return true;
-	} catch (error) {
-		if (isNotFoundError(error) || isTypeMismatchError(error)) {
-			return false;
-		}
-
-		throw error;
-	}
-}
-
-async function localDirectoryExists(directory: BrowserLocalDirectoryHandle, directoryName: string) {
-	if (!directory.getDirectoryHandle) {
-		return false;
-	}
-
-	try {
-		await directory.getDirectoryHandle(directoryName);
-		return true;
-	} catch (error) {
-		if (isNotFoundError(error) || isTypeMismatchError(error)) {
-			return false;
-		}
-
-		throw error;
-	}
-}
-
-function isNotFoundError(error: unknown) {
-	return error instanceof DOMException && error.name === 'NotFoundError';
-}
-
-function isTypeMismatchError(error: unknown) {
-	return error instanceof DOMException && error.name === 'TypeMismatchError';
 }
 
 export async function verifyPermission(

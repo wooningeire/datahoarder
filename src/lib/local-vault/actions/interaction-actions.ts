@@ -1,21 +1,35 @@
-import { createLocalFile, deleteLocalFile, writeLocalFile, type LocalDirectoryHandle, type LocalVaultFile } from '../../vault/local-files.js';
+import {
+	createLocalVaultFile,
+	deleteLocalFile,
+	writeLocalFile,
+	type LocalDirectoryHandle,
+	type LocalVaultDirectory,
+	type LocalVaultFile
+} from '../../vault/local-files.js';
 import { toggleMarkdownTask } from '../../markdown/tasks.js';
 import {
 	createSavedVaultSearchContent,
 	getSavedVaultSearchPath,
 	type SavedVaultSearch
 } from '../../vault/saved-search.js';
-import { buildLocalVaultIndex, type VaultIndex } from '../../vault/index.js';
+import type { VaultIndex } from '../../vault/index.js';
 import type { CommandPaletteItem, RequestTextOptions } from '../shared/types.js';
+import {
+	applyCreatedLocalFile,
+	applyDeletedLocalFile,
+	applyUpdatedLocalFile
+} from './vault-snapshot-mutations.js';
 
 type InteractionActionContext = {
 	commandPaletteOpen: boolean;
 	commandPaletteQuery: string;
+	directories: LocalVaultDirectory[];
 	dirty: boolean;
 	errorMessage: string;
 	files: LocalVaultFile[];
 	loading: boolean;
 	savedContent: string;
+	savedVaultSearches: SavedVaultSearch[];
 	saving: boolean;
 	selectedContent: string;
 	selectedFile: LocalVaultFile | null;
@@ -26,7 +40,7 @@ type InteractionActionContext = {
 	vaultSearchQuery: string;
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
-	reloadVaultAfterFileOperation: (nextStatus: string, preferredPath?: string) => Promise<void>;
+	prunePinnedNotePaths: (nextVaultIndex?: VaultIndex) => void;
 	requestText: (options: RequestTextOptions) => Promise<string | null>;
 	selectFile: (filePath: string) => Promise<void>;
 };
@@ -163,14 +177,14 @@ export function createInteractionActions(context: InteractionActionContext) {
 				taskIndex
 			});
 
-			await writeLocalFile(context.selectedFile, nextContent);
-			context.selectedContent = nextContent;
-			context.savedContent = nextContent;
-			context.vaultIndex = await buildLocalVaultIndex(context.files, {
-				changedPaths: [context.selectedFile.path],
-				previousIndex: context.vaultIndex
-			});
-			context.status = `${input.checked ? 'Completed' : 'Reopened'} task ${taskIndex + 1} in ${context.selectedFile.path}`;
+			const updatedFile = await writeLocalFile(context.selectedFile, nextContent);
+
+			await applyUpdatedLocalFile(
+				context,
+				updatedFile,
+				nextContent,
+				`${input.checked ? 'Completed' : 'Reopened'} task ${taskIndex + 1} in ${context.selectedFile.path}`
+			);
 		} catch (error) {
 			input.checked = !input.checked;
 			context.errorMessage = context.getErrorMessage(error);
@@ -234,8 +248,9 @@ export function createInteractionActions(context: InteractionActionContext) {
 			const path = getSavedVaultSearchPath(name, context.files.map((file) => file.path));
 			const content = createSavedVaultSearchContent({ name, query });
 
-			await createLocalFile(context.vaultHandle, path, content, '.json');
-			await context.reloadVaultAfterFileOperation(`Saved search ${name}.`, context.selectedPath || context.selectedFile?.path || '');
+			const createdFile = await createLocalVaultFile(context.vaultHandle, path, content, '.json');
+
+			await applyCreatedLocalFile(context, createdFile, content, `Saved search ${name}.`, { select: false });
 			context.vaultSearchQuery = query;
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
@@ -262,10 +277,7 @@ export function createInteractionActions(context: InteractionActionContext) {
 
 		try {
 			await deleteLocalFile(context.vaultHandle, search.path);
-			await context.reloadVaultAfterFileOperation(
-				`Deleted saved search ${search.name}.`,
-				context.selectedPath || context.selectedFile?.path || ''
-			);
+			await applyDeletedLocalFile(context, search.path, `Deleted saved search ${search.name}.`);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		} finally {

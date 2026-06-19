@@ -224,7 +224,7 @@ const createTauriVaultFile = (handle: TauriLocalDirectoryHandle, file: TauriVaul
     };
 };
 
-const readTauriFile = async (root: string, path: string) => {
+export const readTauriFile = async (root: string, path: string) => {
     return tauriCommand<string>("datahoarder_read_vault_file", { path, root });
 };
 

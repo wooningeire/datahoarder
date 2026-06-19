@@ -32,17 +32,15 @@ test('note lifecycle actions create rename and delete notes', async ({ page }) =
 
 	await clickColumnNewItem(page, 'Files', 'New Note');
 	await fillInlineFileCreate(page, 'New note name', 'capture');
-	await expect(page.getByText('Created capture.md')).toBeVisible();
+	await expectSelectedFilePath(page, "capture.md");
 	await expect(page.getByLabel('Preview').getByRole('heading', { name: 'capture' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Rename' }).click();
 	await fillRequestText(page, 'Rename Or Move File', 'File Path', 'archive/capture-renamed', 'Rename File');
-	await expect(page.getByText('Renamed capture.md to archive/capture-renamed')).toBeVisible();
 	await expectSelectedFilePath(page, "archive/capture-renamed");
 	await expect(page.locator('.sidebar-summary').getByText('1 files', { exact: true })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Delete' }).click();
-	await expect(page.getByText('Deleted archive/capture-renamed')).toBeVisible();
 	await expect(page.locator('.sidebar-summary').getByText('0 files', { exact: true })).toBeVisible();
 	await expect(page.locator('.sidebar-summary').getByText('0 notes', { exact: true })).toBeVisible();
 	await expect(
@@ -67,13 +65,11 @@ test("new menu creates empty folders and notes inside them", async ({ page }) =>
 
 	await clickColumnNewItem(page, "Files", "New Folder");
 	await fillInlineFileCreate(page, "New folder name", "Projects");
-	await expect(page.getByText("Created folder Projects")).toBeVisible();
 	await expect(page.locator(".note-columns").getByRole("button", { name: "Projects" })).toBeVisible();
 
 	await page.locator(".note-columns").getByRole("button", { name: "Projects" }).click();
 	await clickColumnNewItem(page, "Projects", "New Note");
 	await fillInlineFileCreate(page, "New note name", "Kickoff");
-	await expect(page.getByText("Created Projects/Kickoff.md")).toBeVisible();
 	await expectSelectedFilePath(page, "Projects/Kickoff.md");
 });
 
@@ -180,6 +176,5 @@ test('column new menu creates notes in the selected folder', async ({ page }) =>
 	await expect(noteNameInput).toHaveValue('Untitled');
 	await expect(pendingCreate.getByText('.md')).toBeVisible();
 	await noteNameInput.press('Enter');
-	await expect(page.getByText('Created Projects/Untitled.md')).toBeVisible();
 	await expectSelectedFilePath(page, "Projects/Untitled.md");
 });

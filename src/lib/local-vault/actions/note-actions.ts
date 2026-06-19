@@ -4,22 +4,21 @@ import { addDrawingElement } from '../../drawings/edit.js';
 import { createWhiteboardNoteDraft } from '../../drawings/preview.js';
 import {
 	createLocalDirectory,
-	createLocalFile,
+	createLocalVaultFile,
 	writeLocalFile,
 	type LocalDirectoryHandle,
 	type LocalVaultDirectory,
 	type LocalVaultFile
 } from '../../vault/local-files.js';
-import { sortLocalVaultDirectories } from '../../vault/local-directory-helpers.js';
-import { hasInlineField, setInlineField } from '../../note-model/fields.js';
+import { setInlineField } from '../../note-model/fields.js';
 import { getNoteTitle } from '../../vault/paths.js';
 import {
-	buildLocalVaultIndex,
 	formatVaultValue,
 	getVaultRecordValue,
 	type VaultIndex,
 	type VaultRecord
 } from '../../vault/index.js';
+import type { SavedVaultSearch } from '../../vault/saved-search.js';
 import {
 	assertNoManagedFolderPathCollision,
 	assertNoManagedPathCollision as assertNoLocalManagedPathCollision,
@@ -38,6 +37,11 @@ import {
 	splitCreatePath
 } from './note-create-paths.js';
 import { createNoteFromTemplateAction } from './note-template-actions.js';
+import {
+	applyCreatedLocalDirectory,
+	applyCreatedLocalFile,
+	applyUpdatedLocalFile
+} from './vault-snapshot-mutations.js';
 
 type NoteActionContext = {
 	collectionRecordCreationError: string;
@@ -47,11 +51,13 @@ type NoteActionContext = {
 	files: LocalVaultFile[];
 	loading: boolean;
 	savedContent: string;
+	savedVaultSearches: SavedVaultSearch[];
 	saving: boolean;
 	selectedCollection: ResolvedCollection | null;
 	selectedContent: string;
 	selectedExcalidrawNote: boolean;
 	selectedFile: LocalVaultFile | null;
+	selectedPath: string;
 	selectedRecord: VaultRecord | null;
 	status: string;
 	templateFiles: LocalVaultFile[];
@@ -60,7 +66,7 @@ type NoteActionContext = {
 	canLeaveSelectedFile: () => Promise<boolean>;
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
-	reloadVaultAfterFileOperation: (nextStatus: string, preferredPath?: string) => Promise<void>;
+	prunePinnedNotePaths: (nextVaultIndex?: VaultIndex) => void;
 	requestInlineFileCreate: (request: InlineFileCreateRequest) => Promise<string | null>;
 	requestForm: (config: RequestDialogConfig) => Promise<RequestDialogValues | null>;
 };
@@ -122,14 +128,14 @@ export function createNoteActions(context: NoteActionContext) {
 				value: requestedValue
 			});
 
-			await writeLocalFile(context.selectedFile, nextContent);
-			context.selectedContent = nextContent;
-			context.savedContent = nextContent;
-			context.vaultIndex = await buildLocalVaultIndex(context.files, {
-				changedPaths: [context.selectedFile.path],
-				previousIndex: context.vaultIndex
-			});
-			context.status = `Updated ${requestedKey.trim()} on ${context.selectedFile.path}`;
+			const updatedFile = await writeLocalFile(context.selectedFile, nextContent);
+
+			await applyUpdatedLocalFile(
+				context,
+				updatedFile,
+				nextContent,
+				`Updated ${requestedKey.trim()} on ${context.selectedFile.path}`
+			);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		} finally {
@@ -171,9 +177,9 @@ export function createNoteActions(context: NoteActionContext) {
 			const nextPath = getInlineCreatePath(suggestedCreatePath.directoryPath, requestedFileName, '.md');
 			assertNoLocalManagedPathCollision(context.files, nextPath);
 			const content = `# ${getNoteTitle(nextPath)}\n\n`;
-			const createdPath = await createLocalFile(context.vaultHandle, nextPath, content, '.md');
+			const createdFile = await createLocalVaultFile(context.vaultHandle, nextPath, content, '.md');
 
-			await context.reloadVaultAfterFileOperation(`Created ${createdPath}`, createdPath);
+			await applyCreatedLocalFile(context, createdFile, content, `Created ${createdFile.path}`);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		}
@@ -213,9 +219,9 @@ export function createNoteActions(context: NoteActionContext) {
 			const nextPath = getInlineCreatePath(suggestedCreatePath.directoryPath, requestedFileName, '.svx');
 			assertNoLocalManagedPathCollision(context.files, nextPath);
 			const draft = createWhiteboardNoteDraft(getNoteTitle(nextPath));
-			const createdPath = await createLocalFile(context.vaultHandle, nextPath, draft.content, '.svx');
+			const createdFile = await createLocalVaultFile(context.vaultHandle, nextPath, draft.content, '.svx');
 
-			await context.reloadVaultAfterFileOperation(`Created drawing ${createdPath}`, createdPath);
+			await applyCreatedLocalFile(context, createdFile, draft.content, `Created drawing ${createdFile.path}`);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		}
@@ -259,9 +265,7 @@ export function createNoteActions(context: NoteActionContext) {
 
 			const createdPath = await createLocalDirectory(context.vaultHandle, nextPath);
 
-			// Empty folders do not affect files or the index, so keep the selected file mounted.
-			context.directories = sortLocalVaultDirectories([...context.directories, { path: createdPath }]);
-			context.status = `Created folder ${createdPath}`;
+			applyCreatedLocalDirectory(context, createdPath, `Created folder ${createdPath}`);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		}
@@ -318,14 +322,14 @@ export function createNoteActions(context: NoteActionContext) {
 				text: requestedLabel
 			});
 
-			await writeLocalFile(context.selectedFile, result.content);
-			context.selectedContent = result.content;
-			context.savedContent = result.content;
-			context.vaultIndex = await buildLocalVaultIndex(context.files, {
-				changedPaths: [context.selectedFile.path],
-				previousIndex: context.vaultIndex
-			});
-			context.status = `Added ${result.kind} to ${context.selectedFile.path}`;
+			const updatedFile = await writeLocalFile(context.selectedFile, result.content);
+
+			await applyUpdatedLocalFile(
+				context,
+				updatedFile,
+				result.content,
+				`Added ${result.kind} to ${context.selectedFile.path}`
+			);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		} finally {
@@ -375,9 +379,14 @@ export function createNoteActions(context: NoteActionContext) {
 			const nextPath = getInlineCreatePath(suggestedCreatePath.directoryPath, requestedFileName, '.md');
 			const draft = createCollectionRecordDraft(context.selectedCollection.definition, getNoteTitle(nextPath));
 			assertNoLocalManagedPathCollision(context.files, nextPath);
-			const createdPath = await createLocalFile(context.vaultHandle, nextPath, draft.content, '.md');
+			const createdFile = await createLocalVaultFile(context.vaultHandle, nextPath, draft.content, '.md');
 
-			await context.reloadVaultAfterFileOperation(`Created collection record ${createdPath}`, createdPath);
+			await applyCreatedLocalFile(
+				context,
+				createdFile,
+				draft.content,
+				`Created collection record ${createdFile.path}`
+			);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		}
@@ -439,12 +448,13 @@ export function createNoteActions(context: NoteActionContext) {
 				viewIndex: context.selectedCollection.viewIndex
 			});
 
-			await writeLocalFile(context.selectedFile, result.content);
-			context.selectedContent = result.content;
-			context.savedContent = result.content;
-			await context.reloadVaultAfterFileOperation(
-				`Added ${result.field.name} field to ${context.selectedFile.path}`,
-				context.selectedFile.path
+			const updatedFile = await writeLocalFile(context.selectedFile, result.content);
+
+			await applyUpdatedLocalFile(
+				context,
+				updatedFile,
+				result.content,
+				`Added ${result.field.name} field to ${context.selectedFile.path}`
 			);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);

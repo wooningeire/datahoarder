@@ -1,6 +1,14 @@
-import { createLocalFile, readLocalFile, type LocalDirectoryHandle, type LocalVaultFile } from "../../vault/local-files.js";
+import {
+    createLocalVaultFile,
+    readLocalFile,
+    type LocalDirectoryHandle,
+    type LocalVaultDirectory,
+    type LocalVaultFile,
+} from "../../vault/local-files.js";
+import type { VaultIndex } from "../../vault/index.js";
 import { getNoteTitle } from "../../vault/paths.js";
 import { getTemplateDisplayName, renderNoteTemplate } from "../../note-model/template.js";
+import type { SavedVaultSearch } from "../../vault/saved-search.js";
 import {
     assertNoManagedPathCollision as assertNoLocalManagedPathCollision,
     getAvailableNotePath as getAvailableLocalNotePath,
@@ -15,18 +23,25 @@ import {
     getSuggestedCreatePath,
     splitCreatePath,
 } from "./note-create-paths.js";
+import { applyCreatedLocalFile } from "./vault-snapshot-mutations.js";
 
 type NoteTemplateActionContext = {
+    directories: LocalVaultDirectory[],
     errorMessage: string,
     files: LocalVaultFile[],
     loading: boolean,
+    savedContent: string,
+    savedVaultSearches: SavedVaultSearch[],
+    selectedContent: string,
+    selectedPath: string,
     templateFiles: LocalVaultFile[],
     status: string,
     vaultHandle: LocalDirectoryHandle | null,
+    vaultIndex: VaultIndex,
     canLeaveSelectedFile: () => Promise<boolean>,
     canMutateVault: () => Promise<boolean>,
     getErrorMessage: (error: unknown) => string,
-    reloadVaultAfterFileOperation: (nextStatus: string, preferredPath?: string) => Promise<void>,
+    prunePinnedNotePaths: (nextVaultIndex?: VaultIndex) => void,
     requestInlineFileCreate: (request: InlineFileCreateRequest) => Promise<string | null>,
     requestForm: (config: RequestDialogConfig) => Promise<RequestDialogValues | null>,
 };
@@ -108,9 +123,14 @@ export const createNoteFromTemplateAction = async (
         assertNoLocalManagedPathCollision(context.files, nextPath);
         const templateContent = await readLocalFile(templateFile);
         const renderedTemplate = renderNoteTemplate(templateContent, { path: nextPath });
-        const createdPath = await createLocalFile(context.vaultHandle, nextPath, renderedTemplate.content, ".md");
+        const createdFile = await createLocalVaultFile(context.vaultHandle, nextPath, renderedTemplate.content, ".md");
 
-        await context.reloadVaultAfterFileOperation(`Created ${createdPath} from ${templateFile.path}`, createdPath);
+        await applyCreatedLocalFile(
+            context,
+            createdFile,
+            renderedTemplate.content,
+            `Created ${createdFile.path} from ${templateFile.path}`,
+        );
     } catch (error) {
         context.errorMessage = context.getErrorMessage(error);
     }

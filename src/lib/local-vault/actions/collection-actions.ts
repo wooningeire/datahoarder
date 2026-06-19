@@ -1,7 +1,14 @@
 import { formatCollectionRecordValue, type ResolvedCollection } from '../../collections/index.js';
-import { readLocalFile, writeLocalFile, type LocalDirectoryHandle, type LocalVaultFile } from '../../vault/local-files.js';
+import {
+	readLocalFile,
+	writeLocalFile,
+	type LocalDirectoryHandle,
+	type LocalVaultDirectory,
+	type LocalVaultFile
+} from '../../vault/local-files.js';
 import { hasInlineField, setInlineField } from '../../note-model/fields.js';
-import { buildLocalVaultIndex, type VaultIndex, type VaultRecord } from '../../vault/index.js';
+import type { VaultIndex, VaultRecord } from '../../vault/index.js';
+import type { SavedVaultSearch } from '../../vault/saved-search.js';
 import {
 	getCollectionColumnLabel,
 	getCollectionViewSortColumn,
@@ -9,6 +16,10 @@ import {
 	isEditableCollectionColumn
 } from '../preview/collection-view.js';
 import type { CollectionCellEdit, RequestDialogConfig, RequestDialogValues } from '../shared/types.js';
+import {
+	applyUpdatedLocalFile,
+	applyUpdatedLocalFiles
+} from './vault-snapshot-mutations.js';
 
 type CollectionActionContext = {
 	collectionCellEdit: CollectionCellEdit | null;
@@ -16,12 +27,14 @@ type CollectionActionContext = {
 	collectionRecords: VaultRecord[];
 	collectionSortColumn: string;
 	collectionSortDirection: 'asc' | 'desc';
+	directories: LocalVaultDirectory[];
 	dirty: boolean;
 	errorMessage: string;
 	files: LocalVaultFile[];
 	lastCollectionViewDefaultsKey: string;
 	loading: boolean;
 	savedContent: string;
+	savedVaultSearches: SavedVaultSearch[];
 	saving: boolean;
 	selectedCollection: ResolvedCollection | null;
 	selectedContent: string;
@@ -33,7 +46,7 @@ type CollectionActionContext = {
 	vaultIndex: VaultIndex;
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
-	reloadVaultAfterFileOperation: (nextStatus: string, preferredPath?: string) => Promise<void>;
+	prunePinnedNotePaths: (nextVaultIndex?: VaultIndex) => void;
 	requestForm: (config: RequestDialogConfig) => Promise<RequestDialogValues | null>;
 	saveSelectedFile: () => Promise<void>;
 	selectFile: (filePath: string) => Promise<void>;
@@ -121,6 +134,10 @@ export function createCollectionActions(context: CollectionActionContext) {
 			return;
 		}
 
+		if (context.dirty && context.selectedFile?.path !== file.path) {
+			context.selectedContent = context.savedContent;
+		}
+
 		const requestedValue = context.collectionCellEdit.value;
 
 		context.saving = true;
@@ -133,17 +150,9 @@ export function createCollectionActions(context: CollectionActionContext) {
 				value: requestedValue
 			});
 
-			await writeLocalFile(file, nextContent);
+			const updatedFile = await writeLocalFile(file, nextContent);
 
-			if (context.selectedFile?.path === file.path) {
-				context.selectedContent = nextContent;
-				context.savedContent = nextContent;
-			}
-
-			await context.reloadVaultAfterFileOperation(
-				`Updated ${column} on ${record.path}`,
-				context.selectedPath || context.selectedFile?.path || ''
-			);
+			await applyUpdatedLocalFile(context, updatedFile, nextContent, `Updated ${column} on ${record.path}`);
 			context.collectionCellEdit = null;
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
@@ -245,9 +254,9 @@ export function createCollectionActions(context: CollectionActionContext) {
 		}
 
 		const recordsToUpdate = [...context.collectionRecords];
-		const preferredPath = context.selectedPath || context.selectedFile?.path || '';
 		let updatedCount = 0;
 		const skippedPaths: string[] = [];
+		const updatedFiles: LocalVaultFile[] = [];
 
 		context.saving = true;
 		context.errorMessage = '';
@@ -273,7 +282,7 @@ export function createCollectionActions(context: CollectionActionContext) {
 					value: requestedValue
 				});
 
-				await writeLocalFile(file, nextContent);
+				updatedFiles.push(await writeLocalFile(file, nextContent));
 				updatedCount += 1;
 
 				if (context.selectedFile?.path === file.path) {
@@ -283,9 +292,10 @@ export function createCollectionActions(context: CollectionActionContext) {
 			}
 
 			const skippedStatus = skippedPaths.length ? ` Skipped ${skippedPaths.length} read-only or missing records.` : '';
-			await context.reloadVaultAfterFileOperation(
-				`Updated ${key} on ${updatedCount} visible records.${skippedStatus}`,
-				preferredPath
+			await applyUpdatedLocalFiles(
+				context,
+				updatedFiles,
+				`Updated ${key} on ${updatedCount} visible records.${skippedStatus}`
 			);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);

@@ -6,7 +6,7 @@ import {
 	getTauriVaultHandle,
 	getStoredVaultHandle,
 	isEditableTextFile,
-	moveLocalFile,
+	moveLocalVaultFile,
 	normalizeLocalTextPath,
 	pickTauriVaultHandle,
 	readLocalFile,
@@ -30,6 +30,11 @@ import {
 } from '../../vault/saved-search.js';
 import { assertNoManagedPathCollision as assertNoLocalManagedPathCollision } from '../shared/path-availability.js';
 import type { RequestTextOptions } from '../shared/types.js';
+import {
+	applyDeletedLocalFile,
+	applyMovedLocalFile,
+	applyUpdatedLocalFile
+} from './vault-snapshot-mutations.js';
 
 type DatahoarderWindow = Window & {
 	showDirectoryPicker?: (options?: { mode?: DatahoarderPermissionMode }) => Promise<LocalDirectoryHandle>;
@@ -50,7 +55,6 @@ type VaultFileActionContext = {
 	status: string;
 	vaultHandle: LocalDirectoryHandle | null;
 	vaultIndex: VaultIndex;
-	vaultSearchQuery: string;
 	getErrorMessage: (error: unknown) => string;
 	loadPinnedNotePaths: (vaultName: string) => void;
 	prunePinnedNotePaths: (nextVaultIndex?: VaultIndex) => void;
@@ -72,7 +76,6 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		loadVault,
 		openFile,
 		refreshVault,
-		reloadVaultAfterFileOperation,
 		renameSelectedFile,
 		reopenStoredFolder,
 		restoreSelectionAfterVaultLoad,
@@ -301,13 +304,9 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		context.errorMessage = '';
 
 		try {
-			await writeLocalFile(context.selectedFile, context.selectedContent);
-			context.savedContent = context.selectedContent;
-			context.vaultIndex = await buildLocalVaultIndex(context.files, {
-				changedPaths: [context.selectedFile.path],
-				previousIndex: context.vaultIndex
-			});
-			context.status = `Saved ${context.selectedFile.path}`;
+			const updatedFile = await writeLocalFile(context.selectedFile, context.selectedContent);
+
+			await applyUpdatedLocalFile(context, updatedFile, context.selectedContent, `Saved ${context.selectedFile.path}`);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		} finally {
@@ -336,16 +335,22 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 			context.errorMessage = '';
 			const nextPath = normalizeLocalTextPath(requestedPath, '');
 			assertNoLocalManagedPathCollision(context.files, nextPath, context.selectedFile.path);
-			const movedPath = await moveLocalFile(
+			const previousPath = context.selectedFile.path;
+			const movedFile = await moveLocalVaultFile(
 				context.vaultHandle,
-				context.selectedFile.path,
+				previousPath,
 				nextPath,
 				context.selectedContent
 			);
 
-			context.replacePinnedNotePath(context.selectedFile.path, movedPath);
-			context.savedContent = context.selectedContent;
-			await actions.reloadVaultAfterFileOperation(`Renamed ${context.selectedFile.path} to ${movedPath}`, movedPath);
+			context.replacePinnedNotePath(previousPath, movedFile.path);
+			await applyMovedLocalFile(
+				context,
+				previousPath,
+				movedFile,
+				context.selectedContent,
+				`Renamed ${previousPath} to ${movedFile.path}`
+			);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
 		}
@@ -365,46 +370,9 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 			const deletedPath = context.selectedFile.path;
 
 			await deleteLocalFile(context.vaultHandle, deletedPath);
-			context.selectedPath = '';
-			context.selectedContent = '';
-			context.savedContent = '';
-			await actions.reloadVaultAfterFileOperation(`Deleted ${deletedPath}`);
+			await applyDeletedLocalFile(context, deletedPath, `Deleted ${deletedPath}`);
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
-		}
-	}
-
-	async function reloadVaultAfterFileOperation(nextStatus: string, preferredPath = '') {
-		if (!context.vaultHandle) {
-			return;
-		}
-
-		context.loading = true;
-
-		try {
-			const [nextFiles, nextDirectories] = await Promise.all([
-				readLocalVault(context.vaultHandle),
-				readLocalVaultDirectories(context.vaultHandle)
-			]);
-
-			context.files = nextFiles;
-			context.directories = nextDirectories;
-
-			await actions.restoreSelectionAfterVaultLoad(nextFiles, preferredPath);
-			await tick();
-
-			const [nextVaultIndex, nextSavedVaultSearches] = await Promise.all([
-				buildLocalVaultIndex(nextFiles, { previousIndex: context.vaultIndex }),
-				readSavedVaultSearches(nextFiles)
-			]);
-
-			context.vaultIndex = nextVaultIndex;
-			context.savedVaultSearches = nextSavedVaultSearches;
-			context.prunePinnedNotePaths(nextVaultIndex);
-			context.vaultSearchQuery = '';
-			context.status = nextStatus;
-		} finally {
-			context.loading = false;
 		}
 	}
 

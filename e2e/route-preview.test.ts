@@ -116,7 +116,7 @@ test("server-backed route files lazily launch a target Deno server when origin i
     }
 });
 
-test("creating server-backed folders does not trigger a Vite page reload", async ({ page }) => {
+test("server-backed creates do not trigger vault snapshot reloads or main-frame navigation", async ({ page }) => {
     const workspaceRoot = await createReloadWorkspace();
     const appPort = await getAvailablePort();
     const appOrigin = `http://127.0.0.1:${appPort}`;
@@ -167,8 +167,19 @@ test("creating server-backed folders does not trigger a Vite page reload", async
         await page.getByRole("textbox", { name: "New folder name" }).fill("Projects");
         await page.getByRole("textbox", { name: "New folder name" }).press("Enter");
 
-        await expect(page.getByText("Created folder Projects")).toBeVisible();
         await expect(page.locator(".note-columns").getByRole("button", { name: "Projects" })).toBeVisible();
+
+        await page.locator(".note-columns").getByRole("button", { name: "Projects" }).click();
+        const projectsColumn = page
+            .locator(".note-column")
+            .filter({ has: page.getByRole("heading", { name: "Projects", exact: true }) });
+
+        await projectsColumn.getByRole("button", { name: "New", exact: true }).click();
+        await page.getByRole("menu", { name: "New options" }).getByRole("menuitem", { name: "New Note" }).click();
+        await page.getByRole("textbox", { name: "New note name" }).fill("Kickoff");
+        await page.getByRole("textbox", { name: "New note name" }).press("Enter");
+
+        await expectSelectedFilePath(page, "Projects/Kickoff.md");
         await page.waitForTimeout(750);
 
         expect(mainFrameNavigations, `${mainFrameUrls.join("\n")}\n${formatProcessLogs(processes)}`).toBe(

@@ -170,10 +170,6 @@ export class LocalVaultShellStore {
 
     canLeaveSelectedFile = (): Promise<boolean> => this.vaultActions.canLeaveSelectedFile();
     canMutateVault = (): Promise<boolean> => this.vaultActions.canMutateVault();
-    reloadVaultAfterFileOperation = (
-        nextStatus: string,
-        preferredPath?: string,
-    ): Promise<void> => this.vaultActions.reloadVaultAfterFileOperation(nextStatus, preferredPath);
     saveSelectedFile = (): Promise<void> => this.vaultActions.saveSelectedFile();
     selectFile = (filePath: string): Promise<void> => this.vaultActions.selectFile(filePath);
 

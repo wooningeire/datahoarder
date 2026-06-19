@@ -14,7 +14,6 @@ type CommandPaletteContext = {
 	selectedExcalidrawNote: boolean;
 	selectedFile: LocalVaultFile | null;
 	selectedFilePinned: boolean;
-	selectedPublicPublishProfileName: string;
 	selectedRecord: VaultRecord | null;
 	supported: boolean;
 	templateFilesCount: number;
@@ -31,7 +30,6 @@ type CommandPaletteContext = {
 	createNoteFromTemplate: () => void;
 	downloadCollectionExport: (format: 'csv' | 'json') => void;
 	downloadSelectedHtmlExport: () => void;
-	publishPublicNotes: () => void;
 	refreshVault: () => void;
 	reopenStoredFolder: () => void;
 	saveSelectedFile: () => void;
@@ -98,15 +96,6 @@ export function buildCommandPaletteItems(context: CommandPaletteContext): Comman
 				keywords: ['template', 'reuse', 'component'],
 				run: context.createNoteFromTemplate,
 				title: 'New From Template'
-			},
-			{
-				detail: context.selectedPublicPublishProfileName
-					? `Publish ${context.selectedPublicPublishProfileName} profile`
-					: 'Publish notes marked public',
-				id: 'publish-public',
-				keywords: ['share', 'static', 'html'],
-				run: context.publishPublicNotes,
-				title: 'Publish Public'
 			}
 		);
 	}

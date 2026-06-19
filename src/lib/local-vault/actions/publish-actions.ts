@@ -5,43 +5,23 @@ import {
 	type ResolvedCollection
 } from '../../collections/index.js';
 import { createStandaloneHtmlDocument } from '../../publishing/html-export.js';
-import type { LocalDirectoryHandle, LocalVaultFile } from '../../vault/local-files.js';
+import type { LocalVaultFile } from '../../vault/local-files.js';
 import { getNoteTitle } from '../../vault/paths.js';
-import {
-	createPublicPublishBundle,
-	getPublicPublishRecords,
-	type PublicPublishProfile
-} from '../../publishing/public-publish.js';
 import type { VaultIndex, VaultRecord } from '../../vault/index.js';
 import { downloadTextFile, slugifyDownloadName } from '../shared/downloads.js';
-import { writeOrCreateLocalTextFile } from '../shared/file-output.js';
-import {
-	renderPublicRecordBodyHtml,
-	renderSelectedExportBodyHtml
-} from '../preview/rendering.js';
+import { renderSelectedExportBodyHtml } from '../preview/rendering.js';
 
 type PublishActionContext = {
 	collectionRecords: VaultRecord[];
 	collectionSummaries: CollectionSummaryResult[];
-	dirty: boolean;
-	errorMessage: string;
 	files: LocalVaultFile[];
-	loading: boolean;
 	previewHtml: string;
-	saving: boolean;
 	selectedCollection: ResolvedCollection | null;
 	selectedContent: string;
 	selectedFile: LocalVaultFile | null;
-	selectedPath: string;
-	selectedPublicPublishProfile: PublicPublishProfile | null;
 	selectedRecord: VaultRecord | null;
 	status: string;
-	vaultHandle: LocalDirectoryHandle | null;
 	vaultIndex: VaultIndex;
-	canMutateVault: () => Promise<boolean>;
-	getErrorMessage: (error: unknown) => string;
-	reloadVaultAfterFileOperation: (nextStatus: string, preferredPath?: string) => Promise<void>;
-	saveSelectedFile: () => Promise<void>;
 };
 
 export type PublishActions = ReturnType<typeof createPublishActions>;
@@ -49,8 +29,7 @@ export type PublishActions = ReturnType<typeof createPublishActions>;
 export function createPublishActions(context: PublishActionContext) {
 	return {
 		downloadCollectionExport,
-		downloadSelectedHtmlExport,
-		publishPublicNotes
+		downloadSelectedHtmlExport
 	};
 
 	function downloadCollectionExport(format: 'csv' | 'json') {
@@ -106,60 +85,5 @@ export function createPublishActions(context: PublishActionContext) {
 
 		downloadTextFile(fileName, html, 'text/html;charset=utf-8');
 		context.status = `Exported ${context.selectedFile.path} as HTML.`;
-	}
-
-	async function publishPublicNotes() {
-		if (!context.vaultHandle || context.loading || context.saving || !(await context.canMutateVault())) {
-			return;
-		}
-
-		if (context.dirty) {
-			if (!window.confirm('Save current edits before publishing public notes?')) {
-				return;
-			}
-
-			await context.saveSelectedFile();
-
-			if (context.dirty) {
-				return;
-			}
-		}
-
-		const profile = context.selectedPublicPublishProfile;
-		const nextPublicRecords = getPublicPublishRecords(context.vaultIndex.records, profile);
-
-		if (!nextPublicRecords.length) {
-			context.status = profile
-				? `No notes matched publish profile ${profile.name}.`
-				: 'No public notes found. Add public:: true, share:: public, or #public.';
-			return;
-		}
-
-		context.saving = true;
-		context.errorMessage = '';
-
-		try {
-			const bundle = createPublicPublishBundle(
-				context.vaultIndex.records,
-				(record, entry, entries) => renderPublicRecordBodyHtml(record, entry, entries, context.vaultIndex),
-				{
-					profile,
-					subtitle: profile?.subtitle || 'Datahoarder public vault'
-				}
-			);
-
-			for (const file of bundle.files) {
-				await writeOrCreateLocalTextFile(context.vaultHandle, context.files, file.path, file.content, '.html');
-			}
-
-			await context.reloadVaultAfterFileOperation(
-				`Published ${bundle.entries.length} ${profile ? `${profile.name} ` : 'public '}notes to ${bundle.outputDirectory}/.`,
-				context.selectedPath
-			);
-		} catch (error) {
-			context.errorMessage = context.getErrorMessage(error);
-		} finally {
-			context.saving = false;
-		}
 	}
 }

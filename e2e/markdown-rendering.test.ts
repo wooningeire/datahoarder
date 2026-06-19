@@ -206,7 +206,7 @@ test('markdown task lists render toggle and export safely', async ({ page }) => 
 	expect(htmlContent).not.toContain('Call <client>');
 });
 
-test('markdown tables render in preview exports and public notes', async ({ page }) => {
+test('markdown tables render in preview and exports', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-markdown-tables-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -219,8 +219,6 @@ test('markdown tables render in preview exports and public notes', async ({ page
 			await writable.write(
 				[
 					'# Application Table',
-					'',
-					'public:: true',
 					'',
 					'| Company | Status | Count |',
 					'| --- | :---: | ---: |',
@@ -266,28 +264,9 @@ test('markdown tables render in preview exports and public notes', async ({ page
 	expect(htmlContent).toContain('Escaped | pipe');
 	expect(htmlContent).toContain('.markdown-table-wrapper');
 	expect(htmlContent).not.toContain('Acme <Labs>');
-
-	await page.getByRole('button', { name: 'Publish Public' }).click();
-	await expect(page.getByText('Published 1 public notes to public/.')).toBeVisible();
-
-	const publishedHtml = await page.evaluate(async (name) => {
-		const root = await navigator.storage.getDirectory();
-		const directory = await root.getDirectoryHandle(name);
-		const publicDirectory = await directory.getDirectoryHandle('public');
-		const file = await publicDirectory.getFileHandle('application-table.html');
-		const blob = await file.getFile();
-
-		return blob.text();
-	}, vaultName);
-
-	expect(publishedHtml).toContain('class="markdown-table-wrapper"');
-	expect(publishedHtml).toContain('Acme &lt;Labs&gt;');
-	expect(publishedHtml).toContain('Escaped | pipe');
-	expect(publishedHtml).toContain('.markdown-table-wrapper');
-	expect(publishedHtml).not.toContain('Acme <Labs>');
 });
 
-test('datahoarder board files render link export and publish', async ({ page }) => {
+test('datahoarder board files render linked exports', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-boards-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -311,13 +290,12 @@ test('datahoarder board files render link export and publish', async ({ page }) 
 				await writable.close();
 			};
 
-			await writeFile('Target.md', '# Target\n\npublic:: true\n\nDestination note.');
+			await writeFile('Target.md', '# Target\n\nDestination note.');
 			await writeFile('Private.md', '# Private\n\nSecret note.');
 			await writeFile(
 				'Boards/Launch.dhboard.json',
 				JSON.stringify({
 					title: 'Launch Board',
-					public: true,
 					tags: ['visual'],
 					width: 820,
 					height: 420,
@@ -380,44 +358,9 @@ test('datahoarder board files render link export and publish', async ({ page }) 
 	expect(htmlContent).toContain('next &lt;step&gt;');
 	expect(htmlContent).toContain('.datahoarder-board-node');
 	expect(htmlContent).not.toContain('Idea <One>');
-
-	await page.getByRole('button', { name: 'Publish Public' }).click();
-	await expect(page.getByText('Published 2 public notes to public/.')).toBeVisible();
-
-	const published = await page.evaluate(async (name) => {
-		const root = await navigator.storage.getDirectory();
-		const directory = await root.getDirectoryHandle(name);
-		const publicDirectory = await directory.getDirectoryHandle('public');
-
-		const readPublishedFile = async (fileName: string) => {
-			const segments = fileName.split('/');
-			const leafName = segments.pop() ?? fileName;
-			let parent = publicDirectory;
-
-			for (const segment of segments) {
-				parent = await parent.getDirectoryHandle(segment);
-			}
-
-			const file = await parent.getFileHandle(leafName);
-			const blob = await file.getFile();
-
-			return blob.text();
-		};
-
-		return {
-			board: await readPublishedFile('boards/launch-dhboard-json.html'),
-			target: await readPublishedFile('target.html')
-		};
-	}, vaultName);
-
-	expect(published.board).toContain('class="datahoarder-board"');
-	expect(published.board).toContain('href="../target.html"');
-	expect(published.board).toContain('Private Card');
-	expect(published.board).not.toContain('href="../private.html"');
-	expect(published.target).toContain('Destination note.');
 });
 
-test('custom Sankey diagrams render in preview exports and public notes', async ({ page }) => {
+test('custom Sankey diagrams render in preview and exports', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-sankey-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -428,12 +371,10 @@ test('custom Sankey diagrams render in preview exports and public notes', async 
 			const writable = await file.createWritable();
 
 			await writable.write(
-				[
-					'# Application Flow',
-					'',
-					'public:: true',
-					'',
-					'```datahoarder-sankey',
+					[
+						'# Application Flow',
+						'',
+						'```datahoarder-sankey',
 					'Applied -> Interview: 12',
 					'Interview -> Offer <signed>: 3',
 					'Applied -> Rejected: 4',
@@ -468,26 +409,9 @@ test('custom Sankey diagrams render in preview exports and public notes', async 
 	expect(htmlContent).toContain('Offer &lt;signed&gt;');
 	expect(htmlContent).not.toContain('Offer <signed>');
 	expect(htmlContent).not.toContain('<pre><code>Applied');
-
-	await page.getByRole('button', { name: 'Publish Public' }).click();
-	await expect(page.getByText('Published 1 public notes to public/.')).toBeVisible();
-
-	const publishedHtml = await page.evaluate(async (name) => {
-		const root = await navigator.storage.getDirectory();
-		const directory = await root.getDirectoryHandle(name);
-		const publicDirectory = await directory.getDirectoryHandle('public');
-		const file = await publicDirectory.getFileHandle('application-flow.html');
-		const blob = await file.getFile();
-
-		return blob.text();
-	}, vaultName);
-
-	expect(publishedHtml).toContain('class="datahoarder-sankey-svg"');
-	expect(publishedHtml).toContain('Offer &lt;signed&gt;');
-	expect(publishedHtml).not.toContain('Offer <signed>');
 });
 
-test('custom metric grids render in preview exports and public notes', async ({ page }) => {
+test('custom metric grids render in preview and exports', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-metrics-${Date.now()}`;
 
 	await page.addInitScript((name) => {
@@ -498,12 +422,10 @@ test('custom metric grids render in preview exports and public notes', async ({ 
 			const writable = await file.createWritable();
 
 			await writable.write(
-				[
-					'# Application Metrics',
-					'',
-					'public:: true',
-					'',
-					'```datahoarder-metrics',
+					[
+						'# Application Metrics',
+						'',
+						'```datahoarder-metrics',
 					'Applications | 42 | This week <fast> | good',
 					'Response rate: 18% | warning',
 					'SLO: p95 | 120ms | warning',
@@ -547,27 +469,6 @@ test('custom metric grids render in preview exports and public notes', async ({ 
 	expect(htmlContent).toContain('.datahoarder-metric-value');
 	expect(htmlContent).not.toContain('This week <fast>');
 	expect(htmlContent).not.toContain('Ignored line');
-
-	await page.getByRole('button', { name: 'Publish Public' }).click();
-	await expect(page.getByText('Published 1 public notes to public/.')).toBeVisible();
-
-	const publishedHtml = await page.evaluate(async (name) => {
-		const root = await navigator.storage.getDirectory();
-		const directory = await root.getDirectoryHandle(name);
-		const publicDirectory = await directory.getDirectoryHandle('public');
-		const file = await publicDirectory.getFileHandle('application-metrics.html');
-		const blob = await file.getFile();
-
-		return blob.text();
-	}, vaultName);
-
-	expect(publishedHtml).toContain('class="datahoarder-metrics"');
-	expect(publishedHtml).toContain('This week &lt;fast&gt;');
-	expect(publishedHtml).toContain('SLO: p95');
-	expect(publishedHtml).toContain('120ms');
-	expect(publishedHtml).toContain('Waiting on **portfolio** note');
-	expect(publishedHtml).toContain('.datahoarder-metric-value');
-	expect(publishedHtml).not.toContain('This week <fast>');
 });
 
 test('quick notes track recent and pinned local notes', async ({ page }) => {

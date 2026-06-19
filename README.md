@@ -62,7 +62,7 @@ When `DATAHOARDER_OPEN_FOLDER` points at a Deno target app, route previews start
 
 Inside Tauri, the shell opens local folders through native Tauri commands instead of the browser File System Access API. The native path reads and writes files directly from Rust, uses `DATAHOARDER_OPEN_FOLDER` as the default vault when it is set, opens a native OS folder picker when choosing a folder manually, and remembers picked folder paths in local storage for later Tauri launches. `~` is expanded against the current user's home directory for environment-provided vault roots. Browser FSA remains the fallback for Chrome or Edge outside Tauri.
 
-The local shell can search the full opened vault, use a `Ctrl`/`Cmd` + `K` command palette to jump to notes or run common actions, save reusable global searches as vault files, create notes, create notes from local templates, create starter SVX whiteboard drawing notes, append simple whiteboard or legacy Excalidraw canvas elements, update inline note fields, add collection fields, edit inline-backed collection cells, rename or move files, delete files, preview common Excalidraw scenes and whiteboards as static SVG, export notes/views as standalone HTML, publish a static public subset, export collection views as CSV/JSON, and keep browser-local pinned/recent note lists for quick retrieval.
+The local shell can search the full opened vault, use a `Ctrl`/`Cmd` + `K` command palette to jump to notes or run common actions, save reusable global searches as vault files, create notes, create notes from local templates, create starter SVX whiteboard drawing notes, append simple whiteboard or legacy Excalidraw canvas elements, update inline note fields, add collection fields, edit inline-backed collection cells, rename or move files, delete files, preview common Excalidraw scenes and whiteboards as static SVG, export notes/views as standalone HTML, export collection views as CSV/JSON, and keep browser-local pinned/recent note lists for quick retrieval.
 
 Vault refreshes reuse unchanged indexed note records by path, route path, extension, size, and updated timestamp, while local note edits explicitly invalidate their own record before rebuilding the index.
 
@@ -79,29 +79,13 @@ Saved global searches live in `*.dhsearch.json`, `*.dhsearch.yaml`, or `*.dhsear
 }
 ```
 
-Search boxes, saved searches, collection view filters, and publish profile queries share the same compact query syntax. Plain words are ANDed, quoted values keep spaces together, `#tag` or `tag:value` matches tags, `field:value` checks a note field, `field=value` checks an exact value, `field:*` requires a value, and `-term` excludes matches:
+Search boxes, saved searches, and collection view filters share the same compact query syntax. Plain words are ANDed, quoted values keep spaces together, `#tag` or `tag:value` matches tags, `field:value` checks a note field, `field=value` checks an exact value, `field:*` requires a value, and `-term` excludes matches:
 
 ```text
 #portfolio status:ready company:"Acme Labs" -draft
 ```
 
-`Publish Public` regenerates standalone HTML files under `public/` for notes marked with `public:: true`, `published:: true`, `publish:: true`, `share:: public`, or a `#public`/`#published` tag. Public wiki links are rewritten to relative HTML links when the target note is also public.
-
-Named publish profiles live in `*.dhpublish.json`, `*.dhpublish.yaml`, or `*.dhpublish.yml` files and appear in the publish profile menu. A profile selector is an explicit publish decision and can target files, folders, tags, fields, or a shared `query`; add `requirePublic: true` when a profile should also require the legacy public marker.
-
-```yaml
-name: Portfolio
-outputDirectory: public/portfolio
-query: "#portfolio status:ready"
-source:
-  match:
-    publish:
-      includes: portfolio
-```
-
-Profile output directories are written independently, so `public/portfolio` and `public/roadmap` can be regenerated from the same vault without sharing index pages.
-
-Markdown previews can toggle task-list checkboxes back into the local Markdown source, while HTML exports and public pages render task lists as disabled static checkboxes. Pipe-style Markdown tables render with header alignment in previews, exports, and public pages. Datahoarder also enables custom Markdown rules for inline math (`$x$`), display math (`$$x$$`), mark (`==text==`), and underline (`_text_`). Package users can pass `markdownRules` to `renderPortableMarkdown` or `applyMarkdownSourceRules` to disable any of those rules for their own render surface. Previews and exports also support reusable note embeds with Obsidian-style syntax such as `![[Reusable Note]]`, `![[Reusable Note#Section]]`, and `![[Reusable Note|Alias]]`. Embeds strip frontmatter, stop recursive loops, and public publishing only embeds targets that are part of the public subset.
+Markdown previews can toggle task-list checkboxes back into the local Markdown source, while HTML exports render task lists as disabled static checkboxes. Pipe-style Markdown tables render with header alignment in previews and exports. Datahoarder also enables custom Markdown rules for inline math (`$x$`), display math (`$$x$$`), mark (`==text==`), and underline (`_text_`). Package users can pass `markdownRules` to `renderPortableMarkdown` or `applyMarkdownSourceRules` to disable any of those rules for their own render surface. Previews and exports also support reusable note embeds with Obsidian-style syntax such as `![[Reusable Note]]`, `![[Reusable Note#Section]]`, and `![[Reusable Note|Alias]]`. Embeds strip frontmatter and stop recursive loops.
 
 ```ts
 renderPortableMarkdown(content, {
@@ -144,12 +128,11 @@ Median reply | 3 days | Waiting on portfolio note | info
 
 Metric tones are `neutral`, `good`, `warning`, `bad`, and `info`; note text is escaped before rendering.
 
-Datahoarder board files provide code-operable local canvases in `*.dhboard.json`, `*.dhboard.yaml`, or `*.dhboard.yml` files. Nodes can link back to notes, edges connect node ids, and public board files export as standalone HTML with links only to other published notes:
+Datahoarder board files provide code-operable local canvases in `*.dhboard.json`, `*.dhboard.yaml`, or `*.dhboard.yml` files. Nodes can link back to notes, edges connect node ids, and board files export as standalone HTML:
 
 ```json
 {
   "title": "Launch Board",
-  "public": true,
   "nodes": [
     {
       "id": "idea",

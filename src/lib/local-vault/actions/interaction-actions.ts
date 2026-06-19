@@ -15,13 +15,11 @@ type InteractionActionContext = {
 	errorMessage: string;
 	files: LocalVaultFile[];
 	loading: boolean;
-	publicPublishProfiles: { path: string }[];
 	savedContent: string;
 	saving: boolean;
 	selectedContent: string;
 	selectedFile: LocalVaultFile | null;
 	selectedPath: string;
-	selectedPublicPublishProfilePath: string;
 	status: string;
 	vaultHandle: LocalDirectoryHandle | null;
 	vaultIndex: VaultIndex;
@@ -49,7 +47,6 @@ export function createInteractionActions(context: InteractionActionContext) {
 		openStoredNoteRecord,
 		runCommandPaletteItem,
 		saveCurrentVaultSearch,
-		selectPublicPublishProfile,
 		setCommandPaletteQuery,
 		setVaultSearchQuery
 	};
@@ -188,10 +185,6 @@ export function createInteractionActions(context: InteractionActionContext) {
 
 	function setVaultSearchQuery(query: string) {
 		context.vaultSearchQuery = query;
-	}
-
-	function selectPublicPublishProfile(path: string) {
-		context.selectedPublicPublishProfilePath = path;
 	}
 
 	function applySavedVaultSearch(search: SavedVaultSearch) {

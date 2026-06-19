@@ -20,10 +20,6 @@ const getOpenFileParts = (path: string) => {
 let openDirectoryName = $derived(store.vaultHandle?.name ?? "No folder open");
 let openFilePath = $derived(store.selectedFile?.path ?? "No file selected");
 let openFileParts = $derived(getOpenFileParts(openFilePath));
-
-const handlePublicPublishProfileChange = (event: Event): void => {
-    store.interactionActions.selectPublicPublishProfile((event.currentTarget as HTMLSelectElement).value);
-};
 </script>
 
 <header class="topbar">
@@ -115,30 +111,6 @@ const handlePublicPublishProfileChange = (event: Event): void => {
         >
             Export HTML
         </button>
-        {#if store.publicPublishProfiles.length}
-            <select
-                class="publish-profile-select"
-                value={store.selectedPublicPublishProfilePath}
-                aria-label="Publish profile"
-                disabled={!store.supported || store.loading || !store.vaultHandle || store.saving}
-                onchange={handlePublicPublishProfileChange}
-            >
-                <option value="">Public markers</option>
-                {#each store.publicPublishProfiles as profile (profile.path)}
-                    <option value={profile.path}>{profile.name}</option>
-                {/each}
-            </select>
-        {/if}
-        <button
-            type="button"
-            onclick={store.publishActions.publishPublicNotes}
-            disabled={!store.supported || store.loading || !store.vaultHandle || store.saving}
-            title={store.publicRecords.length
-                ? `Publish ${store.publicRecords.length} notes`
-                : "No publishable notes found"}
-        >
-            Publish Public
-        </button>
         <button
             type="button"
             class="primary"
@@ -217,29 +189,6 @@ const handlePublicPublishProfileChange = (event: Event): void => {
     color: oklch(0.25 0.06 255);
     background: oklch(0.94 0.035 220);
     border-color: oklch(0.68 0.08 225);
-}
-
-.publish-profile-select {
-    max-width: 12rem;
-    min-height: 2rem;
-    padding: 0.25rem 0.5rem;
-
-    color: inherit;
-    font: inherit;
-
-    background: oklch(0.985 0.006 235);
-    border: 1px solid oklch(0.73 0.04 235);
-    border-radius: 0.35rem;
-}
-
-.publish-profile-select:focus-visible {
-    outline: 2px solid oklch(0.55 0.13 205);
-    outline-offset: 2px;
-}
-
-.publish-profile-select:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
 }
 
 @media (max-width: 760px) {

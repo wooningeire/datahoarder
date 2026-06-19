@@ -13,11 +13,6 @@ import {
 	renderDatahoarderBoard
 } from '../../boards/local-board.js';
 import { renderPortableMarkdown } from '../../markdown/render.js';
-import { stripCompiledNoteExtension } from '../../vault/paths.js';
-import {
-	getPublicPublishHref,
-	type PublicPublishEntry
-} from '../../publishing/public-publish.js';
 import { isExcalidrawNote } from '../../note-model/raw.js';
 import type { VaultIndex, VaultRecord } from '../../vault/index.js';
 
@@ -82,47 +77,6 @@ export function renderSelectedExportBodyHtml(context: SelectedExportContext) {
 	return renderSourceHtml(context.selectedContent);
 }
 
-export function renderPublicRecordBodyHtml(
-	record: VaultRecord,
-	entry: PublicPublishEntry,
-	entries: PublicPublishEntry[],
-	vaultIndex: VaultIndex
-) {
-	if (record.extension === '.md' && isExcalidrawNote(record.content)) {
-		return renderExcalidrawNotePreview(record.content);
-	}
-
-	if (record.extension === '.md' || record.extension === '.svx') {
-		const notePaths = entries.map((publicEntry) => publicEntry.routePath);
-
-		return renderPortableMarkdown(record.content, {
-			currentPath: record.routePath,
-			notePaths,
-			resolveEmbedContent: (notePath) => {
-				const targetEntry = getPublicPublishEntry(entries, notePath);
-				return targetEntry ? (vaultIndex.recordsByPath.get(targetEntry.sourcePath)?.content ?? null) : null;
-			},
-			resolveNoteHref: (notePath, heading) => {
-				const targetEntry = getPublicPublishEntry(entries, notePath);
-				return getPublicPublishHref(entry.outputPath, targetEntry?.outputPath ?? '', heading);
-			}
-		});
-	}
-
-	if (isDatahoarderBoardFile(record.path)) {
-		return renderDatahoarderBoard(record.content, {
-			path: record.path,
-			resolveNoteHref: (notePath, heading) => {
-				const targetEntry = getPublicPublishEntry(entries, notePath);
-
-				return targetEntry ? getPublicPublishHref(entry.outputPath, targetEntry.outputPath, heading) : '';
-			}
-		});
-	}
-
-	return renderSourceHtml(record.content);
-}
-
 export function renderLocalMarkdown(
 	content: string,
 	file: LocalVaultFile,
@@ -173,23 +127,6 @@ export function renderPreviewPaneHtml(
 	}
 
 	return '';
-}
-
-function getPublicPublishEntry(entries: PublicPublishEntry[], routePath: string) {
-	const normalizedRoutePath = routePath.trim().replace(/\\/gu, '/').replace(/^\/+|\/+$/gu, '').toLowerCase();
-	const normalizedRoutePathWithoutExtension = stripCompiledNoteExtension(normalizedRoutePath);
-
-	return entries.find((entry) => {
-		const entryRoutePath = entry.routePath.toLowerCase();
-		const entrySourcePath = entry.sourcePath.toLowerCase();
-
-		return (
-			entryRoutePath === normalizedRoutePath ||
-			entrySourcePath === normalizedRoutePath ||
-			entryRoutePath === normalizedRoutePathWithoutExtension ||
-			stripCompiledNoteExtension(entrySourcePath) === normalizedRoutePathWithoutExtension
-		);
-	}) ?? null;
 }
 
 function getLocalEmbedContent(notePath: string, vaultIndex: VaultIndex) {

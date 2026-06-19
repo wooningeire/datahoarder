@@ -2,10 +2,6 @@ import { getBaseViews } from "../../note-model/base.js";
 import { isExcalidrawNote, isWhiteboardNote } from "../../note-model/raw.js";
 import { isNoteTemplatePath } from "../../note-model/template.js";
 import {
-    getPublicPublishRecords,
-    type PublicPublishProfile,
-} from "../../publishing/public-publish.js";
-import {
     buildLocalVaultTree,
     canUseFileSystemAccess,
     canUseServerVault,
@@ -59,8 +55,6 @@ export class LocalVaultShellStore {
     selectedContent = $state("");
     savedContent = $state("");
     savedVaultSearches = $state<SavedVaultSearch[]>([]);
-    publicPublishProfiles = $state<PublicPublishProfile[]>([]);
-    selectedPublicPublishProfilePath = $state("");
     status = $state("Choose a local folder to begin.");
     loading = $state(false);
     saving = $state(false);
@@ -111,11 +105,6 @@ export class LocalVaultShellStore {
     selectedBacklinks = $derived(
         this.selectedRecord ? getVaultBacklinks(this.vaultIndex, this.selectedRecord) : [],
     );
-    selectedPublicPublishProfile = $derived(
-        this.publicPublishProfiles.find((profile) => profile.path === this.selectedPublicPublishProfilePath) ??
-            null,
-    );
-    publicRecords = $derived(getPublicPublishRecords(this.vaultIndex.records, this.selectedPublicPublishProfile));
     selectedExcalidrawNote = $derived(
         Boolean(
             (this.selectedFile?.extension === ".md" && isExcalidrawNote(this.selectedContent)) ||
@@ -225,7 +214,6 @@ export class LocalVaultShellStore {
             selectedExcalidrawNote: this.selectedExcalidrawNote,
             selectedFile: this.selectedFile,
             selectedFilePinned: this.selectedFilePinned,
-            selectedPublicPublishProfileName: this.selectedPublicPublishProfile?.name ?? "",
             selectedRecord: this.selectedRecord,
             supported: this.supported,
             templateFilesCount: this.templateFiles.length,
@@ -242,7 +230,6 @@ export class LocalVaultShellStore {
             createNoteFromTemplate: this.noteActions.createNoteFromTemplate,
             downloadCollectionExport: this.publishActions.downloadCollectionExport,
             downloadSelectedHtmlExport: this.publishActions.downloadSelectedHtmlExport,
-            publishPublicNotes: this.publishActions.publishPublicNotes,
             refreshVault: this.vaultActions.refreshVault,
             reopenStoredFolder: this.vaultActions.reopenStoredFolder,
             saveSelectedFile: this.vaultActions.saveSelectedFile,
@@ -279,15 +266,6 @@ export class LocalVaultShellStore {
 
     setPreviewHtml = (html: string): void => {
         this.previewHtml = html;
-    };
-
-    pruneSelectedPublicPublishProfile = (): void => {
-        if (
-            this.selectedPublicPublishProfilePath &&
-            !this.publicPublishProfiles.some((profile) => profile.path === this.selectedPublicPublishProfilePath)
-        ) {
-            this.selectedPublicPublishProfilePath = "";
-        }
     };
 
     syncCollectionFileState = (): void => {

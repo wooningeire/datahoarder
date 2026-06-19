@@ -25,10 +25,6 @@ import {
 	type VaultIndex
 } from '../../vault/index.js';
 import {
-	readPublicPublishProfiles,
-	type PublicPublishProfile
-} from '../../publishing/public-publish.js';
-import {
 	readSavedVaultSearches,
 	type SavedVaultSearch
 } from '../../vault/saved-search.js';
@@ -55,10 +51,8 @@ type VaultFileActionContext = {
 	vaultHandle: LocalDirectoryHandle | null;
 	vaultIndex: VaultIndex;
 	vaultSearchQuery: string;
-	publicPublishProfiles: PublicPublishProfile[];
 	getErrorMessage: (error: unknown) => string;
 	loadStoredNoteLists: (vaultName: string) => void;
-	pruneSelectedPublicPublishProfile: () => void;
 	pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void;
 	recordRecentNote: (path: string) => void;
 	replaceStoredNotePath: (previousPath: string, nextPath: string) => void;
@@ -236,18 +230,15 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 			await actions.restoreSelectionAfterVaultLoad(nextFiles);
 			await tick();
 
-			const [nextVaultIndex, nextSavedVaultSearches, nextPublicPublishProfiles] = await Promise.all([
+			const [nextVaultIndex, nextSavedVaultSearches] = await Promise.all([
 				buildLocalVaultIndex(nextFiles, {
 					previousIndex: reusePreviousIndex ? context.vaultIndex : null
 				}),
-				readSavedVaultSearches(nextFiles),
-				readPublicPublishProfiles(nextFiles)
+				readSavedVaultSearches(nextFiles)
 			]);
 
 			context.vaultIndex = nextVaultIndex;
 			context.savedVaultSearches = nextSavedVaultSearches;
-			context.publicPublishProfiles = nextPublicPublishProfiles;
-			context.pruneSelectedPublicPublishProfile();
 			context.pruneStoredNoteLists(nextVaultIndex);
 			context.status = `${nextStatus} ${context.files.length} editable files indexed, ${context.directories.length} folders found, ${context.vaultIndex.records.length} notes parsed.`;
 		} catch (error) {
@@ -404,16 +395,13 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 			await actions.restoreSelectionAfterVaultLoad(nextFiles, preferredPath);
 			await tick();
 
-			const [nextVaultIndex, nextSavedVaultSearches, nextPublicPublishProfiles] = await Promise.all([
+			const [nextVaultIndex, nextSavedVaultSearches] = await Promise.all([
 				buildLocalVaultIndex(nextFiles, { previousIndex: context.vaultIndex }),
-				readSavedVaultSearches(nextFiles),
-				readPublicPublishProfiles(nextFiles)
+				readSavedVaultSearches(nextFiles)
 			]);
 
 			context.vaultIndex = nextVaultIndex;
 			context.savedVaultSearches = nextSavedVaultSearches;
-			context.publicPublishProfiles = nextPublicPublishProfiles;
-			context.pruneSelectedPublicPublishProfile();
 			context.pruneStoredNoteLists(nextVaultIndex);
 			context.vaultSearchQuery = '';
 			context.status = nextStatus;

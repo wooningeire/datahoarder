@@ -20,7 +20,6 @@ export * from './note-model/fields.js';
 export * from './note-model/template.js';
 export * from './note-model/tree.js';
 export * from './vault/paths.js';
-export * from './publishing/public-publish.js';
 export * from './note-model/raw.js';
 export * from './vault/saved-search.js';
 export * from './server/index.js';

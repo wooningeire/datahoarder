@@ -4,25 +4,20 @@ import type {
     VaultRecord,
 } from "../../vault/index.js";
 import {
-    getRecentNotePaths,
-    maxRecentNotes,
     normalizeStoredNotePaths,
     pruneStoredNotePaths,
-    readStoredNoteLists,
-    replaceStoredNotePaths,
+    readStoredPinnedNotePaths,
+    replaceStoredNotePath,
     writeStoredPinnedNotePaths,
-    writeStoredRecentNotePaths,
 } from "./stored-notes.js";
 
 type StoredNoteStateOptions = {
     getVaultHandle: () => LocalDirectoryHandle | null,
     getVaultIndex: () => VaultIndex,
-    setStatus: (status: string) => void,
 };
 
 export class StoredNoteState {
     pinnedNotePaths = $state<string[]>([]);
-    recentNotePaths = $state<string[]>([]);
     #options: StoredNoteStateOptions;
 
     constructor(options: StoredNoteStateOptions) {
@@ -44,52 +39,22 @@ export class StoredNoteState {
 
         if (this.pinnedNotePaths.includes(path)) {
             this.#savePinnedNotePaths(this.pinnedNotePaths.filter((storedPath) => storedPath !== path));
-            this.#options.setStatus(`Unpinned ${path}`);
             return;
         }
 
         this.#savePinnedNotePaths([path, ...this.pinnedNotePaths]);
-        this.#options.setStatus(`Pinned ${path}`);
     };
 
-    recordRecentNote = (path: string): void => {
-        this.#saveRecentNotePaths(
-            getRecentNotePaths(
-                path,
-                this.recentNotePaths,
-                this.#options.getVaultIndex().recordsByPath,
-            ),
-        );
+    replacePinnedNotePath = (previousPath: string, nextPath: string): void => {
+        this.#savePinnedNotePaths(replaceStoredNotePath(previousPath, nextPath, this.pinnedNotePaths));
     };
 
-    replaceStoredNotePath = (previousPath: string, nextPath: string): void => {
-        const nextLists = replaceStoredNotePaths(previousPath, nextPath, {
-            pinned: this.pinnedNotePaths,
-            recent: this.recentNotePaths,
-        });
-
-        this.#savePinnedNotePaths(nextLists.pinned);
-        this.#saveRecentNotePaths(nextLists.recent);
+    prunePinnedNotePaths = (nextVaultIndex = this.#options.getVaultIndex()): void => {
+        this.#savePinnedNotePaths(pruneStoredNotePaths(this.pinnedNotePaths, nextVaultIndex.recordsByPath));
     };
 
-    pruneStoredNoteLists = (nextVaultIndex = this.#options.getVaultIndex()): void => {
-        const nextLists = pruneStoredNotePaths(
-            {
-                pinned: this.pinnedNotePaths,
-                recent: this.recentNotePaths,
-            },
-            nextVaultIndex.recordsByPath,
-        );
-
-        this.#savePinnedNotePaths(nextLists.pinned);
-        this.#saveRecentNotePaths(nextLists.recent);
-    };
-
-    loadStoredNoteLists = (vaultName: string): void => {
-        const lists = readStoredNoteLists(vaultName);
-
-        this.pinnedNotePaths = lists.pinned;
-        this.recentNotePaths = lists.recent;
+    loadPinnedNotePaths = (vaultName: string): void => {
+        this.pinnedNotePaths = readStoredPinnedNotePaths(vaultName);
     };
 
     #savePinnedNotePaths(paths: string[]): void {
@@ -99,16 +64,6 @@ export class StoredNoteState {
 
         if (vaultHandle) {
             writeStoredPinnedNotePaths(vaultHandle.name, this.pinnedNotePaths);
-        }
-    }
-
-    #saveRecentNotePaths(paths: string[]): void {
-        this.recentNotePaths = normalizeStoredNotePaths(paths, maxRecentNotes);
-
-        const vaultHandle = this.#options.getVaultHandle();
-
-        if (vaultHandle) {
-            writeStoredRecentNotePaths(vaultHandle.name, this.recentNotePaths);
         }
     }
 }

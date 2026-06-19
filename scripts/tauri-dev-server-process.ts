@@ -5,14 +5,7 @@ export const spawnAndWait = async (
     args: string[],
     options: SpawnOptions = {},
 ) => {
-    const child = new Deno.Command(bin, {
-        args,
-        cwd: options.cwd,
-        env: options.env,
-        stderr: options.stdio ?? "inherit",
-        stdin: options.stdio ?? "inherit",
-        stdout: options.stdio ?? "inherit",
-    }).spawn();
+    const child = spawnChild(bin, args, options);
     const cleanupSignals = forwardSignals(child);
 
     try {
@@ -22,6 +15,34 @@ export const spawnAndWait = async (
     } finally {
         cleanupSignals();
     }
+};
+
+export const spawnChild = (
+    bin: string,
+    args: string[],
+    options: SpawnOptions = {},
+) => {
+    return new Deno.Command(bin, {
+        args,
+        cwd: options.cwd,
+        env: options.env,
+        stderr: options.stdio ?? "inherit",
+        stdin: options.stdio ?? "inherit",
+        stdout: options.stdio ?? "inherit",
+    }).spawn();
+};
+
+export const stopChild = async (
+    child: Deno.ChildProcess,
+    signal: Deno.Signal = "SIGTERM",
+) => {
+    try {
+        child.kill(signal);
+    } catch {
+        return;
+    }
+
+    await child.status.catch(() => null);
 };
 
 const forwardSignals = (child: Deno.ChildProcess) => {

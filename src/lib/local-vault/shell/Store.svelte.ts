@@ -81,9 +81,6 @@ export class LocalVaultShellStore {
     storedNotes = createStoredNoteState({
         getVaultHandle: () => this.vaultHandle,
         getVaultIndex: () => this.vaultIndex,
-        setStatus: (nextStatus) => {
-            this.status = nextStatus;
-        },
     });
 
     selectedFile = $derived(
@@ -117,14 +114,6 @@ export class LocalVaultShellStore {
     pinnedNotes = $derived(
         getStoredNoteRecords(
             this.storedNotes.pinnedNotePaths.filter((path) => path !== this.selectedFile?.path),
-            this.vaultIndex.recordsByPath,
-        ),
-    );
-    recentNotes = $derived(
-        getStoredNoteRecords(
-            this.storedNotes.recentNotePaths.filter(
-                (path) => path !== this.selectedFile?.path && !this.storedNotes.pinnedNotePaths.includes(path),
-            ),
             this.vaultIndex.recordsByPath,
         ),
     );
@@ -172,10 +161,9 @@ export class LocalVaultShellStore {
     collectionSummaries = $derived(getCollectionSummariesForView(this.selectedCollection, this.collectionRecords));
 
     getErrorMessage = getShellErrorMessage;
-    loadStoredNoteLists = this.storedNotes.loadStoredNoteLists;
-    pruneStoredNoteLists = this.storedNotes.pruneStoredNoteLists;
-    recordRecentNote = this.storedNotes.recordRecentNote;
-    replaceStoredNotePath = this.storedNotes.replaceStoredNotePath;
+    loadPinnedNotePaths = this.storedNotes.loadPinnedNotePaths;
+    prunePinnedNotePaths = this.storedNotes.prunePinnedNotePaths;
+    replacePinnedNotePath = this.storedNotes.replacePinnedNotePath;
     requestInlineFileCreate = this.requestState.requestInlineFileCreate;
     requestForm = this.requestState.requestForm;
     requestText = this.requestState.requestText;

@@ -4,11 +4,12 @@ import {
     formatPortOwners,
     inspectDevServerPort,
 } from "./tauri-dev-server-probe.ts";
-import { spawnAndWait } from "./tauri-dev-server-process.ts";
+import { spawnAndWait, spawnChild, stopChild } from "./tauri-dev-server-process.ts";
 import {
     DEFAULT_TAURI_DEV_HOST,
     DEFAULT_TAURI_DEV_PORT,
     DEFAULT_TAURI_DEV_PORT_SEARCH_LIMIT,
+    DEFAULT_TAURI_DEV_WAIT_TIMEOUT_MS,
     getDevUrl,
     getExpectedVaultMetadataFromEnv,
     hasHelpFlag,
@@ -33,6 +34,7 @@ export {
     DEFAULT_TAURI_DEV_HOST,
     DEFAULT_TAURI_DEV_PORT,
     DEFAULT_TAURI_DEV_PORT_SEARCH_LIMIT,
+    DEFAULT_TAURI_DEV_WAIT_TIMEOUT_MS,
     getDevUrl,
     TauriDevServerError,
     type BeforeDevOptions,
@@ -119,11 +121,22 @@ export const runTauriCommand = async (
         ], options);
     }
 
-    const resolution = await resolveTauriDevServer(
-        getDevServerOptionsFromEnv(options.env ?? Deno.env.toObject()),
-    );
+    const env = options.env ?? Deno.env.toObject();
+    const devServerOptions = getDevServerOptionsFromEnv(env);
+    const resolution = await resolveTauriDevServer(devServerOptions);
 
     logTauriDevResolution(resolution);
+
+    let managedDevServer: Deno.ChildProcess | null = null;
+
+    if (!resolution.reuseExisting) {
+        managedDevServer = await startManagedViteDevServer(resolution, {
+            ...options,
+            env,
+            expectedVaultMetadata: devServerOptions.expectedVaultMetadata ??
+                getExpectedVaultMetadataFromEnv(env),
+        });
+    }
 
     const override = createTauriDevConfigOverride(resolution);
     const devArgs = [
@@ -133,12 +146,21 @@ export const runTauriCommand = async (
         ...args.slice(1),
     ];
 
-    return spawnAndWait(Deno.execPath(), [
-        "run",
-        "-A",
-        "npm:@tauri-apps/cli",
-        ...devArgs,
-    ], options);
+    try {
+        return await spawnAndWait(Deno.execPath(), [
+            "run",
+            "-A",
+            "npm:@tauri-apps/cli",
+            ...devArgs,
+        ], {
+            ...options,
+            env,
+        });
+    } finally {
+        if (managedDevServer) {
+            await stopChild(managedDevServer);
+        }
+    }
 };
 
 export const resolveTauriDevServer = async (
@@ -256,14 +278,92 @@ export const prepareFixedTauriDevPort = async (options: {
 export const createTauriDevConfigOverride = (resolution: TauriDevResolution) => {
     return {
         build: {
-            beforeDevCommand: resolution.reuseExisting ? null : {
-                script:
-                    `deno run -A ./scripts/tauri-before-dev.ts --host ${resolution.host} --port ${resolution.port}`,
-                wait: false,
-            },
+            beforeDevCommand: null,
             devUrl: resolution.devUrl,
         },
     };
+};
+
+type ManagedViteDevServerOptions = SpawnOptions & {
+    expectedVaultMetadata: ExpectedVaultMetadata,
+};
+
+const startManagedViteDevServer = async (
+    resolution: TauriDevResolution,
+    options: ManagedViteDevServerOptions,
+) => {
+    const child = spawnChild(Deno.execPath(), [
+        "run",
+        "-A",
+        "npm:vite",
+        "dev",
+        "--host",
+        resolution.host,
+        "--port",
+        String(resolution.port),
+        "--strictPort",
+    ], options);
+
+    try {
+        await waitForManagedViteDevServer(
+            child,
+            resolution,
+            options.expectedVaultMetadata,
+        );
+        return child;
+    } catch (error) {
+        await stopChild(child);
+        throw error;
+    }
+};
+
+const waitForManagedViteDevServer = async (
+    child: Deno.ChildProcess,
+    resolution: TauriDevResolution,
+    expectedVaultMetadata: ExpectedVaultMetadata,
+) => {
+    const status = child.status;
+    const deadline = Date.now() + DEFAULT_TAURI_DEV_WAIT_TIMEOUT_MS;
+    let lastReason = resolution.inspection.probe.reason;
+
+    while (Date.now() < deadline) {
+        const childStatus = await pollChildStatus(status);
+
+        if (childStatus) {
+            throw new TauriDevServerError(
+                `[tauri-dev] Vite exited before ${resolution.devUrl} became ready (exit code ${childStatus.code}).`,
+            );
+        }
+
+        const inspection = await inspectDevServerPort({
+            expectedVaultMetadata,
+            host: resolution.host,
+            port: resolution.port,
+            timeoutMs: 1_000,
+        });
+
+        if (!inspection.available && inspection.compatible) {
+            return;
+        }
+
+        lastReason = inspection.probe.reason;
+        await delay(200);
+    }
+
+    throw new TauriDevServerError(
+        `[tauri-dev] Timed out waiting for ${resolution.devUrl} to serve Datahoarder (${lastReason}).`,
+    );
+};
+
+const pollChildStatus = async (status: Promise<Deno.CommandStatus>) => {
+    return await Promise.race([
+        status,
+        delay(0).then(() => null),
+    ]);
+};
+
+const delay = (timeoutMs: number) => {
+    return new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
 };
 
 export const logTauriDevResolution = (

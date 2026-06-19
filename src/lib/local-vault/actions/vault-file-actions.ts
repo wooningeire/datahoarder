@@ -52,10 +52,9 @@ type VaultFileActionContext = {
 	vaultIndex: VaultIndex;
 	vaultSearchQuery: string;
 	getErrorMessage: (error: unknown) => string;
-	loadStoredNoteLists: (vaultName: string) => void;
-	pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void;
-	recordRecentNote: (path: string) => void;
-	replaceStoredNotePath: (previousPath: string, nextPath: string) => void;
+	loadPinnedNotePaths: (vaultName: string) => void;
+	prunePinnedNotePaths: (nextVaultIndex?: VaultIndex) => void;
+	replacePinnedNotePath: (previousPath: string, nextPath: string) => void;
 	requestText: (options: RequestTextOptions) => Promise<string | null>;
 };
 
@@ -216,7 +215,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		context.errorMessage = '';
 
 		try {
-			context.loadStoredNoteLists(handle.name);
+			context.loadPinnedNotePaths(handle.name);
 
 			const [nextFiles, nextDirectories] = await Promise.all([
 				readLocalVault(handle),
@@ -239,7 +238,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 
 			context.vaultIndex = nextVaultIndex;
 			context.savedVaultSearches = nextSavedVaultSearches;
-			context.pruneStoredNoteLists(nextVaultIndex);
+			context.prunePinnedNotePaths(nextVaultIndex);
 			context.status = `${nextStatus} ${context.files.length} editable files indexed, ${context.directories.length} folders found, ${context.vaultIndex.records.length} notes parsed.`;
 		} catch (error) {
 			context.errorMessage = context.getErrorMessage(error);
@@ -291,7 +290,6 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		context.selectedContent = content;
 		context.savedContent = content;
 		context.status = nextStatus;
-		context.recordRecentNote(file.path);
 	}
 
 	async function saveSelectedFile() {
@@ -345,7 +343,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 				context.selectedContent
 			);
 
-			context.replaceStoredNotePath(context.selectedFile.path, movedPath);
+			context.replacePinnedNotePath(context.selectedFile.path, movedPath);
 			context.savedContent = context.selectedContent;
 			await actions.reloadVaultAfterFileOperation(`Renamed ${context.selectedFile.path} to ${movedPath}`, movedPath);
 		} catch (error) {
@@ -402,7 +400,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 
 			context.vaultIndex = nextVaultIndex;
 			context.savedVaultSearches = nextSavedVaultSearches;
-			context.pruneStoredNoteLists(nextVaultIndex);
+			context.prunePinnedNotePaths(nextVaultIndex);
 			context.vaultSearchQuery = '';
 			context.status = nextStatus;
 		} finally {

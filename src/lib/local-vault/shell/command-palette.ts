@@ -125,7 +125,7 @@ export function buildCommandPaletteItems(context: CommandPaletteContext): Comman
 			{
 				detail: `${context.selectedFilePinned ? 'Remove pin from' : 'Pin'} ${context.selectedRecord.title}`,
 				id: 'toggle-pin',
-				keywords: ['quick note', 'favorite', 'recent'],
+				keywords: ['quick note', 'favorite', 'pin'],
 				run: context.toggleSelectedPin,
 				title: context.selectedFilePinned ? 'Unpin Current Note' : 'Pin Current Note'
 			},

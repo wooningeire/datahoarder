@@ -471,106 +471,99 @@ test('custom metric grids render in preview and exports', async ({ page }) => {
 	expect(htmlContent).not.toContain('Ignored line');
 });
 
-test('quick notes track recent and pinned local notes', async ({ page }) => {
-	const vaultName = `datahoarder-e2e-quick-notes-${Date.now()}`;
+test("pinned notes stay stable without recent notes or the bottom status bar", async ({ page }) => {
+    const vaultName = `datahoarder-e2e-pinned-notes-${Date.now()}`;
 
-	await page.addInitScript((name) => {
-		window.showDirectoryPicker = async () => {
-			const root = await navigator.storage.getDirectory();
-			const directory = await root.getDirectoryHandle(name, { create: true });
+    await page.addInitScript((name) => {
+        window.showDirectoryPicker = async () => {
+            const root = await navigator.storage.getDirectory();
+            const directory = await root.getDirectoryHandle(name, { create: true });
 
-			const writeFile = async (fileName: string, content: string) => {
-				const file = await directory.getFileHandle(fileName, { create: true });
-				const writable = await file.createWritable();
+            const writeFile = async (fileName: string, content: string) => {
+                const file = await directory.getFileHandle(fileName, { create: true });
+                const writable = await file.createWritable();
 
-				await writable.write(content);
-				await writable.close();
-			};
+                await writable.write(content);
+                await writable.close();
+            };
 
-			await writeFile('alpha.md', '# Alpha\n\nFirst note.');
-			await writeFile('beta.md', '# Beta\n\nSecond note.');
-			await writeFile('gamma.md', '# Gamma\n\nThird note.');
+            await writeFile("alpha.md", "# Alpha\n\nFirst note.");
+            await writeFile("beta.md", "# Beta\n\nSecond note.");
+            await writeFile("gamma.md", "# Gamma\n\nThird note.");
 
-			return directory;
-		};
-	}, vaultName);
+            return directory;
+        };
+    }, vaultName);
 
-	await page.goto('/');
-	await page.getByRole('button', { name: 'Open Folder' }).click();
+    await page.goto("/");
+    await page.getByRole("button", { name: "Open Folder" }).click();
 
     const noteColumns = page.locator(".note-columns");
     const workspace = page.locator(".workspace");
     const statusRow = page.locator(".status-row");
     await expect(noteColumns).toBeVisible();
-    await expect(statusRow).toBeVisible();
+    await expect(statusRow).toHaveCount(0);
     const workspaceBox = await workspace.boundingBox();
-    const statusRowBox = await statusRow.boundingBox();
     const viewport = page.viewportSize();
     expect(workspaceBox).not.toBeNull();
-    expect(statusRowBox).not.toBeNull();
     expect(viewport).not.toBeNull();
-    expect(Math.abs(workspaceBox!.y + workspaceBox!.height - statusRowBox!.y)).toBeLessThan(2);
-    expect(Math.abs(statusRowBox!.y + statusRowBox!.height - viewport!.height)).toBeLessThan(2);
+    expect(Math.abs(workspaceBox!.y + workspaceBox!.height - viewport!.height)).toBeLessThan(2);
     const initialNoteColumnsBox = await noteColumns.boundingBox();
     expect(initialNoteColumnsBox).not.toBeNull();
     const initialNoteColumnsTop = initialNoteColumnsBox!.y;
-    const expectWorkspaceToUseAvailableGridSpace = async () => {
+
+    const expectWorkspaceToFillAvailableHeight = async () => {
         const nextWorkspaceBox = await workspace.boundingBox();
-        const nextStatusRowBox = await statusRow.count() ? await statusRow.boundingBox() : null;
         const nextViewport = page.viewportSize();
 
+        await expect(statusRow).toHaveCount(0);
         expect(nextWorkspaceBox).not.toBeNull();
         expect(nextViewport).not.toBeNull();
         expect(Math.abs(nextWorkspaceBox!.y - workspaceBox!.y)).toBeLessThan(2);
-
-        if (nextStatusRowBox) {
-            expect(Math.abs(nextWorkspaceBox!.y + nextWorkspaceBox!.height - nextStatusRowBox.y)).toBeLessThan(2);
-            expect(Math.abs(nextStatusRowBox.y + nextStatusRowBox.height - nextViewport!.height)).toBeLessThan(2);
-            return;
-        }
-
         expect(Math.abs(nextWorkspaceBox!.y + nextWorkspaceBox!.height - nextViewport!.height)).toBeLessThan(2);
     };
     const expectNoteColumnsTopToStayPut = async () => {
-        await expectWorkspaceToUseAvailableGridSpace();
+        await expectWorkspaceToFillAvailableHeight();
         const noteColumnsBox = await noteColumns.boundingBox();
+
         expect(noteColumnsBox).not.toBeNull();
         expect(Math.abs(noteColumnsBox!.y - initialNoteColumnsTop)).toBeLessThan(2);
     };
 
-	await noteColumns.getByRole('button', { name: 'beta.md' }).click();
-	await expectNoteColumnsTopToStayPut();
-	await noteColumns.getByRole('button', { name: 'gamma.md' }).click();
-	await expectNoteColumnsTopToStayPut();
-	await page.locator('.topbar').getByRole('button', { name: 'Pin' }).click();
-	await expectNoteColumnsTopToStayPut();
+    await noteColumns.getByRole("button", { name: "beta.md" }).click();
+    await expectNoteColumnsTopToStayPut();
+    await noteColumns.getByRole("button", { name: "gamma.md" }).click();
+    await expectNoteColumnsTopToStayPut();
+    await page.locator(".topbar").getByRole("button", { name: "Pin" }).click();
+    await expectNoteColumnsTopToStayPut();
 
-	const quickNotes = page.getByLabel('Quick notes');
-	await expect(quickNotes.getByRole('heading', { name: 'Pinned' })).toHaveCount(0);
-	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Gamma' })).toHaveCount(0);
-	await expect(quickNotes.getByRole('heading', { name: 'Recent' })).toBeVisible();
-	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Beta' })).toBeVisible();
+    const pinnedNotes = page.getByLabel("Pinned notes");
+    await expect(pinnedNotes).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Recent" })).toHaveCount(0);
 
-	await quickNotes.locator('.quick-note-link', { hasText: 'Beta' }).dispatchEvent('click');
-	await expectNoteColumnsTopToStayPut();
-	await expectSelectedFilePath(page, "beta.md");
-	await expect(page.getByText('Editing selected file.')).toHaveCount(0);
-	await expect(page.locator('.status-row')).toHaveCount(0);
-	await expect(quickNotes.getByRole('heading', { name: 'Pinned' })).toBeVisible();
-	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Gamma' })).toBeVisible();
-	await expect(quickNotes.locator('.quick-note-link', { hasText: 'Beta' })).toHaveCount(0);
+    await noteColumns.getByRole("button", { name: "beta.md" }).click();
+    await expectNoteColumnsTopToStayPut();
+    await expectSelectedFilePath(page, "beta.md");
+    await expect(pinnedNotes).toBeVisible();
+    await expect(pinnedNotes.getByRole("heading", { name: "Pinned" })).toBeVisible();
+    await expect(pinnedNotes.locator(".pinned-note-link", { hasText: "Gamma" })).toBeVisible();
+    await expect(pinnedNotes.locator(".pinned-note-link", { hasText: "Beta" })).toHaveCount(0);
 
-	const storedLists = await page.evaluate((name) => {
-		const pinned = window.localStorage.getItem(`datahoarder-local-vault-pinned-notes:${name}`);
-		const recent = window.localStorage.getItem(`datahoarder-local-vault-recent-notes:${name}`);
+    await pinnedNotes.locator(".pinned-note-link", { hasText: "Gamma" }).click();
+    await expectNoteColumnsTopToStayPut();
+    await expectSelectedFilePath(page, "gamma.md");
+    await expect(page.getByLabel("Pinned notes")).toHaveCount(0);
 
-		return {
-			pinned: pinned ? JSON.parse(pinned) : [],
-			recent: recent ? JSON.parse(recent) : []
-		};
-	}, vaultName);
+    const storedLists = await page.evaluate((name) => {
+        const pinned = window.localStorage.getItem(`datahoarder-local-vault-pinned-notes:${name}`);
+        const recent = window.localStorage.getItem(`datahoarder-local-vault-recent-notes:${name}`);
 
-	expect(storedLists.pinned).toEqual(['gamma.md']);
-	expect(storedLists.recent).toContain('beta.md');
-	expect(storedLists.recent).toContain('gamma.md');
+        return {
+            pinned: pinned ? JSON.parse(pinned) : [],
+            recent,
+        };
+    }, vaultName);
+
+    expect(storedLists.pinned).toEqual(["gamma.md"]);
+    expect(storedLists.recent).toBeNull();
 });

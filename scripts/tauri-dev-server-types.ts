@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 export const DEFAULT_TAURI_DEV_HOST = "127.0.0.1";
 export const DEFAULT_TAURI_DEV_PORT = 5191;
 export const DEFAULT_TAURI_DEV_PORT_SEARCH_LIMIT = 25;
+export const DEFAULT_TAURI_DEV_WAIT_TIMEOUT_MS = 60_000;
 
 export type Env = Record<string, string | undefined>;
 

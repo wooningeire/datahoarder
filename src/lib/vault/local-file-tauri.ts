@@ -161,6 +161,14 @@ export const createTauriDirectory = async (root: string, path: string) => {
     return tauriCommand<string>("datahoarder_create_vault_directory", { path, root });
 };
 
+export const moveTauriDirectory = async (root: string, currentPath: string, nextPath: string) => {
+    return tauriCommand<string>("datahoarder_move_vault_directory", {
+        currentPath,
+        nextPath,
+        root,
+    });
+};
+
 export const deleteTauriFile = async (root: string, path: string) => {
     await tauriCommand("datahoarder_delete_vault_file", { path, root });
 };

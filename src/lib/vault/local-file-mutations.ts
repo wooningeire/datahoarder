@@ -1,12 +1,9 @@
 import {
     getLocalRoutePath,
     getPathExtension,
-    normalizeLocalDirectoryPath,
     normalizeLocalTextPath,
 } from "./local-file-paths.js";
-import { assertManageableLocalDirectoryPath } from "./local-directory-helpers.js";
 import {
-    createServerDirectory,
     createServerFile,
     deleteServerFile,
     isServerDirectoryHandle,
@@ -16,7 +13,6 @@ import {
     writeServerFile,
 } from "./local-file-server.js";
 import {
-    createTauriDirectory,
     createTauriFile,
     deleteTauriFile,
     isTauriDirectoryHandle,
@@ -84,41 +80,6 @@ export const createLocalFile = async (
     defaultExtension = ".md",
 ) => {
     return (await createLocalVaultFile(root, path, content, defaultExtension)).path;
-};
-
-export const createLocalDirectory = async (
-    root: LocalDirectoryHandle,
-    path: string,
-) => {
-    const normalizedPath = normalizeLocalDirectoryPath(path);
-
-    assertManageableLocalDirectoryPath(normalizedPath);
-
-    if (isServerDirectoryHandle(root)) {
-        return createServerDirectory(normalizedPath);
-    }
-
-    if (isTauriDirectoryHandle(root)) {
-        return createTauriDirectory(root.root, normalizedPath);
-    }
-
-    const { directory, fileName } = await getLocalParentDirectory(root, normalizedPath, true);
-
-    if (!directory.getDirectoryHandle) {
-        throw new Error("This browser does not support creating folders in selected folders.");
-    }
-
-    if (await localFileExists(directory, fileName)) {
-        throw new Error(`A file already exists at ${normalizedPath}.`);
-    }
-
-    if (await localDirectoryExists(directory, fileName)) {
-        throw new Error(`A folder already exists at ${normalizedPath}.`);
-    }
-
-    await directory.getDirectoryHandle(fileName, { create: true });
-
-    return normalizedPath;
 };
 
 export const deleteLocalFile = async (
@@ -304,7 +265,7 @@ const writeLocalFileHandle = async (
     await writable.close();
 };
 
-const getLocalParentDirectory = async (
+export const getLocalParentDirectory = async (
     root: BrowserLocalDirectoryHandle,
     path: string,
     createParent: boolean,
@@ -329,7 +290,7 @@ const getLocalParentDirectory = async (
     return { directory, fileName };
 };
 
-const localFileExists = async (
+export const localFileExists = async (
     directory: BrowserLocalDirectoryHandle,
     fileName: string,
 ) => {
@@ -350,7 +311,7 @@ const localFileExists = async (
     }
 };
 
-const localDirectoryExists = async (
+export const localDirectoryExists = async (
     directory: BrowserLocalDirectoryHandle,
     directoryName: string,
 ) => {

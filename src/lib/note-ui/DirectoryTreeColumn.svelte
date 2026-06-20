@@ -1,21 +1,22 @@
 <script lang="ts">
+import { flip } from "svelte/animate";
 import type { InlineFileCreate } from "../local-vault/shared/types.ts";
 import NoteTreeInlineFileCreate from "./NoteTreeInlineFileCreate.svelte";
 import NoteTreeNewMenu from "./NoteTreeNewMenu.svelte";
-import {
-    scrollColumnIntoView,
-    scrollCurrentNote,
-} from "./note-tree-scroll.ts";
-import type {
-    DisplayDirectory,
-    NoteColumn,
-} from "./note-tree-model.ts";
+import { scrollColumnIntoView, scrollCurrentNote } from "./note-tree-scroll.ts";
+import type { DisplayDirectory, NoteColumn } from "./note-tree-model.ts";
 
 type CreateAction = (directoryPath: string) => void | Promise<void>;
+type CancelTreeItemClick = (path: string) => boolean;
+type TreeItemPointerAction = (event: PointerEvent, path: string) => void;
 
 type Props = {
     activePath: string,
+    canDropInDirectory: (directoryPath: string) => boolean,
+    canMoveDirectories: boolean,
+    canMoveFiles: boolean,
     cancelInlineFileCreate?: () => void,
+    cancelTreeItemClick: CancelTreeItemClick,
     closeNewMenu: () => void,
     column: NoteColumn,
     createDrawingNote?: CreateAction,
@@ -26,11 +27,16 @@ type Props = {
     createNoteFromTemplate?: CreateAction,
     hasCreateActions: boolean,
     inlineFileCreate: InlineFileCreate | null,
+    isDirectoryDropTarget: (directoryPath: string) => boolean,
+    isDraggingDirectory: (directoryPath: string) => boolean,
+    isDraggingFile: (filePath: string) => boolean,
     isLastColumn: boolean,
     onSelect?: (path: string) => void,
     openNewMenuColumnKey: string,
     selectedDirectoryPaths: string[],
     selectDirectory: (node: DisplayDirectory, level: number) => void,
+    startDirectoryDrag: TreeItemPointerAction,
+    startFileDrag: TreeItemPointerAction,
     submitInlineFileCreate?: () => void,
     toggleNewMenu: (columnKey: string) => void,
     updateInlineFileCreateName?: (fileName: string) => void,
@@ -38,7 +44,11 @@ type Props = {
 
 let {
     activePath,
+    canDropInDirectory,
+    canMoveDirectories,
+    canMoveFiles,
     cancelInlineFileCreate,
+    cancelTreeItemClick,
     closeNewMenu,
     column,
     createDrawingNote,
@@ -49,24 +59,44 @@ let {
     createNoteFromTemplate,
     hasCreateActions,
     inlineFileCreate,
+    isDirectoryDropTarget,
+    isDraggingDirectory,
+    isDraggingFile,
     isLastColumn,
     onSelect,
     openNewMenuColumnKey,
     selectedDirectoryPaths,
     selectDirectory,
+    startDirectoryDrag,
+    startFileDrag,
     submitInlineFileCreate,
     toggleNewMenu,
     updateInlineFileCreateName,
 }: Props = $props();
 
-let hasColumnInlineCreate = $derived(
-    Boolean(inlineFileCreate && column.items.some((item) => item.path === `__pending-file-create__:${inlineFileCreate.id}`)),
-);
+let hasColumnInlineCreate = $derived(Boolean(
+    inlineFileCreate && column.items.some((item) => item.path === `__pending-file-create__:${inlineFileCreate.id}`),
+));
 let isNewMenuOpen = $derived(openNewMenuColumnKey === column.key);
 
 const isActive = (path: string): boolean => path === activePath || `${path}.md` === activePath;
 
 const isSelected = (path: string, level: number): boolean => selectedDirectoryPaths[level] === path;
+const selectDirectoryOnClick = (event: MouseEvent, node: DisplayDirectory, level: number): void => {
+    if (cancelTreeItemClick(node.path)) {
+        event.preventDefault(); return;
+    }
+
+    selectDirectory(node, level);
+};
+
+const selectFileOnClick = (event: MouseEvent, path: string): void => {
+    if (cancelTreeItemClick(path)) {
+        event.preventDefault(); return;
+    }
+
+    onSelect?.(path);
+};
 
 const closeNewMenuOnFocusOut = (event: FocusEvent): void => {
     const currentTarget = event.currentTarget;
@@ -81,62 +111,75 @@ const closeNewMenuOnFocusOut = (event: FocusEvent): void => {
 </script>
 
 <section
+    class:can-drop={canDropInDirectory(column.directoryPath)}
+    class:drop-target={isDirectoryDropTarget(column.directoryPath)}
     class="note-column"
     aria-labelledby={`note-column-${column.level}`}
     data-column-key={column.key}
+    data-drop-directory-path={column.directoryPath}
     use:scrollColumnIntoView={isLastColumn}
 >
     <h2 id={`note-column-${column.level}`}>{column.label}</h2>
+
     <directory-tree-column-items class="note-column-items">
         {#each column.items as item (item.path)}
-            {#if item.kind === "directory"}
-                <li>
+            <li
+                animate:flip={{ duration: 180 }}
+                class:active={item.kind === "file" && isActive(item.path)}
+                class:dragging={(item.kind === "directory" && isDraggingDirectory(item.path)) || (item.kind === "file" && isDraggingFile(item.path))}
+                class:drop-target={item.kind === "directory" && isDirectoryDropTarget(item.path)}
+                class:pending-file-create={item.kind === "pending-file"}
+            >
+                {#if item.kind === "directory"}
                     <button
                         type="button"
+                        class="directory-button"
+                        class:can-drop={canDropInDirectory(item.path)}
+                        class:drag-enabled={canMoveDirectories}
                         class:expanded={isSelected(item.path, column.level)}
+                        class:drop-target={isDirectoryDropTarget(item.path)}
                         class:selected={isSelected(item.path, column.level)}
                         aria-expanded={isSelected(item.path, column.level)}
-                        onclick={() => selectDirectory(item, column.level)}
+                        data-drop-directory-path={item.path}
+                        onclick={(event) => selectDirectoryOnClick(event, item, column.level)}
+                        onpointerdown={(event) => startDirectoryDrag(event, item.path)}
                     >
                         <span class="directory-mark" aria-hidden="true"></span>
                         <span class="name">{item.name}</span>
                         <span class="chevron" aria-hidden="true"></span>
                     </button>
-                </li>
-            {:else if item.kind === "pending-file" && inlineFileCreate}
-                <li class="pending-file-create">
+                {:else if item.kind === "pending-file" && inlineFileCreate}
                     <NoteTreeInlineFileCreate
                         {cancelInlineFileCreate}
                         {inlineFileCreate}
                         {submitInlineFileCreate}
                         {updateInlineFileCreateName}
                     />
-                </li>
-            {:else if item.kind === "file" && onSelect}
-                <li class:active={isActive(item.path)}>
+                {:else if item.kind === "file" && onSelect}
                     <button
                         type="button"
+                        class:drag-enabled={canMoveFiles}
                         class="file-button"
                         aria-current={isActive(item.path) ? "page" : undefined}
                         use:scrollCurrentNote={isActive(item.path)}
-                        onclick={() => onSelect?.(item.path)}
+                        onclick={(event) => selectFileOnClick(event, item.path)}
+                        onpointerdown={(event) => startFileDrag(event, item.path)}
                     >
                         <span class="file-mark" aria-hidden="true"></span>
                         <span class="name">{item.name}</span>
                     </button>
-                </li>
-            {:else if item.kind === "file"}
-                <li class:active={isActive(item.path)}>
+                {:else if item.kind === "file"}
                     <a
                         href={item.href}
                         aria-current={isActive(item.path) ? "page" : undefined}
+                        draggable={false}
                         use:scrollCurrentNote={isActive(item.path)}
                     >
                         <span class="file-mark" aria-hidden="true"></span>
                         <span class="name">{item.name}</span>
                     </a>
-                </li>
-            {/if}
+                {/if}
+            </li>
         {/each}
     </directory-tree-column-items>
     {#if hasCreateActions}
@@ -177,11 +220,21 @@ const closeNewMenuOnFocusOut = (event: FocusEvent): void => {
     overflow: visible;
     padding-right: 0.5rem;
 
+    background: transparent;
     border-right: 1px solid oklch(0.78 0.04 250 / 0.55);
+    box-shadow: inset 0 0 0 0 transparent;
+    transition: background-color 120ms ease, box-shadow 120ms ease;
 }
 
 .note-column:last-child {
     border-right-color: transparent;
+}
+.note-column.can-drop {
+    box-shadow: inset 0 0 0 1px oklch(0.72 0.08 180 / 0.45);
+}
+.note-column.drop-target {
+    background: oklch(0.95 0.025 185);
+    box-shadow: inset 0 0 0 2px oklch(0.68 0.09 180 / 0.7);
 }
 
 h2 {
@@ -215,6 +268,11 @@ directory-tree-column-items {
 
 li {
     min-width: 0;
+    list-style: none;
+}
+
+li.dragging {
+    opacity: 0.45;
 }
 
 button,
@@ -235,11 +293,23 @@ a {
     background: transparent;
     border: 0;
     border-radius: 0.35rem;
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+    transition: background-color 120ms ease, outline-color 120ms ease, opacity 120ms ease;
 }
 
 button {
     cursor: pointer;
     user-select: none;
+}
+
+.directory-button.drag-enabled,
+.file-button.drag-enabled {
+    cursor: grab;
+}
+.directory-button.drag-enabled:active,
+.file-button.drag-enabled:active {
+    cursor: grabbing;
 }
 
 a,
@@ -250,6 +320,21 @@ a,
 button:hover,
 a:hover {
     background: oklch(0.92 0.04 245);
+}
+
+button.can-drop {
+    background: oklch(0.95 0.025 175);
+    outline-color: oklch(0.7 0.08 180 / 0.45);
+}
+
+:global(.note-columns.tree-dragging) .note-column,
+:global(.note-columns.tree-dragging) .note-column * {
+    cursor: grabbing !important;
+}
+
+button.drop-target {
+    background: oklch(0.88 0.055 175);
+    outline-color: oklch(0.58 0.12 180);
 }
 
 a:focus-visible,
@@ -265,19 +350,14 @@ button:focus-visible {
     white-space: nowrap;
 }
 
-.directory-mark,
-.chevron,
-.file-mark {
+.directory-mark, .chevron, .file-mark {
     position: relative;
 
     width: 1rem;
     height: 1rem;
 }
 
-.directory-mark::before,
-.directory-mark::after,
-.chevron::before,
-.file-mark::before {
+.directory-mark::before, .directory-mark::after, .chevron::before, .file-mark::before {
     position: absolute;
 
     content: "";

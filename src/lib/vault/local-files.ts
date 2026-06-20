@@ -26,6 +26,9 @@ import { getStoredVaultHandle, storeVaultHandle } from './local-file-storage.js'
 export { buildLocalVaultTree, getTextAssets } from './local-file-tree.js';
 export {
 	createLocalDirectory,
+	moveLocalDirectory
+} from './local-directory-mutations.js';
+export {
 	createLocalFile,
 	createLocalVaultFile,
 	createLocalVaultFileSnapshot,
@@ -129,7 +132,7 @@ export type TauriLocalDirectoryHandle = {
 export type LocalDirectoryHandle = BrowserLocalDirectoryHandle | ServerLocalDirectoryHandle | TauriLocalDirectoryHandle;
 
 export type FileSystemWritableFileStreamLike = {
-	write: (data: string) => Promise<void>;
+	write: (data: Blob | string) => Promise<void>;
 	close: () => Promise<void>;
 };
 

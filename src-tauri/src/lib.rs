@@ -94,6 +94,7 @@ pub fn run() {
             datahoarder_write_vault_file,
             datahoarder_create_vault_file,
             datahoarder_create_vault_directory,
+            datahoarder_move_vault_directory,
             datahoarder_delete_vault_file,
             datahoarder_move_vault_file,
         ])
@@ -226,6 +227,50 @@ fn datahoarder_create_vault_directory(root: String, path: String) -> Result<Stri
     fs::create_dir_all(directory_path).map_err(format_io_error)?;
 
     Ok(path)
+}
+
+#[tauri::command]
+fn datahoarder_move_vault_directory(
+    root: String,
+    current_path: String,
+    next_path: String,
+) -> Result<String, String> {
+    let root = validate_vault_root(root)?;
+    let current_path = normalize_vault_directory_path(&current_path)?;
+    let next_path = normalize_vault_directory_path(&next_path)?;
+
+    if current_path == next_path {
+        return Ok(current_path);
+    }
+
+    if current_path.to_lowercase() == next_path.to_lowercase() {
+        return Err("Case-only renames are not supported yet.".to_string());
+    }
+
+    if is_path_inside_directory(&next_path, &current_path) {
+        return Err("A folder cannot be moved inside itself.".to_string());
+    }
+
+    let current_directory_path =
+        PathBuf::from(&root.root).join(current_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let next_directory_path =
+        PathBuf::from(&root.root).join(next_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+
+    if !current_directory_path.is_dir() {
+        return Err(format!("{current_path} is not a folder."));
+    }
+
+    if next_directory_path.exists() {
+        return Err(format!("A file or folder already exists at {next_path}."));
+    }
+
+    if let Some(parent) = next_directory_path.parent() {
+        fs::create_dir_all(parent).map_err(format_io_error)?;
+    }
+
+    fs::rename(current_directory_path, next_directory_path).map_err(format_io_error)?;
+
+    Ok(next_path)
 }
 
 #[tauri::command]
@@ -777,7 +822,6 @@ fn normalize_vault_path(path: &str) -> Result<String, String> {
     if normalized_path.split('/').any(is_ignored_directory) {
         return Err("This folder name is reserved by the vault index.".to_string());
     }
-
     Ok(normalized_path)
 }
 
@@ -821,6 +865,10 @@ fn normalize_vault_path_with_label(path: &str, label: &str) -> Result<String, St
     }
 
     Ok(segments.join("/"))
+}
+
+fn is_path_inside_directory(path: &str, directory: &str) -> bool {
+    path.starts_with(&format!("{directory}/"))
 }
 
 fn collect_vault_files(

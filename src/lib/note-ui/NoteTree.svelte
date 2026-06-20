@@ -18,6 +18,19 @@ import {
 } from "./note-tree-scroll.js";
 
 type CreateAction = (directoryPath: string) => void | Promise<void>;
+type DraggedTreeItem = {
+    kind: "directory" | "file",
+    path: string,
+};
+type PointerTreeDrag = {
+    item: DraggedTreeItem,
+    pointerId: number,
+    startX: number,
+    startY: number,
+    isDragging: boolean,
+};
+type MoveDirectoryAction = (directoryPath: string, targetDirectoryPath: string) => void | Promise<void>;
+type MoveFileAction = (filePath: string, directoryPath: string) => void | Promise<void>;
 
 type Props = {
     activePath: string,
@@ -27,6 +40,9 @@ type Props = {
     createNote?: CreateAction,
     createNoteFromTemplate?: CreateAction,
     inlineFileCreate?: InlineFileCreate | null,
+    moveDisabled?: boolean,
+    moveDirectoryToDirectory?: MoveDirectoryAction,
+    moveFileToDirectory?: MoveFileAction,
     nodes: NoteTreeNode[],
     cancelInlineFileCreate?: () => void,
     onSelect?: (path: string) => void,
@@ -43,6 +59,9 @@ let {
     createNote,
     createNoteFromTemplate,
     inlineFileCreate = null,
+    moveDisabled = false,
+    moveDirectoryToDirectory,
+    moveFileToDirectory,
     nodes,
     cancelInlineFileCreate,
     onSelect,
@@ -56,9 +75,16 @@ let openNewMenuColumnKey = $state("");
 let noteColumnsElement: HTMLDivElement | undefined = $state();
 let collapsingColumnSpace = $state(0);
 let collapseAnimating = $state(false);
+let draggedItem = $state<DraggedTreeItem | null>(null);
+let dropTargetDirectoryPath = $state<string | null>(null);
 let renderedColumnKeys: string[] = [];
 let pendingCollapseSpace = 0;
 let collapseAnimationTimeout: number | undefined;
+let pointerDrag: PointerTreeDrag | null = null;
+let stopPointerDragListeners: (() => void) | undefined;
+let suppressedClickPath: string | null = null;
+
+const pointerDragStartDistance = 4;
 
 let displayNodes = $derived(buildDisplayNodes(nodes, inlineFileCreate));
 let activeDirectoryPaths = $derived(findActiveDirectoryPaths(displayNodes, activePath));
@@ -68,6 +94,8 @@ let inlineCreateDirectoryPaths = $derived(
 let columns = $derived(buildColumns(displayNodes, selectedDirectoryPaths, rootLabel));
 let hasCreateActions = $derived(Boolean(createDrawingNote || createFolder || createNote || createNoteFromTemplate));
 let openNewMenuColumn = $derived(columns.find((column) => column.key === openNewMenuColumnKey));
+let canMoveDirectories = $derived(Boolean(moveDirectoryToDirectory) && !moveDisabled);
+let canMoveFiles = $derived(Boolean(moveFileToDirectory) && !moveDisabled);
 
 $effect(() => {
     const currentDirectoryPaths = untrack(() => selectedDirectoryPaths);
@@ -171,6 +199,203 @@ const closeNewMenu = (): void => {
     openNewMenuColumnKey = "";
 };
 
+const startDirectoryDrag = (event: PointerEvent, directoryPath: string): void => {
+    startTreeItemDrag(event, {
+        kind: "directory",
+        path: directoryPath,
+    });
+};
+
+const startFileDrag = (event: PointerEvent, filePath: string): void => {
+    startTreeItemDrag(event, {
+        kind: "file",
+        path: filePath,
+    });
+};
+
+const startTreeItemDrag = (event: PointerEvent, item: DraggedTreeItem): void => {
+    if (event.button !== 0 || !canMoveTreeItem(item)) {
+        return;
+    }
+
+    closeNewMenu();
+    stopPointerDragListeners?.();
+    pointerDrag = {
+        item,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        isDragging: false,
+    };
+
+    window.addEventListener("pointermove", movePointerTreeItem);
+    window.addEventListener("pointerup", finishPointerTreeItemDrag);
+    window.addEventListener("pointercancel", cancelPointerTreeItemDrag);
+    stopPointerDragListeners = () => {
+        window.removeEventListener("pointermove", movePointerTreeItem);
+        window.removeEventListener("pointerup", finishPointerTreeItemDrag);
+        window.removeEventListener("pointercancel", cancelPointerTreeItemDrag);
+    };
+};
+
+const movePointerTreeItem = (event: PointerEvent): void => {
+    if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) {
+        return;
+    }
+
+    const dragDistance = Math.hypot(event.clientX - pointerDrag.startX, event.clientY - pointerDrag.startY);
+
+    if (!pointerDrag.isDragging) {
+        if (dragDistance < pointerDragStartDistance) {
+            return;
+        }
+
+        pointerDrag.isDragging = true;
+        draggedItem = pointerDrag.item;
+        dropTargetDirectoryPath = null;
+        suppressedClickPath = pointerDrag.item.path;
+    }
+
+    event.preventDefault();
+    updatePointerDropTarget(event.clientX, event.clientY);
+};
+
+const finishPointerTreeItemDrag = (event: PointerEvent): void => {
+    if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) {
+        return;
+    }
+
+    const drag = pointerDrag;
+
+    if (!drag.isDragging) {
+        clearPointerDrag();
+        return;
+    }
+
+    event.preventDefault();
+    updatePointerDropTarget(event.clientX, event.clientY);
+
+    const targetDirectoryPath = dropTargetDirectoryPath;
+
+    clearPointerDrag();
+    scheduleSuppressedClickReset(drag.item.path);
+
+    if (targetDirectoryPath !== null && canDropItemInDirectory(drag.item, targetDirectoryPath)) {
+        void moveTreeItemToDirectory(drag.item, targetDirectoryPath);
+    }
+};
+
+const cancelPointerTreeItemDrag = (event: PointerEvent): void => {
+    if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) {
+        return;
+    }
+
+    const drag = pointerDrag;
+
+    clearPointerDrag();
+
+    if (drag.isDragging) {
+        scheduleSuppressedClickReset(drag.item.path);
+    }
+};
+
+const updatePointerDropTarget = (clientX: number, clientY: number): void => {
+    const directoryPath = getPointerDropDirectoryPath(clientX, clientY);
+
+    if (!draggedItem || directoryPath === null || !canDropItemInDirectory(draggedItem, directoryPath)) {
+        dropTargetDirectoryPath = null;
+        return;
+    }
+
+    dropTargetDirectoryPath = directoryPath;
+};
+
+const getPointerDropDirectoryPath = (clientX: number, clientY: number): string | null => {
+    const target = document.elementFromPoint(clientX, clientY);
+
+    if (!(target instanceof Element)) {
+        return null;
+    }
+
+    const dropTarget = target.closest<HTMLElement>("[data-drop-directory-path]");
+
+    return dropTarget?.dataset.dropDirectoryPath ?? null;
+};
+
+const moveTreeItemToDirectory = async (item: DraggedTreeItem, directoryPath: string): Promise<void> => {
+    if (item.kind === "directory") {
+        await moveDirectoryToDirectory?.(item.path, directoryPath);
+        return;
+    }
+
+    await moveFileToDirectory?.(item.path, directoryPath);
+};
+
+const cancelTreeItemClick = (path: string): boolean => {
+    if (suppressedClickPath !== path) {
+        return false;
+    }
+
+    suppressedClickPath = null;
+    return true;
+};
+
+const scheduleSuppressedClickReset = (path: string): void => {
+    suppressedClickPath = path;
+    window.setTimeout(() => {
+        if (suppressedClickPath === path) {
+            suppressedClickPath = null;
+        }
+    }, 100);
+};
+
+const clearPointerDrag = (): void => {
+    stopPointerDragListeners?.();
+    stopPointerDragListeners = undefined;
+    pointerDrag = null;
+    clearTreeItemDrag();
+};
+
+const isDraggingDirectory = (directoryPath: string): boolean => draggedItem?.kind === "directory" && draggedItem.path === directoryPath;
+
+const isDraggingFile = (filePath: string): boolean => draggedItem?.kind === "file" && draggedItem.path === filePath;
+
+const isDirectoryDropTarget = (directoryPath: string): boolean => dropTargetDirectoryPath === directoryPath;
+
+const canDropInDirectory = (directoryPath: string): boolean => canDropItemInDirectory(draggedItem, directoryPath);
+
+const canDropItemInDirectory = (item: DraggedTreeItem | null, directoryPath: string): boolean => {
+    if (!item || !canMoveTreeItem(item)) {
+        return false;
+    }
+
+    if (getParentDirectoryPath(item.path) === directoryPath) {
+        return false;
+    }
+
+    if (item.kind === "file") {
+        return true;
+    }
+
+    return item.path !== directoryPath && !isPathInsideDirectory(directoryPath, item.path);
+};
+
+const canMoveTreeItem = (item: DraggedTreeItem): boolean => item.kind === "directory" ? canMoveDirectories : canMoveFiles;
+
+const getParentDirectoryPath = (filePath: string): string => {
+    const segments = filePath.split("/");
+
+    segments.pop();
+    return segments.join("/");
+};
+
+const isPathInsideDirectory = (path: string, directoryPath: string): boolean => Boolean(directoryPath) && path.startsWith(`${directoryPath}/`);
+
+const clearTreeItemDrag = (): void => {
+    draggedItem = null;
+    dropTargetDirectoryPath = null;
+};
+
 const animateCollapsedColumns = (node: HTMLElement, reservedSpace: number): void => {
     const nextScrollLeft = Math.max(0, getMaxScrollLeft(node) - reservedSpace);
 
@@ -199,6 +424,7 @@ const getMaxScrollLeft = (node: HTMLElement): number => Math.max(0, node.scrollW
 
 <div
     class:collapsing-columns={collapseAnimating}
+    class:tree-dragging={Boolean(draggedItem)}
     class="note-columns"
     aria-label="Directory columns"
     bind:this={noteColumnsElement}
@@ -216,13 +442,22 @@ const getMaxScrollLeft = (node: HTMLElement): number => Math.max(0, node.scrollW
             {createInColumn}
             {createNote}
             {createNoteFromTemplate}
+            {cancelTreeItemClick}
             {hasCreateActions}
             {inlineFileCreate}
+            {isDirectoryDropTarget}
+            {isDraggingDirectory}
+            {isDraggingFile}
             isLastColumn={column.level === columns.length - 1}
+            {canDropInDirectory}
+            {canMoveDirectories}
+            {canMoveFiles}
             {onSelect}
             {openNewMenuColumnKey}
             {selectedDirectoryPaths}
             {selectDirectory}
+            {startDirectoryDrag}
+            {startFileDrag}
             {submitInlineFileCreate}
             {toggleNewMenu}
             {updateInlineFileCreateName}
@@ -248,6 +483,7 @@ const getMaxScrollLeft = (node: HTMLElement): number => Math.max(0, node.scrollW
 
     overscroll-behavior: contain;
 }
+
 
 .note-columns.collapsing-columns {
     transition: padding-right 220ms ease;

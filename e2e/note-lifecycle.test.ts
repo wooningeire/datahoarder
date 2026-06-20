@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { expectSelectedFilePath } from "./local-vault-ui.js";
 import { fillInlineFileCreate, fillRequestText } from './request-dialog.js';
 
@@ -9,6 +9,43 @@ async function clickColumnNewItem(page: Page, columnName: string, itemName: stri
 
 	await column.getByRole('button', { name: 'New', exact: true }).click();
 	await page.getByRole('menu', { name: 'New options' }).getByRole('menuitem', { name: itemName }).click();
+}
+
+async function dragToAndReadTargetCursor(page: Page, source: Locator, target: Locator) {
+    const sourceBox = await source.boundingBox();
+    const targetBox = await target.boundingBox();
+
+    expect(sourceBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+
+    if (!sourceBox || !targetBox) {
+        throw new Error("Drag source or target is not visible.");
+    }
+
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+    await page.mouse.down();
+
+    try {
+        await page.mouse.move(
+            sourceBox.x + sourceBox.width / 2 + 8,
+            sourceBox.y + sourceBox.height / 2 + 8,
+            { steps: 2 },
+        );
+        await page.mouse.move(
+            targetBox.x + targetBox.width / 2,
+            targetBox.y + targetBox.height / 2,
+            { steps: 8 },
+        );
+
+        await expect(page.locator(".note-columns")).toHaveClass(/tree-dragging/);
+        await expect.poll(async () => target.evaluate((node) => getComputedStyle(node).cursor)).toBe("grabbing");
+
+        const cursor = await target.evaluate((node) => getComputedStyle(node).cursor);
+
+        return cursor;
+    } finally {
+        await page.mouse.up();
+    }
 }
 
 test('note lifecycle actions create rename and delete notes', async ({ page }) => {
@@ -71,6 +108,116 @@ test("new menu creates empty folders and notes inside them", async ({ page }) =>
 	await clickColumnNewItem(page, "Projects", "New Note");
 	await fillInlineFileCreate(page, "New note name", "Kickoff");
 	await expectSelectedFilePath(page, "Projects/Kickoff.md");
+});
+
+test("dragging files and folders moves them between tree targets", async ({ page }) => {
+    const vaultName = `datahoarder-e2e-drag-move-${Date.now()}`;
+
+    await page.addInitScript((name) => {
+        window.showDirectoryPicker = async () => {
+            const root = await navigator.storage.getDirectory();
+            const directory = await root.getDirectoryHandle(name, { create: true });
+            const archive = await directory.getDirectoryHandle("Archive", { create: true });
+            const file = await directory.getFileHandle("Capture.md", { create: true });
+            const writable = await file.createWritable();
+
+            await archive.getDirectoryHandle("Nested", { create: true });
+            await directory.getDirectoryHandle("Projects", { create: true });
+            await writable.write("# Capture\n\nDrag me.");
+            await writable.close();
+
+            return directory;
+        };
+    }, vaultName);
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Open Folder" }).click();
+    await expectSelectedFilePath(page, "Capture.md");
+
+    const noteColumns = page.locator(".note-columns");
+    const rootColumn = page
+        .locator(".note-column")
+        .filter({ has: page.getByRole("heading", { name: "Files", exact: true }) });
+    const sourceFile = rootColumn.getByRole("button", { name: "Capture.md" });
+    const archiveFolder = rootColumn.getByRole("button", { name: "Archive" });
+    const projectsFolder = rootColumn.getByRole("button", { name: "Projects" });
+    const beforeBox = await noteColumns.boundingBox();
+
+    expect(beforeBox).not.toBeNull();
+    await expect(sourceFile).toHaveClass(/drag-enabled/);
+    await expect(archiveFolder).toHaveClass(/drag-enabled/);
+    await expect(projectsFolder).toHaveClass(/drag-enabled/);
+
+    const fileTargetCursor = await dragToAndReadTargetCursor(page, sourceFile, archiveFolder);
+
+    expect(fileTargetCursor).toBe("grabbing");
+    await expectSelectedFilePath(page, "Archive/Capture.md");
+    await expect(sourceFile).toHaveCount(0);
+
+    const folderTargetCursor = await dragToAndReadTargetCursor(page, archiveFolder, projectsFolder);
+
+    expect(folderTargetCursor).toBe("grabbing");
+    await expectSelectedFilePath(page, "Projects/Archive/Capture.md");
+    await expect(archiveFolder).toHaveCount(0);
+
+    const projectsColumn = page
+        .locator(".note-column")
+        .filter({ has: page.getByRole("heading", { name: "Projects", exact: true }) });
+    const archiveColumn = page
+        .locator(".note-column")
+        .filter({ has: page.getByRole("heading", { name: "Archive", exact: true }) });
+
+    await expect(projectsColumn.getByRole("button", { name: "Archive" })).toBeVisible();
+    await expect(archiveColumn.getByRole("button", { name: "Capture.md" })).toBeVisible();
+
+    const projectsHeading = projectsColumn.getByRole("heading", { name: "Projects", exact: true });
+    const columnTargetCursor = await dragToAndReadTargetCursor(
+        page,
+        archiveColumn.getByRole("button", { name: "Capture.md" }),
+        projectsHeading,
+    );
+
+    expect(columnTargetCursor).toBe("grabbing");
+    await expect(page.locator(".topbar").getByRole("heading", { name: /^Projects\/Capture\.md$/u })).toBeVisible();
+
+    const storedFile = await page.evaluate(async (name) => {
+        const root = await navigator.storage.getDirectory();
+        const directory = await root.getDirectoryHandle(name);
+        const projects = await directory.getDirectoryHandle("Projects");
+        const projectsArchive = await projects.getDirectoryHandle("Archive");
+        const movedFile = await projects.getFileHandle("Capture.md");
+        const movedText = await (await movedFile.getFile()).text();
+        let projectsArchiveFileExists = true;
+        let rootArchiveExists = true;
+
+        try {
+            await projectsArchive.getFileHandle("Capture.md");
+        } catch {
+            projectsArchiveFileExists = false;
+        }
+
+        try {
+            await directory.getDirectoryHandle("Archive");
+        } catch {
+            rootArchiveExists = false;
+        }
+
+        return {
+            movedText,
+            projectsArchiveFileExists,
+            rootArchiveExists,
+        };
+    }, vaultName);
+
+    expect(storedFile.movedText).toBe("# Capture\n\nDrag me.");
+    expect(storedFile.projectsArchiveFileExists).toBe(false);
+    expect(storedFile.rootArchiveExists).toBe(false);
+
+    const afterBox = await noteColumns.boundingBox();
+
+    expect(afterBox).not.toBeNull();
+    expect(afterBox!.width).toBe(beforeBox!.width);
+    expect(afterBox!.height).toBe(beforeBox!.height);
 });
 
 test('column new menu creates notes in the selected folder', async ({ page }) => {

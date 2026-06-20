@@ -488,6 +488,8 @@ function isOpenFolderBoardFile(path: string) {
 	return /\.(?:dhboard)\.(?:json|ya?ml)$/iu.test(path);
 }
 
+const isPathInsideDirectory = (path: string, directory: string): boolean => path.startsWith(`${directory}/`);
+
 function isNotFoundError(error: unknown) {
 	return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }

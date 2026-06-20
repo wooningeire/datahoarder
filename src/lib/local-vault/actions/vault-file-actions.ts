@@ -28,8 +28,11 @@ import {
 	readSavedVaultSearches,
 	type SavedVaultSearch
 } from '../../vault/saved-search.js';
-import { assertNoManagedPathCollision as assertNoLocalManagedPathCollision } from '../shared/path-availability.js';
+import {
+	assertNoManagedPathCollision as assertNoLocalManagedPathCollision
+} from '../shared/path-availability.js';
 import type { RequestTextOptions } from '../shared/types.js';
+import { createVaultMoveActions } from './vault-move-actions.js';
 import {
 	applyDeletedLocalFile,
 	applyMovedLocalFile,
@@ -66,6 +69,10 @@ type VaultFileActionContext = {
 export type VaultFileActions = ReturnType<typeof createVaultFileActions>;
 
 export function createVaultFileActions(context: VaultFileActionContext) {
+	const moveActions = createVaultMoveActions(context, {
+		canMutateVault,
+		reloadVaultAfterMove
+	});
 	const actions = {
 		canLeaveSelectedFile,
 		canMutateVault,
@@ -75,6 +82,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		loadServerVault,
 		loadTauriVault,
 		loadVault,
+		...moveActions,
 		openFile,
 		refreshVault,
 		renameSelectedFile,
@@ -358,6 +366,14 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		}
 	}
 
+	async function reloadVaultAfterMove(nextStatus: string, preferredPath: string) {
+		if (!context.vaultHandle) {
+			return;
+		}
+
+		context.selectedPath = preferredPath;
+		await actions.loadVault(context.vaultHandle, nextStatus, true);
+	}
 	async function deleteSelectedFile() {
 		if (!context.vaultHandle || !context.selectedFile || context.loading || !(await actions.canMutateVault())) {
 			return;

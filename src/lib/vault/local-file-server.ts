@@ -106,6 +106,16 @@ export const createServerDirectory = async (path: string) => {
     return result.path;
 };
 
+export const moveServerDirectory = async (currentPath: string, nextPath: string) => {
+    const result = await serverRequest<{ path: string }>("/api/vault/directory", {
+        body: JSON.stringify({ currentPath, nextPath }),
+        headers: { "content-type": "application/json" },
+        method: "PATCH",
+    });
+
+    return result.path;
+};
+
 export const deleteServerFile = async (path: string) => {
     await serverRequest("/api/vault/file", {
         body: JSON.stringify({ path }),

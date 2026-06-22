@@ -85,6 +85,75 @@ test('note lifecycle actions create rename and delete notes', async ({ page }) =
 	).toBeVisible();
 });
 
+test("opening an Obsidian-style vault ignores app metadata files", async ({ page }) => {
+    const vaultName = `datahoarder-e2e-obsidian-metadata-${Date.now()}`;
+
+    await page.addInitScript((name) => {
+        window.showDirectoryPicker = async () => {
+            const root = await navigator.storage.getDirectory();
+            const directory = await root.getDirectoryHandle(name, { create: true });
+            const metadata = await directory.getDirectoryHandle(".obsidian", { create: true });
+            const metadataFile = await metadata.getFileHandle("app.json", { create: true });
+            const noteFile = await directory.getFileHandle("Index.md", { create: true });
+            const metadataWritable = await metadataFile.createWritable();
+            const noteWritable = await noteFile.createWritable();
+
+            await metadataWritable.write(JSON.stringify({ promptDelete: false }));
+            await metadataWritable.close();
+            await noteWritable.write("# Index\n\nVisible note.");
+            await noteWritable.close();
+
+            return directory;
+        };
+    }, vaultName);
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Open Folder" }).click();
+
+    await expectSelectedFilePath(page, "Index.md");
+    await expect(page.locator(".note-columns").getByRole("button", { name: ".obsidian" })).toHaveCount(0);
+    await expect(page.locator(".topbar").getByRole("heading", { name: ".obsidian/app.json" })).toHaveCount(0);
+});
+
+test("refresh clears a missing open file instead of selecting the first file", async ({ page }) => {
+    const vaultName = `datahoarder-e2e-refresh-missing-selection-${Date.now()}`;
+
+    await page.addInitScript((name) => {
+        window.showDirectoryPicker = async () => {
+            const root = await navigator.storage.getDirectory();
+            const directory = await root.getDirectoryHandle(name, { create: true });
+            const index = await directory.getFileHandle("Index.md", { create: true });
+            const other = await directory.getFileHandle("Other.md", { create: true });
+            const indexWritable = await index.createWritable();
+            const otherWritable = await other.createWritable();
+
+            await indexWritable.write("# Index\n\nDelete me outside the app.");
+            await indexWritable.close();
+            await otherWritable.write("# Other\n\nDo not auto-open me.");
+            await otherWritable.close();
+
+            return directory;
+        };
+    }, vaultName);
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Open Folder" }).click();
+    await expectSelectedFilePath(page, "Index.md");
+
+    await page.evaluate(async (name) => {
+        const root = await navigator.storage.getDirectory();
+        const directory = await root.getDirectoryHandle(name);
+
+        await directory.removeEntry("Index.md");
+    }, vaultName);
+
+    await page.getByRole("button", { name: "Refresh" }).click();
+
+    await expect(
+        page.getByRole("region", { name: "Editor" }).getByRole("heading", { name: "No File Selected", exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".topbar").getByRole("heading", { name: "Other.md" })).toHaveCount(0);
+});
 test("new menu creates empty folders and notes inside them", async ({ page }) => {
 	const vaultName = `datahoarder-e2e-folder-create-${Date.now()}`;
 
@@ -220,6 +289,73 @@ test("dragging files and folders moves them between tree targets", async ({ page
     expect(afterBox!.height).toBe(beforeBox!.height);
 });
 
+test("dragging unrelated files and folders preserves the open file", async ({ page }) => {
+    const vaultName = `datahoarder-e2e-drag-preserve-focus-${Date.now()}`;
+
+    await page.addInitScript((name) => {
+        window.showDirectoryPicker = async () => {
+            const root = await navigator.storage.getDirectory();
+            const directory = await root.getDirectoryHandle(name, { create: true });
+            const archive = await directory.getDirectoryHandle("Archive", { create: true });
+            const projects = await directory.getDirectoryHandle("Projects", { create: true });
+            const index = await directory.getFileHandle("Index.md", { create: true });
+            const loose = await directory.getFileHandle("Loose.md", { create: true });
+            const other = await projects.getFileHandle("Other.md", { create: true });
+            const indexWritable = await index.createWritable();
+            const looseWritable = await loose.createWritable();
+            const otherWritable = await other.createWritable();
+
+            await archive.getDirectoryHandle("Existing", { create: true });
+            await indexWritable.write("# Index\n\nKeep me open.");
+            await indexWritable.close();
+            await looseWritable.write("# Loose\n\nMove me.");
+            await looseWritable.close();
+            await otherWritable.write("# Other\n\nMove my folder.");
+            await otherWritable.close();
+
+            return directory;
+        };
+    }, vaultName);
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Open Folder" }).click();
+    await expectSelectedFilePath(page, "Index.md");
+
+    const rootColumn = page
+        .locator(".note-column")
+        .filter({ has: page.getByRole("heading", { name: "Files", exact: true }) });
+    const looseFile = rootColumn.getByRole("button", { name: "Loose.md" });
+    const archiveFolder = rootColumn.getByRole("button", { name: "Archive" });
+    const projectsFolder = rootColumn.getByRole("button", { name: "Projects" });
+
+    await dragToAndReadTargetCursor(page, looseFile, archiveFolder);
+    await expectSelectedFilePath(page, "Index.md");
+
+    await dragToAndReadTargetCursor(page, projectsFolder, archiveFolder);
+    await expectSelectedFilePath(page, "Index.md");
+
+    const storedState = await page.evaluate(async (name) => {
+        const root = await navigator.storage.getDirectory();
+        const directory = await root.getDirectoryHandle(name);
+        const archive = await directory.getDirectoryHandle("Archive");
+        const movedLoose = await archive.getFileHandle("Loose.md");
+        const movedProjects = await archive.getDirectoryHandle("Projects");
+        const movedOther = await movedProjects.getFileHandle("Other.md");
+        const index = await directory.getFileHandle("Index.md");
+
+        return {
+            indexText: await (await index.getFile()).text(),
+            looseText: await (await movedLoose.getFile()).text(),
+            otherText: await (await movedOther.getFile()).text(),
+        };
+    }, vaultName);
+
+    expect(storedState).toEqual({
+        indexText: "# Index\n\nKeep me open.",
+        looseText: "# Loose\n\nMove me.",
+        otherText: "# Other\n\nMove my folder.",
+    });
+});
 test('column new menu creates notes in the selected folder', async ({ page }) => {
 	const vaultName = `datahoarder-e2e-column-new-${Date.now()}`;
 

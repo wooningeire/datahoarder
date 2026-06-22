@@ -1,3 +1,4 @@
+import { isIgnoredLocalDirectoryName } from "./local-directory-helpers.js";
 import { stripCompiledNoteExtension } from "./paths.js";
 
 const textExtensionPattern = /\.(base|css|csv|html|js|json|md|scss|svelte|svx|ts|txt|yaml|yml)$/iu;
@@ -33,6 +34,10 @@ export const normalizeLocalTextPath = (path: string, defaultExtension = ".md") =
 
     if (!isEditableTextFile(normalizedPath)) {
         throw new Error("Only editable text files can be managed here.");
+    }
+
+    if (normalizedPath.split("/").slice(0, -1).some(isIgnoredLocalDirectoryName)) {
+        throw new Error("This folder name is reserved by the vault index.");
     }
 
     return normalizedPath;

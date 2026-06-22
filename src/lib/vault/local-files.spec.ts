@@ -3,6 +3,7 @@ import {
     isEditableTextFile,
     normalizeLocalTextPath,
 } from "./local-files.js";
+import { isIgnoredLocalDirectoryName } from "./local-directory-helpers.js";
 
 describe("local vault file paths", () => {
     it("accepts extensionless text files without appending a suffix", () => {
@@ -17,5 +18,10 @@ describe("local vault file paths", () => {
     it("does not treat hidden dotfiles as editable text files", () => {
         expect(isEditableTextFile(".env")).toBe(false);
         expect(() => normalizeLocalTextPath(".env", "")).toThrow("Only editable text files");
+    });
+
+    it("does not manage text files inside ignored metadata folders", () => {
+        expect(isIgnoredLocalDirectoryName(".obsidian")).toBe(true);
+        expect(() => normalizeLocalTextPath(".obsidian/app.json", "")).toThrow("reserved by the vault index");
     });
 });

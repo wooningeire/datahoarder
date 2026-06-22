@@ -53,6 +53,7 @@ describe('open folder server vault', () => {
 			'Index.md': '# Index\n\nHello.',
 			'Nested/Card.svx': '# Card',
 			'README': 'Plain text project note.',
+			".obsidian/app.json": "{\"promptDelete\": false}",
 			'node_modules/ignored.md': '# Ignored',
 			'image.png': 'not text'
 		});

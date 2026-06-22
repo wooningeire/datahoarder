@@ -1,7 +1,10 @@
 import { buildLocalVaultIndex, type VaultIndex } from "../../vault/index.js";
 import { sortLocalVaultDirectories } from "../../vault/local-directory-helpers.js";
 import {
+    getLocalFileHandle,
+    getLocalRoutePath,
     sortLocalVaultFiles,
+    type LocalDirectoryHandle,
     type LocalVaultDirectory,
     type LocalVaultFile,
 } from "../../vault/local-files.js";
@@ -25,6 +28,10 @@ type VaultSnapshotMutationContext = {
 
 type CreatedFileOptions = {
     select?: boolean,
+};
+
+type MovedDirectoryContext = VaultSnapshotMutationContext & {
+    vaultHandle: LocalDirectoryHandle | null,
 };
 
 export const applyCreatedLocalFile = async (
@@ -122,6 +129,65 @@ export const applyDeletedLocalFile = async (
     context.status = status;
 };
 
+export const applyMovedLocalDirectory = async (
+    context: MovedDirectoryContext,
+    previousPath: string,
+    nextPath: string,
+    status: string,
+) => {
+    const vaultHandle = context.vaultHandle;
+
+    if (!vaultHandle) {
+        return;
+    }
+
+    const movedFiles = context.files.filter((file) => isPathInsideDirectory(file.path, previousPath));
+    const movedFilePathPairs = movedFiles.map((file) => ({
+        previousPath: file.path,
+        nextPath: rebaseMovedPath(file.path, previousPath, nextPath),
+    }));
+    const movedFilePaths = new Set(movedFiles.map((file) => normalizeLookupPath(file.path)));
+    const movedDirectoryPaths = new Set(
+        context.directories
+            .filter((directory) => directory.path === previousPath || isPathInsideDirectory(directory.path, previousPath))
+            .map((directory) => normalizeLookupPath(directory.path)),
+    );
+    const selectedMovedFile = movedFiles.find((file) => isSelectedPath(context, file.path, file.routePath));
+    const rebasedFiles = await Promise.all(
+        movedFiles.map(async (file) => {
+            const nextFilePath = rebaseMovedPath(file.path, previousPath, nextPath);
+
+            return {
+                ...file,
+                handle: await getLocalFileHandle(vaultHandle, nextFilePath),
+                path: nextFilePath,
+                routePath: getLocalRoutePath(nextFilePath),
+            };
+        }),
+    );
+    const rebasedDirectories = context.directories
+        .filter((directory) => movedDirectoryPaths.has(normalizeLookupPath(directory.path)))
+        .map((directory) => ({
+            path: rebaseMovedPath(directory.path, previousPath, nextPath),
+        }));
+
+    context.files = sortLocalVaultFiles([
+        ...context.files.filter((file) => !movedFilePaths.has(normalizeLookupPath(file.path))),
+        ...rebasedFiles,
+    ]);
+    context.directories = sortLocalVaultDirectories([
+        ...context.directories.filter((directory) => !movedDirectoryPaths.has(normalizeLookupPath(directory.path))),
+        ...rebasedDirectories,
+    ]);
+
+    if (selectedMovedFile) {
+        context.selectedPath = rebaseMovedPath(selectedMovedFile.path, previousPath, nextPath);
+    }
+
+    await rebuildVaultDerivedState(context, movedFilePathPairs.flatMap((pair) => [pair.previousPath, pair.nextPath]));
+    context.status = status;
+};
+
 const rebuildVaultDerivedState = async (
     context: VaultSnapshotMutationContext,
     changedPaths: string[],
@@ -213,6 +279,16 @@ const isSelectedPath = (
     routePath: string,
 ) => {
     return context.selectedPath === path || context.selectedPath === routePath;
+};
+
+const isPathInsideDirectory = (path: string, directoryPath: string): boolean => {
+    return path.startsWith(`${directoryPath}/`);
+};
+
+const rebaseMovedPath = (path: string, previousDirectoryPath: string, nextDirectoryPath: string): string => {
+    const rest = path.slice(previousDirectoryPath.length).replace(/^\//u, "");
+
+    return rest ? `${nextDirectoryPath}/${rest}` : nextDirectoryPath;
 };
 
 const normalizeLookupPath = (path: string) => path.toLocaleLowerCase();

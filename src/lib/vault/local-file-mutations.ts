@@ -217,7 +217,7 @@ const createLocalFileHandle = (
     throw new Error("Cannot create a file handle without a server or native vault root.");
 };
 
-const getLocalFileHandle = async (
+export const getLocalFileHandle = async (
     root: LocalDirectoryHandle,
     path: string,
 ): Promise<LocalFileHandle> => {

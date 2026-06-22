@@ -33,6 +33,7 @@ export {
 	createLocalVaultFile,
 	createLocalVaultFileSnapshot,
 	deleteLocalFile,
+	getLocalFileHandle,
 	moveLocalFile,
 	moveLocalVaultFile,
 	writeLocalFile

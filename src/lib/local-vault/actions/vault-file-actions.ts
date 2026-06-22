@@ -70,8 +70,7 @@ export type VaultFileActions = ReturnType<typeof createVaultFileActions>;
 
 export function createVaultFileActions(context: VaultFileActionContext) {
 	const moveActions = createVaultMoveActions(context, {
-		canMutateVault,
-		reloadVaultAfterMove
+		canMutateVault
 	});
 	const actions = {
 		canLeaveSelectedFile,
@@ -228,6 +227,8 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 
 		try {
 			context.loadStoredNoteLists(handle.name);
+			const shouldOpenFirstFile =
+				!context.selectedPath && !context.selectedContent && context.files.length === 0;
 
 			const [nextFiles, nextDirectories] = await Promise.all([
 				readLocalVault(handle),
@@ -238,7 +239,7 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 			context.directories = nextDirectories;
 			context.status = `Loaded ${nextFiles.length} editable files. Opening the selected file while parsing notes.`;
 
-			await actions.restoreSelectionAfterVaultLoad(nextFiles);
+			await actions.restoreSelectionAfterVaultLoad(nextFiles, context.selectedPath, shouldOpenFirstFile);
 			await tick();
 
 			const [nextVaultIndex, nextSavedVaultSearches] = await Promise.all([
@@ -259,10 +260,14 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		}
 	}
 
-	async function restoreSelectionAfterVaultLoad(nextFiles: LocalVaultFile[], preferredPath = context.selectedPath) {
+	async function restoreSelectionAfterVaultLoad(
+		nextFiles: LocalVaultFile[],
+		preferredPath = context.selectedPath,
+		fallbackToFirstFile = false
+	) {
 		const nextFile =
 			nextFiles.find((file) => file.path === preferredPath || file.routePath === preferredPath) ??
-			nextFiles[0] ??
+			(fallbackToFirstFile ? nextFiles[0] : null) ??
 			null;
 
 		if (!nextFile) {
@@ -366,14 +371,6 @@ export function createVaultFileActions(context: VaultFileActionContext) {
 		}
 	}
 
-	async function reloadVaultAfterMove(nextStatus: string, preferredPath: string) {
-		if (!context.vaultHandle) {
-			return;
-		}
-
-		context.selectedPath = preferredPath;
-		await actions.loadVault(context.vaultHandle, nextStatus, true);
-	}
 	async function deleteSelectedFile() {
 		if (!context.vaultHandle || !context.selectedFile || context.loading || !(await actions.canMutateVault())) {
 			return;

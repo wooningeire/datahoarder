@@ -1,7 +1,8 @@
+import type { VaultIndex } from "../../vault/index.js";
 import {
     isEditableTextFile,
     moveLocalDirectory,
-    moveLocalFile,
+    moveLocalVaultFile,
     normalizeLocalDirectoryPath,
     normalizeLocalTextPath,
     readLocalFile,
@@ -10,10 +11,15 @@ import {
     type LocalVaultDirectory,
     type LocalVaultFile,
 } from "../../vault/local-files.js";
+import type { SavedVaultSearch } from "../../vault/saved-search.js";
 import {
     assertNoManagedFolderPathCollision,
     assertNoManagedPathCollision as assertNoLocalManagedPathCollision,
 } from "../shared/path-availability.js";
+import {
+    applyMovedLocalDirectory,
+    applyMovedLocalFile,
+} from "./vault-snapshot-mutations.js";
 
 export type VaultMoveActionContext = {
     dirty: boolean,
@@ -22,17 +28,20 @@ export type VaultMoveActionContext = {
     files: LocalVaultFile[],
     loading: boolean,
     savedContent: string,
+    savedVaultSearches: SavedVaultSearch[],
     selectedContent: string,
     selectedFile: LocalVaultFile | null,
     selectedPath: string,
+    status: string,
     vaultHandle: LocalDirectoryHandle | null,
+    vaultIndex: VaultIndex,
     getErrorMessage: (error: unknown) => string,
+    pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void,
     replaceStoredNotePath: (previousPath: string, nextPath: string) => void,
 };
 
 type VaultMoveActionDependencies = {
     canMutateVault: () => Promise<boolean>,
-    reloadVaultAfterMove: (nextStatus: string, preferredPath: string) => Promise<void>,
 };
 
 export const createVaultMoveActions = (
@@ -77,9 +86,11 @@ export const createVaultMoveActions = (
                 }
             }
 
-            await dependencies.reloadVaultAfterMove(
+            await applyMovedLocalDirectory(
+                context,
+                currentPath,
+                movedPath,
                 `Moved ${currentPath} to ${movedPath}`,
-                selectedFileIsMoving ? rebaseMovedPath(context.selectedPath, currentPath, movedPath) : context.selectedPath,
             );
         } catch (error) {
             context.errorMessage = context.getErrorMessage(error);
@@ -109,22 +120,25 @@ export const createVaultMoveActions = (
 
             const selectedFileIsMoving = context.selectedFile?.path === currentFile.path;
             const content = selectedFileIsMoving ? context.selectedContent : await readLocalFile(currentFile);
-            const movedPath = await moveLocalFile(
+            const movedFile = await moveLocalVaultFile(
                 context.vaultHandle,
                 currentFile.path,
                 nextPath,
                 content,
             );
 
-            context.replaceStoredNotePath(currentFile.path, movedPath);
+            context.replaceStoredNotePath(currentFile.path, movedFile.path);
 
             if (selectedFileIsMoving) {
                 context.savedContent = content;
             }
 
-            await dependencies.reloadVaultAfterMove(
-                `Moved ${currentFile.path} to ${movedPath}`,
-                selectedFileIsMoving ? movedPath : context.selectedPath,
+            await applyMovedLocalFile(
+                context,
+                currentFile.path,
+                movedFile,
+                content,
+                `Moved ${currentFile.path} to ${movedFile.path}`,
             );
         } catch (error) {
             context.errorMessage = context.getErrorMessage(error);

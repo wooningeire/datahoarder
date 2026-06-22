@@ -958,10 +958,7 @@ fn collect_vault_directories(
 }
 
 fn is_ignored_directory(name: &str) -> bool {
-    matches!(
-        name,
-        ".git" | ".svelte-kit" | "build" | "dist" | "node_modules"
-    )
+    name.starts_with('.') || matches!(name, "build" | "dist" | "node_modules")
 }
 
 fn is_editable_text_file(path: &str) -> bool {
@@ -1101,6 +1098,13 @@ mod tests {
         assert!(is_editable_text_file("Notes/Capture.md"));
         assert!(!is_editable_text_file(".env"));
         assert!(!is_editable_text_file("image.png"));
+    }
+
+    #[test]
+    fn ignores_hidden_vault_metadata_directories() {
+        assert!(is_ignored_directory(".obsidian"));
+        assert!(is_ignored_directory(".git"));
+        assert!(!is_ignored_directory("Notes"));
     }
 
     struct EnvBackup {

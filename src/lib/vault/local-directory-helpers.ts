@@ -2,9 +2,11 @@ type SortableVaultDirectory = {
     path: string,
 };
 
-const ignoredLocalDirectoryNames = new Set([".git", ".svelte-kit", "build", "dist", "node_modules"]);
+const ignoredLocalDirectoryNames = new Set(["build", "dist", "node_modules"]);
 
-export const isIgnoredLocalDirectoryName = (name: string) => ignoredLocalDirectoryNames.has(name);
+export const isIgnoredLocalDirectoryName = (name: string) => {
+    return name.startsWith(".") || ignoredLocalDirectoryNames.has(name);
+};
 
 export const assertManageableLocalDirectoryPath = (path: string) => {
     if (path.split("/").some(isIgnoredLocalDirectoryName)) {

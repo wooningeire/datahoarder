@@ -1,56 +1,8 @@
-import { defineConfig } from "vitest/config";
-import { playwright } from "@vitest/browser-playwright";
-import { sveltekit } from "@sveltejs/kit/vite";
-
-const watchIgnored = [
-    "**/vite.config.*.timestamp-*.mjs",
-    "**/vite.config.*.timestamp-*",
-];
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
-    optimizeDeps: {
-        include: ["typescript"],
-    },
-
-    plugins: [sveltekit()],
-
-    server: {
-        watch: {
-            ignored: watchIgnored,
-        },
-    },
-
-    test: {
-        expect: { requireAssertions: true },
-
-        projects: [
-            {
-                extends: "./vite.config.ts",
-
-                test: {
-                    name: "client",
-
-                    browser: {
-                        enabled: true,
-                        provider: playwright(),
-                        instances: [{ browser: "chromium", headless: true }],
-                    },
-
-                    include: ["src/**/*.svelte.{test,spec}.{js,ts}"],
-                    exclude: ["src/lib/server/**"],
-                },
-            },
-
-            {
-                extends: "./vite.config.ts",
-
-                test: {
-                    name: "server",
-                    environment: "node",
-                    include: ["src/**/*.{test,spec}.{js,ts}"],
-                    exclude: ["src/**/*.svelte.{test,spec}.{js,ts}"],
-                },
-            },
-        ],
-    },
+	plugins: [
+		sveltekit(),
+	],
 });

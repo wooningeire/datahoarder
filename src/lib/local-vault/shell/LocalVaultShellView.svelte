@@ -1,5 +1,4 @@
 <script lang="ts">
-import CommandPalette from "../components/CommandPalette.svelte";
 import RequestDialog from "../components/RequestDialog.svelte";
 import Topbar from "../components/Topbar.svelte";
 import EditorPane from "../editor/EditorPane.svelte";
@@ -16,16 +15,6 @@ let { store }: Props = $props();
 
 <main class="datahoarder-shell">
     <Topbar {store} />
-
-    {#if store.commandPaletteOpen}
-        <CommandPalette
-            items={store.filteredCommandPaletteItems}
-            query={store.commandPaletteQuery}
-            close={store.interactionActions.closeCommandPalette}
-            runItem={store.interactionActions.runCommandPaletteItem}
-            setQuery={store.interactionActions.setCommandPaletteQuery}
-        />
-    {/if}
 
     {#if store.requestState.inputRequest}
         <RequestDialog

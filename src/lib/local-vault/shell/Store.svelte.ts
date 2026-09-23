@@ -23,7 +23,6 @@ import { createPublishActions } from "../actions/publish-actions.js";
 import { createVaultFileActions } from "../actions/vault-file-actions.js";
 import { getCollectionViewDefaultsKey, getCollectionViewSortColumn } from "../preview/collection-view.js";
 import type { CollectionCellEdit } from "../shared/types.js";
-import { buildCommandPaletteItems, filterCommandPaletteItems } from "./command-palette.js";
 import { createShellRequestState } from "./request-state.svelte.js";
 import {
     getCollectionRecordCreationError,
@@ -39,8 +38,6 @@ import {
     type ResolvedCollection,
 } from "./shell-collection-state.js";
 import { getErrorMessage as getShellErrorMessage } from "./shell-utils.js";
-import { createStoredNoteState } from "./stored-note-state.svelte.js";
-import { getStoredNoteRecords } from "./stored-notes.js";
 
 export type MonacoState = "fallback" | "idle" | "loading" | "ready";
 
@@ -77,10 +74,6 @@ export class LocalVaultShellStore {
             this.vaultSearchQuery = "";
         },
     });
-    storedNotes = createStoredNoteState({
-        getVaultHandle: () => this.vaultHandle,
-        getVaultIndex: () => this.vaultIndex,
-    });
 
     selectedFile = $derived(
         this.files.find((file) => file.path === this.selectedPath) ??
@@ -100,12 +93,6 @@ export class LocalVaultShellStore {
     );
     selectedBacklinks = $derived(
         this.selectedRecord ? getVaultBacklinks(this.vaultIndex, this.selectedRecord) : [],
-    );
-    recentNotes = $derived(
-        getStoredNoteRecords(
-            this.storedNotes.recentNotePaths.filter((path) => path !== this.selectedFile?.path),
-            this.vaultIndex.recordsByPath,
-        ),
     );
     baseViews = $derived(this.selectedFile?.extension === ".base" ? getBaseViews(this.selectedContent) : []);
     selectedCollection = $derived<ResolvedCollection | null>(
@@ -151,10 +138,6 @@ export class LocalVaultShellStore {
     collectionSummaries = $derived(getCollectionSummariesForView(this.selectedCollection, this.collectionRecords));
 
     getErrorMessage = getShellErrorMessage;
-    loadStoredNoteLists = this.storedNotes.loadStoredNoteLists;
-    pruneStoredNoteLists = this.storedNotes.pruneStoredNoteLists;
-    recordRecentNote = this.storedNotes.recordRecentNote;
-    replaceStoredNotePath = this.storedNotes.replaceStoredNotePath;
     requestInlineFileCreate = this.requestState.requestInlineFileCreate;
     requestForm = this.requestState.requestForm;
     requestText = this.requestState.requestText;
@@ -173,37 +156,6 @@ export class LocalVaultShellStore {
     toggleDirectoryPanel = (): void => {
         this.directoryPanelOpen = !this.directoryPanelOpen;
     };
-
-    commandPaletteItems = $derived.by(() =>
-        buildCommandPaletteItems({
-            collectionRecordsCount: this.collectionRecords.length,
-            dirty: this.dirty,
-            hasVault: Boolean(this.vaultHandle),
-            loading: this.loading,
-            savedVaultSearches: this.savedVaultSearches,
-            selectedCollection: this.selectedCollection,
-            selectedFile: this.selectedFile,
-            supported: this.supported,
-            templateFilesCount: this.templateFiles.length,
-            vaultRecords: this.vaultIndex.records,
-            addFieldToSelectedCollection: this.noteActions.addFieldToSelectedCollection,
-            applySavedVaultSearch: this.interactionActions.applySavedVaultSearch,
-            chooseFolder: this.vaultActions.chooseFolder,
-            createCollectionRecord: this.noteActions.createCollectionRecord,
-            createDrawingNote: this.noteActions.createDrawingNote,
-            createFolder: this.noteActions.createFolder,
-            createNote: this.noteActions.createNote,
-            createNoteFromTemplate: this.noteActions.createNoteFromTemplate,
-            downloadCollectionExport: this.publishActions.downloadCollectionExport,
-            refreshVault: this.vaultActions.refreshVault,
-            reopenStoredFolder: this.vaultActions.reopenStoredFolder,
-            saveSelectedFile: this.vaultActions.saveSelectedFile,
-            selectFile: this.vaultActions.selectFile,
-        }),
-    );
-    filteredCommandPaletteItems = $derived.by(() =>
-        filterCommandPaletteItems(this.commandPaletteItems, this.commandPaletteQuery),
-    );
 
     initializeVaultAccess = async (): Promise<void> => {
         const serverVaultSupported = await canUseServerVault();

@@ -41,7 +41,6 @@ type CollectionActionContext = {
 	vaultIndex: VaultIndex;
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
-	pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void;
 	selectFile: (filePath: string) => Promise<void>;
 };
 

@@ -1,6 +1,5 @@
 <script lang="ts">
 import NoteTree from '../../note-ui/NoteTree.svelte';
-import QuickNotes from './QuickNotes.svelte';
 import SidebarSummary from './SidebarSummary.svelte';
 import VaultSearchPanel from './VaultSearchPanel.svelte';
 import VaultSearchResults from './VaultSearchResults.svelte';
@@ -60,14 +59,6 @@ let { store }: Props = $props();
 				<p class="empty-state">No editable text files are indexed yet.</p>
 			{/if}
 		</div>
-
-		{#if !store.searchingVault}
-			<QuickNotes
-				recentNotes={store.recentNotes}
-				selectedPath={store.selectedPath}
-				openStoredNoteRecord={store.interactionActions.openStoredNoteRecord}
-			/>
-		{/if}
 	</div>
 </aside>
 

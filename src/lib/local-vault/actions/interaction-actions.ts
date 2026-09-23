@@ -40,7 +40,6 @@ type InteractionActionContext = {
 	vaultSearchQuery: string;
 	canMutateVault: () => Promise<boolean>;
 	getErrorMessage: (error: unknown) => string;
-	pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void;
 	requestText: (options: RequestTextOptions) => Promise<string | null>;
 	selectFile: (filePath: string) => Promise<void>;
 };
@@ -58,16 +57,11 @@ export function createInteractionActions(context: InteractionActionContext) {
 		openBacklink,
 		openCommandPalette,
 		openSearchResult,
-		openStoredNoteRecord,
 		runCommandPaletteItem,
 		saveCurrentVaultSearch,
 		setCommandPaletteQuery,
 		setVaultSearchQuery
 	};
-
-	function openStoredNoteRecord(record: { routePath: string }) {
-		void context.selectFile(record.routePath);
-	}
 
 	function openBacklink(backlink: { record: { routePath: string } }) {
 		void context.selectFile(backlink.record.routePath);

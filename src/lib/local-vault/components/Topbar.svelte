@@ -43,14 +43,6 @@ let openFileParts = $derived(getOpenFileParts(openFilePath));
         >
             {store.directoryPanelOpen ? "Hide Files" : "Show Files"}
         </button>
-        <button
-            type="button"
-            class="command-button"
-            onclick={() => store.interactionActions.openCommandPalette()}
-            aria-keyshortcuts="Control+K Meta+K"
-        >
-            Command
-        </button>
         <button type="button" onclick={store.vaultActions.chooseFolder} disabled={!store.supported || store.loading}>
             Open Folder
         </button>

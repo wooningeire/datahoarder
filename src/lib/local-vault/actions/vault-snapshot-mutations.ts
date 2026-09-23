@@ -23,7 +23,6 @@ type VaultSnapshotMutationContext = {
     selectedPath: string,
     status: string,
     vaultIndex: VaultIndex,
-    pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void,
 };
 
 type CreatedFileOptions = {
@@ -199,7 +198,6 @@ const rebuildVaultDerivedState = async (
 
     context.vaultIndex = nextVaultIndex;
     context.savedVaultSearches = await readSavedVaultSearches(context.files);
-    context.pruneStoredNoteLists(nextVaultIndex);
 };
 
 const selectLocalFile = (

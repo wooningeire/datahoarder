@@ -36,8 +36,6 @@ export type VaultMoveActionContext = {
     vaultHandle: LocalDirectoryHandle | null,
     vaultIndex: VaultIndex,
     getErrorMessage: (error: unknown) => string,
-    pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void,
-    replaceStoredNotePath: (previousPath: string, nextPath: string) => void,
 };
 
 type VaultMoveActionDependencies = {
@@ -80,12 +78,6 @@ export const createVaultMoveActions = (
 
             const movedPath = await moveLocalDirectory(context.vaultHandle, currentPath, nextPath);
 
-            for (const file of context.files) {
-                if (isPathInsideDirectory(file.path, currentPath)) {
-                    context.replaceStoredNotePath(file.path, rebaseMovedPath(file.path, currentPath, movedPath));
-                }
-            }
-
             await applyMovedLocalDirectory(
                 context,
                 currentPath,
@@ -126,8 +118,6 @@ export const createVaultMoveActions = (
                 nextPath,
                 content,
             );
-
-            context.replaceStoredNotePath(currentFile.path, movedFile.path);
 
             if (selectedFileIsMoving) {
                 context.savedContent = content;

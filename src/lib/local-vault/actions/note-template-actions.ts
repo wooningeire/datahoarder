@@ -41,7 +41,6 @@ type NoteTemplateActionContext = {
     canLeaveSelectedFile: () => Promise<boolean>,
     canMutateVault: () => Promise<boolean>,
     getErrorMessage: (error: unknown) => string,
-    pruneStoredNoteLists: (nextVaultIndex?: VaultIndex) => void,
     requestInlineFileCreate: (request: InlineFileCreateRequest) => Promise<string | null>,
     requestForm: (config: RequestDialogConfig) => Promise<RequestDialogValues | null>,
 };
